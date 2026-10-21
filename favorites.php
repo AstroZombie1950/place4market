@@ -7,6 +7,7 @@ require __DIR__ . '/source/inc/bootstrap.php';
 $saved = array_values(array_filter(array_map('find_listing', $favorites), fn($l) => $l && $l['status'] === 'active'));
 
 $page['title'] = t('fav.title');
+$page['robots'] = 'noindex, follow';
 $page['nav'] = 'favorites';
 
 require INC_DIR . '/header.php';
@@ -25,6 +26,7 @@ require INC_DIR . '/header.php';
 
 		<!-- Saved listings -->
 		<div class="tabs__panel" role="tabpanel" id="panel-listings" aria-labelledby="tab-listings" tabindex="0">
+			<h2 class="visually-hidden"><?= e(t('fav.listings')) ?></h2>
 			<div class="cards"<?= $saved ? '' : ' hidden' ?>>
 				<?php $cardRemoveOnUnsave = true; ?>
 				<?php foreach ($saved as $listing): ?>
@@ -43,6 +45,7 @@ require INC_DIR . '/header.php';
 
 		<!-- Saved searches -->
 		<div class="tabs__panel" role="tabpanel" id="panel-searches" aria-labelledby="tab-searches" tabindex="0" hidden>
+			<h2 class="visually-hidden"><?= e(t('fav.searches')) ?></h2>
 			<ul class="saved-list">
 				<?php foreach ($savedSearches as $search): $rowId = 'search-' . $search['id']; $label = tc($search['label']); ?>
 				<li class="saved-search" id="<?= e($rowId) ?>">

@@ -1,0 +1,7 @@
+# Пока идёт разработка, сайт закрыт заголовком X-Robots-Tag в .htaccess (не здесь),
+# иначе роботы не увидят noindex
+
+User-agent: *
+Disallow: /admin/
+
+Sitemap: https://place4market.com/sitemap.xml

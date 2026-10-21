@@ -865,14 +865,27 @@ button {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.grid--main-side {
-	grid-template-columns: minmax(0, 1fr) 340px;
-	align-items: start;
+/* Main + side: the side column drops below by itself when the content area
+   is narrow (1024–1200px desktop with the sidebar, phones), no breakpoint needed */
+.grid--main-side,
+.grid--tree-form {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
 }
 
-.grid--tree-form {
-	grid-template-columns: minmax(0, 1fr) 440px;
-	align-items: start;
+.grid--main-side > :first-child,
+.grid--tree-form > :first-child {
+	flex: 999 1 480px;
+	min-width: 0;
+}
+
+.grid--main-side > :last-child {
+	flex: 1 1 340px;
+}
+
+.grid--tree-form > :last-child {
+	flex: 1 1 440px;
 }
 
 .stack {
@@ -1067,6 +1080,7 @@ button {
 
 /* ---------- Tables ---------- */
 .table-wrap {
+	position: relative; /* contains absolutely positioned checkboxes, otherwise they widen the page */
 	overflow-x: auto;
 	-webkit-overflow-scrolling: touch;
 }
@@ -1826,8 +1840,9 @@ a.list__title:hover {
 	Responsive
 	========================================================================== */
 
-/* Tablet & phones: off-canvas sidebar */
-@media (max-width: 1024px) {
+/* Two layouts only: desktop ≥1024 (base styles) and mobile ≤1023
+   (off-canvas sidebar, one-column grids). Tablet and laptop tuning on request. */
+@media (max-width: 1023px) {
 	.sidebar {
 		position: fixed;
 		inset: 0 auto 0 0;
@@ -1854,37 +1869,19 @@ a.list__title:hover {
 	.content {
 		padding: var(--space-5) var(--space-4) var(--space-10);
 	}
-}
-
-@media (max-width: 1200px) {
-	.grid--main-side,
-	.grid--tree-form {
-		grid-template-columns: minmax(0, 1fr);
-	}
-
-	.sticky-side {
-		position: static;
-	}
 
 	.stats {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
-}
 
-@media (max-width: 900px) {
 	.grid--2 {
 		grid-template-columns: minmax(0, 1fr);
 	}
-}
 
-@media (max-width: 768px) {
 	.form-grid {
 		grid-template-columns: minmax(0, 1fr);
 	}
-}
 
-/* Phones */
-@media (max-width: 640px) {
 	.topbar__search,
 	.topbar__label,
 	.topbar__user-name {

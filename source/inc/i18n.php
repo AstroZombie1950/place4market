@@ -4,7 +4,7 @@
 	Languages: en (default), sr-latn (Serbian Latin), sr-cyrl (Serbian Cyrillic)
 	Current language: ?lang=… → cookie → default.
 	All links go through url(), so switching to SEO paths later (/sr/…)
-	means changing url() and lang_url() only.
+	means changing lang_link() and lang_url() only.
 	========================================================================== */
 
 const DEFAULT_LANG = 'en';
@@ -114,32 +114,32 @@ function brace_keys(array $params): array
 // Internal link with the current language: url('listing.php', ['id' => 5])
 function url(string $path, array $params = []): string
 {
-	if (lang() !== DEFAULT_LANG) {
-		$params['lang'] = lang();
+	return lang_link(lang(), $path, $params);
+}
+
+// Internal link in a given language; the home page is always "./", never "index.php"
+function lang_link(string $code, string $path, array $params = []): string
+{
+	unset($params['lang']);
+
+	if ($code !== DEFAULT_LANG) {
+		$params['lang'] = $code;
 	}
 
 	$params = array_filter($params, fn($v) => $v !== null && $v !== '' && $v !== false);
 
-	return $path . ($params ? '?' . http_build_query($params) : '');
+	return ($path === 'index.php' ? './' : $path) . ($params ? '?' . http_build_query($params) : '');
 }
 
-// Same page in another language (keeps the query string)
-function lang_url(string $code, bool $absolute = false): string
+// Same page in another language for the switcher (keeps the query string).
+// Always carries ?lang=, even for the default language, so the cookie gets updated.
+function lang_url(string $code): string
 {
 	$params = $_GET;
 	$params['lang'] = $code;
 	$path = basename($_SERVER['SCRIPT_NAME'] ?? 'index.php');
-	$link = $path . '?' . http_build_query($params);
 
-	if (!$absolute) {
-		return $link;
-	}
-
-	$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-	$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-	$dir = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/\\');
-
-	return $scheme . '://' . $host . $dir . '/' . $link;
+	return ($path === 'index.php' ? './' : $path) . '?' . http_build_query($params);
 }
 
 // Hidden input to keep the language in GET forms

@@ -8,6 +8,16 @@ return [
 	// Meta
 	'meta.title' => 'Place4Market — classifieds in Serbia',
 	'meta.description' => 'Buy and sell cars, apartments, electronics and more across Serbia. Post an ad for free.',
+	'meta.h1_home' => 'Classifieds in Serbia: cars, apartments, electronics and more',
+	'meta.category' => '{name}: listings across Serbia. Browse offers or post your ad for free on Place4Market.',
+	'meta.all_listings' => 'All listings across Serbia: cars, real estate, electronics and more. Free classifieds on Place4Market.',
+	'meta.page' => 'page {n}',
+
+	// 404
+	'404.title' => 'Page not found',
+	'404.text' => 'The page may have been removed, or the link is wrong.',
+	'404.home' => 'Go to the home page',
+	'404.browse' => 'Browse all listings',
 	'a11y.skip' => 'Skip to content',
 
 	// Navigation

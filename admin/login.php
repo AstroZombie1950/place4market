@@ -11,6 +11,8 @@ require __DIR__ . '/../source/inc/admin/bootstrap.php';
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="robots" content="noindex, nofollow">
 	<title>Sign in — Place4Market Admin</title>
+	<link rel="icon" href="../favicon.ico" sizes="32x32">
+	<link rel="icon" href="<?= ASSETS_URL ?>/img/icons/favicon.svg" type="image/svg+xml">
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,700;1,700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">

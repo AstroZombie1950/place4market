@@ -10,6 +10,7 @@ $activeId = $requested ?? ($conversations[0]['id'] ?? null);
 $quickReplies = [t('m.quick_1'), t('m.quick_2'), t('m.quick_3')];
 
 $page['title'] = t('m.title');
+$page['robots'] = 'noindex, follow';
 $page['nav'] = 'messages';
 $page['search'] = false;
 

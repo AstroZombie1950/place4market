@@ -6,6 +6,7 @@ require __DIR__ . '/source/inc/bootstrap.php';
 
 $page['nav'] = 'home';
 $page['body_class'] = 'body--home';
+$page['schema'][] = schema_site();
 
 // 12 newest listings: 4 rows on desktop, 6 on phones
 $recent = array_slice(search_listings([]), 0, 12);
@@ -14,6 +15,8 @@ require INC_DIR . '/header.php';
 ?>
 
 <div class="container page">
+	<h1 class="visually-hidden"><?= e(t('meta.h1_home')) ?></h1>
+
 	<div class="layout">
 		<!-- Sidebar: categories, cities, sell box -->
 		<aside class="layout__side layout__side--home">
@@ -52,7 +55,7 @@ require INC_DIR . '/header.php';
 		<!-- Recent listings -->
 		<section class="layout__main" aria-labelledby="recent-title">
 			<div class="section-head">
-				<h1 class="section-title" id="recent-title"><?= e(t('home.recent')) ?></h1>
+				<h2 class="section-title" id="recent-title"><?= e(t('home.recent')) ?></h2>
 				<a class="link-underline" href="<?= e(url('category.php')) ?>"><?= e(t('common.see_all')) ?></a>
 			</div>
 

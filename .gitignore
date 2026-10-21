@@ -1,3 +1,8 @@
+# Документация и заметки (только локально, в репозиторий не идут)
+/doc/
+/CLAUDE.md
+/CLAUDE.local.md
+
 # Рабочие и временные папки
 /temp/
 /tmp/
@@ -36,7 +41,8 @@
 .fseventsd
 .TemporaryItems
 .DocumentRevisions-V100
-Icon?
+# Icon must end with two \r (macOS folder icon file "Icon\r")
+Icon
 
 # Windows
 Thumbs.db

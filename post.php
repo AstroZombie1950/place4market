@@ -13,6 +13,7 @@ foreach ($categories as $category) {
 }
 
 $page['title'] = t('post.title');
+$page['robots'] = 'noindex, follow';
 $page['nav'] = 'post';
 $page['search'] = false;
 

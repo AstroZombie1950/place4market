@@ -133,8 +133,10 @@
 	--focus-color: #2A2420;
 	--focus-ring: 0 0 0 3px rgba(181, 83, 47, 0.25);
 
-	/* Layout: site */
-	--container: 1280px;
+	/* Layout: site
+	   Breakpoints (CSS can't use variables in @media, keep these in sync):
+	   desktop ≥1440 · laptop ≤1439px · tablet ≤1023px · phone ≤767px */
+	--container: 1440px;
 	--gutter: 32px;
 	--bottom-nav-h: 68px;
 
@@ -161,7 +163,13 @@
 	--z-toast: 300;
 }
 
-/* Tighter gutter on phones */
+/* Tighter gutter on tablets and phones */
+@media (max-width: 1023px) {
+	:root {
+		--gutter: 24px;
+	}
+}
+
 @media (max-width: 767px) {
 	:root {
 		--gutter: 16px;

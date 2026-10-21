@@ -8,6 +8,7 @@ require __DIR__ . '/source/inc/bootstrap.php';
 $openRegister = ($_GET['tab'] ?? '') === 'register';
 
 $page['title'] = t('auth.title');
+$page['robots'] = 'noindex, follow';
 $page['search'] = false;
 
 require INC_DIR . '/header.php';

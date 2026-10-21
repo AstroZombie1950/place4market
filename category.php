@@ -23,6 +23,12 @@ $f = [
 [$parentCat, $childCat] = find_category($f['cat']);
 $currentCat = $childCat ?? $parentCat;
 
+// Unknown category → 404
+if ($f['cat'] !== '' && !$currentCat) {
+	require ROOT_DIR . '/404.php';
+	exit;
+}
+
 // Results + pagination
 $results = search_listings($f);
 $perPage = 12;
@@ -79,28 +85,38 @@ if ($f['photos']) {
 	$chips[] = ['label' => t('cat.only_photos'), 'href' => $linkWith(['photos' => false])];
 }
 
-$page['title'] = $title;
+// Breadcrumbs
+$crumbs = [['label' => t('common.home'), 'href' => url('index.php')]];
+if ($parentCat) {
+	$crumbs[] = ['label' => cat_name($parentCat), 'href' => $childCat ? url('category.php', ['cat' => $parentCat['slug']]) : null];
+}
+if ($childCat) {
+	$crumbs[] = ['label' => cat_name($childCat)];
+}
+if (!$parentCat) {
+	$crumbs[] = ['label' => t('cat.all_listings')];
+}
+
+// SEO: clean category pages (with pagination) are indexed; search, filters and sorting are not
+$isFiltered = $f['q'] !== '' || $f['city'] !== '' || $f['price_from'] !== '' || $f['price_to'] !== ''
+	|| $f['condition'] !== '' || $f['negotiable'] || $f['photos'] || $f['sort'] !== 'new';
+
+$page['title'] = $title . ($pageNum > 1 ? ' · ' . t('meta.page', ['n' => $pageNum]) : '');
+$page['description'] = $currentCat ? t('meta.category', ['name' => cat_name($currentCat)]) : t('meta.all_listings');
 $page['nav'] = 'home';
+$page['canonical'] = ['category.php', ['cat' => $currentCat['slug'] ?? null, 'page' => $pageNum > 1 ? $pageNum : null]];
+$page['robots'] = $isFiltered ? 'noindex, follow' : 'index, follow';
+$page['schema'][] = schema_breadcrumbs($crumbs);
+if ($pageItems) {
+	$page['schema'][] = schema_item_list($pageItems);
+}
 
 require INC_DIR . '/header.php';
 ?>
 
 <div class="container page">
 	<!-- Breadcrumbs -->
-	<nav class="breadcrumbs" aria-label="<?= e(t('common.breadcrumbs')) ?>">
-		<ol>
-			<li><a href="<?= e(url('index.php')) ?>"><?= e(t('common.home')) ?></a></li>
-			<?php if ($parentCat): ?>
-			<li><?php if ($childCat): ?><a href="<?= e(url('category.php', ['cat' => $parentCat['slug']])) ?>"><?= e(cat_name($parentCat)) ?></a><?php else: ?><span aria-current="page"><?= e(cat_name($parentCat)) ?></span><?php endif; ?></li>
-			<?php endif; ?>
-			<?php if ($childCat): ?>
-			<li><span aria-current="page"><?= e(cat_name($childCat)) ?></span></li>
-			<?php endif; ?>
-			<?php if (!$parentCat): ?>
-			<li><span aria-current="page"><?= e(t('cat.all_listings')) ?></span></li>
-			<?php endif; ?>
-		</ol>
-	</nav>
+	<?= breadcrumbs($crumbs) ?>
 
 	<div class="page-head">
 		<div>

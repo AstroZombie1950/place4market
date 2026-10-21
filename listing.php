@@ -5,7 +5,14 @@
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
 
-$listing = find_listing((int) ($_GET['id'] ?? 0)) ?? find_listing(1047);
+$listing = find_listing((int) ($_GET['id'] ?? 0));
+
+// Unknown listing → 404
+if (!$listing) {
+	require ROOT_DIR . '/404.php';
+	exit;
+}
+
 $seller = user($listing['user_id']);
 [$parentCat, $childCat] = find_category($listing['category']);
 $title = listing_title($listing);
@@ -34,26 +41,34 @@ foreach ($conversations as $conversation) {
 }
 $messageUrl = url('messages.php', ['c' => $chatId]);
 
+// Breadcrumbs
+$crumbs = [
+	['label' => t('common.home'), 'href' => url('index.php')],
+	['label' => cat_name($parentCat), 'href' => url('category.php', ['cat' => $parentCat['slug']])],
+];
+if ($childCat) {
+	$crumbs[] = ['label' => cat_name($childCat), 'href' => url('category.php', ['cat' => $childCat['slug']])];
+}
+$crumbs[] = ['label' => $title];
+
 $page['title'] = $title;
-$page['description'] = mb_substr(tc($listing['description']), 0, 155);
+$page['description'] = mb_substr(preg_replace('/\s+/u', ' ', tc($listing['description'])), 0, 155);
 $page['nav'] = 'home';
 $page['body_class'] = 'body--listing';
+$page['canonical'] = ['listing.php', ['id' => $listing['id']]];
+$page['og_type'] = 'product';
+if ($listing['price'] !== null) {
+	$page['og'] = ['product:price:amount' => (string) $listing['price'], 'product:price:currency' => $listing['currency']];
+}
+$page['schema'][] = schema_breadcrumbs($crumbs);
+$page['schema'][] = schema_listing($listing, $seller, $childCat ?? $parentCat);
 
 require INC_DIR . '/header.php';
 ?>
 
 <div class="container page">
 	<!-- Breadcrumbs -->
-	<nav class="breadcrumbs" aria-label="<?= e(t('common.breadcrumbs')) ?>">
-		<ol>
-			<li><a href="<?= e(url('index.php')) ?>"><?= e(t('common.home')) ?></a></li>
-			<li><a href="<?= e(url('category.php', ['cat' => $parentCat['slug']])) ?>"><?= e(cat_name($parentCat)) ?></a></li>
-			<?php if ($childCat): ?>
-			<li><a href="<?= e(url('category.php', ['cat' => $childCat['slug']])) ?>"><?= e(cat_name($childCat)) ?></a></li>
-			<?php endif; ?>
-			<li><span aria-current="page"><?= e($title) ?></span></li>
-		</ol>
-	</nav>
+	<?= breadcrumbs($crumbs) ?>
 
 	<div class="listing">
 		<!-- Gallery -->

@@ -15,6 +15,7 @@ $counts = [
 $statusKeys = ['active' => 'p.status_active', 'pending' => 'p.status_pending', 'expired' => 'p.status_expired'];
 
 $page['title'] = t('p.title');
+$page['robots'] = 'noindex, follow';
 $page['nav'] = 'profile';
 $page['search'] = false;
 

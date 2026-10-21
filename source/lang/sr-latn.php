@@ -9,6 +9,16 @@ return [
 	// Meta
 	'meta.title' => 'Place4Market — mali oglasi u Srbiji',
 	'meta.description' => 'Kupujte i prodajte automobile, stanove, elektroniku i još mnogo toga širom Srbije. Postavite oglas besplatno.',
+	'meta.h1_home' => 'Oglasi u Srbiji: automobili, stanovi, elektronika i još mnogo toga',
+	'meta.category' => '{name}: oglasi širom Srbije. Pregledajte ponude ili besplatno postavite oglas na Place4Market.',
+	'meta.all_listings' => 'Svi oglasi širom Srbije: automobili, nekretnine, elektronika i još mnogo toga. Besplatni oglasi na Place4Market.',
+	'meta.page' => 'strana {n}',
+
+	// 404
+	'404.title' => 'Stranica nije pronađena',
+	'404.text' => 'Stranica je možda uklonjena ili je link pogrešan.',
+	'404.home' => 'Na početnu stranu',
+	'404.browse' => 'Pogledajte sve oglase',
 	'a11y.skip' => 'Pređi na sadržaj',
 
 	// Navigation

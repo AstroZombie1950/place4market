@@ -1109,14 +1109,23 @@ button {
 /* ==========================================================================
 	12. Listing cards
 	========================================================================== */
+/* Columns per device are set with --cards-cols / --cards-min (see Responsive) */
 .cards {
+	--cards-cols: 5;
+	--cards-min: 0px;
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+	grid-template-columns: repeat(var(--cards-cols), minmax(var(--cards-min), 1fr));
 	gap: var(--space-5);
 }
 
+/* Next to a sidebar (home, results) */
+.layout__main .cards {
+	--cards-cols: 4;
+}
+
+/* Similar listings: always one row of four */
 .cards--4 {
-	grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+	--cards-cols: 4;
 }
 
 .card {
@@ -2819,10 +2828,102 @@ button {
 
 /* ==========================================================================
 	24. Responsive
+	Desktop-first, four devices (values also in variables.css and CLAUDE.md):
+	desktop ≥1440 (base styles) · laptop ≤1439 · tablet ≤1023 · phone ≤767.
+	Phone styles are drawn for 360px and must hold down to 320px.
 	========================================================================== */
 
-/* Tablet: filters become a drawer, listing and post pages stack */
-@media (max-width: 1024px) {
+/* Laptop: the range is wide (1024–1439), so cards fill by minimum width
+   (3 columns at 1024, 4 from ~1280 next to a sidebar), side columns get narrower */
+@media (max-width: 1439px) {
+	.cards,
+	.layout__main .cards {
+		--cards-cols: auto-fill;
+		--cards-min: 210px;
+	}
+
+	.cards--4 {
+		--cards-cols: 4;
+		--cards-min: 0px;
+	}
+
+	.listing {
+		grid-template-columns: minmax(0, 1fr) 340px;
+		column-gap: var(--space-6);
+	}
+
+	.post {
+		grid-template-columns: minmax(0, 1fr) 300px;
+		gap: var(--space-6);
+	}
+
+	.chat {
+		grid-template-columns: 300px minmax(0, 1fr);
+	}
+}
+
+/* Tablet: filters become a drawer, listing and post pages stack,
+   home categories become tiles, header links show icons only */
+@media (max-width: 1023px) {
+	.cards,
+	.layout__main .cards {
+		--cards-cols: 3;
+		--cards-min: 0px;
+	}
+
+	.cards--4 {
+		--cards-cols: 2;
+	}
+
+	/* Header: icons only, so logo, languages, links and the CTA fit one row */
+	.account-nav__link {
+		padding: 0 10px;
+	}
+
+	.account-nav__link > span:not(.count-badge) {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
+	/* Home: categories as a grid of tiles, no sell box (the header has the CTA) */
+	.cat-list {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: var(--space-2);
+		border-top: 0;
+	}
+
+	.cat-list__link {
+		flex-direction: column;
+		justify-content: center;
+		gap: 6px;
+		min-height: 92px;
+		padding: 10px 4px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius);
+		background: var(--color-surface);
+		font-size: var(--fs-sm);
+		line-height: 1.25;
+		text-align: center;
+	}
+
+	.cat-list__name {
+		flex: 0 0 auto;
+	}
+
+	.cat-list__count,
+	.cat-list__chevron {
+		display: none;
+	}
+
+	.sell-box {
+		display: none;
+	}
+
 	.filters-toggle {
 		display: inline-flex;
 	}
@@ -2906,6 +3007,17 @@ button {
 		display: none;
 	}
 
+	/* Live preview as a horizontal card, so the form stays on the first screen */
+	.preview .card {
+		flex-direction: row;
+	}
+
+	.preview .card__media {
+		flex: 0 0 240px;
+		border-bottom: 0;
+		border-right: 1px solid var(--color-border);
+	}
+
 	.chat {
 		grid-template-columns: 280px minmax(0, 1fr);
 	}
@@ -2925,10 +3037,12 @@ button {
 
 	.site-header__top {
 		flex-wrap: nowrap;
+		column-gap: var(--space-3);
 	}
 
+	/* 24px from 360px up, down to 18px at 320px */
 	.logo {
-		font-size: 24px;
+		font-size: clamp(18px, calc(15vw - 30px), 24px);
 	}
 
 	.account-nav,
@@ -3080,9 +3194,7 @@ button {
 
 	.cat-list {
 		display: flex;
-		gap: var(--space-2);
 		padding: 0 var(--gutter) 4px;
-		border-top: 0;
 		overflow-x: auto;
 		scrollbar-width: none;
 	}
@@ -3096,38 +3208,11 @@ button {
 		flex: 0 0 92px;
 	}
 
-	.cat-list__link {
-		flex-direction: column;
-		justify-content: center;
-		gap: 6px;
-		min-height: 92px;
-		padding: 10px 4px;
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius);
-		background: var(--color-surface);
-		font-size: var(--fs-sm);
-		line-height: 1.25;
-		text-align: center;
-	}
-
-	.cat-list__name {
-		flex: 0 0 auto;
-	}
-
-	.cat-list__count,
-	.cat-list__chevron {
-		display: none;
-	}
-
 	.chips--scroll {
 		flex-wrap: nowrap;
 		padding: 0 var(--gutter) 4px;
 		overflow-x: auto;
 		scrollbar-width: none;
-	}
-
-	.sell-box {
-		display: none;
 	}
 
 	.layout__side--home .side-title--cities {
@@ -3136,8 +3221,9 @@ button {
 
 	/* Cards: two columns */
 	.cards,
+	.layout__main .cards,
 	.cards--4 {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
+		--cards-cols: 2;
 		gap: 10px;
 	}
 
@@ -3168,7 +3254,8 @@ button {
 		font-size: 13px;
 	}
 
-	.cards--list .card__media {
+	.cards--list .card__media,
+	.preview .card__media {
 		flex-basis: 128px;
 	}
 
