@@ -1,2 +1,66 @@
-/.DS_Store
-/temp
+# Рабочие и временные папки
+/temp/
+/tmp/
+/cache/
+/logs/
+*.log
+
+# Загрузки пользователей (появятся с бэкендом)
+/uploads/
+
+# Окружение и секреты
+.env
+.env.*
+!.env.example
+/config/local.php
+
+# Зависимости
+/vendor/
+/node_modules/
+
+# Архивы и дампы
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.sql
+*.sql.gz
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+.DocumentRevisions-V100
+Icon?
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Редакторы и IDE
+.idea/
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+*.sublime-project
+*.sublime-workspace
+.fleet/
+*.swp
+*.swo
+*~
+.history/
+
+# Claude Code: локальные настройки
+.claude/settings.local.json
+
+# PHP-инструменты
+.phpunit.result.cache
+.php-cs-fixer.cache
+.phpcs-cache

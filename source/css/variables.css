@@ -1,0 +1,169 @@
+/* ==========================================================================
+	Place4Market — design tokens (option C: local & warm)
+	Shared by the site and the admin. Change values here, not in components.
+	========================================================================== */
+
+:root {
+	/* Brand: terracotta accent */
+	--color-accent: #B5532F;
+	--color-accent-hover: #8E3F22;
+	--color-accent-ink: #94432A;          /* accent for text on light backgrounds (AA) */
+	--color-accent-soft: #F6E4DA;
+	--color-on-accent: #FFFFFF;
+	--color-link: var(--color-accent-ink);
+
+	/* Secondary earth colors: olive and sea blue */
+	--color-olive: #4A5429;
+	--color-olive-soft: #E7EADB;
+	--color-on-olive: #F7F3EC;
+	--color-sea: #1F4257;
+	--color-sea-ink: #2D5F7A;
+	--color-sea-soft: #E1EAEF;
+	--color-on-sea: #F2EDE4;
+	--color-on-sea-muted: #C9D6DE;
+
+	/* Paper & neutrals */
+	--color-bg: #F7F3EC;
+	--color-header-bg: #FBF8F2;
+	--color-surface: #FFFDF8;
+	--color-surface-alt: #FBF8F2;
+	--color-hover: #F1EBE0;
+	--color-border: #E3DACB;
+	--color-border-strong: #CFC3B1;
+	--color-rule: #D2C5B1;                /* double rule under the header */
+	--color-dash: #D9CDBA;                /* dashed separators in cards */
+	--color-text: #2A2420;
+	--color-text-muted: #6B6058;
+	--color-text-subtle: #766A60;
+
+	/* Status colors (text on soft background passes WCAG AA) */
+	--color-success: #3D6B2C;
+	--color-success-hover: #2F5422;
+	--color-success-soft: #E6EEDC;
+	--color-warning: #8A5A00;
+	--color-warning-soft: #FBEFD3;
+	--color-danger: #B42318;
+	--color-danger-hover: #912018;
+	--color-danger-soft: #FBE7E3;
+	--color-info: var(--color-accent-ink);
+	--color-info-soft: var(--color-accent-soft);
+	--color-neutral: #4F463F;
+	--color-neutral-soft: #EEE8DF;
+
+	/* Admin sidebar (warm dark) */
+	--sidebar-bg: #231E1A;
+	--sidebar-border: rgba(255, 255, 255, 0.08);
+	--sidebar-text: #D6CCC2;
+	--sidebar-text-active: #FFFFFF;
+	--sidebar-muted: #9C9087;
+	--sidebar-hover: rgba(255, 255, 255, 0.06);
+	--sidebar-active: rgba(255, 255, 255, 0.10);
+	--sidebar-accent: #F2A07F;
+
+	/* Toasts */
+	--toast-bg: #2A2420;
+	--toast-text: #FFFFFF;
+	--toast-success: #9DBF6E;
+	--toast-error: #F97066;
+	--toast-info: #F2A07F;
+
+	/* Category tints (photo placeholders, thumbnails) */
+	--tint-vehicles-bg: #DCE3E6;
+	--tint-vehicles-fg: #8A9CA5;
+	--tint-real-estate-bg: #EADBC8;
+	--tint-real-estate-fg: #B39B7E;
+	--tint-electronics-bg: #E2DFDA;
+	--tint-electronics-fg: #9E978E;
+	--tint-home-garden-bg: #E3DFD9;
+	--tint-home-garden-fg: #A0978C;
+	--tint-fashion-bg: #ECDFDA;
+	--tint-fashion-fg: #AE958B;
+	--tint-kids-bg: #EEDDD3;
+	--tint-kids-fg: #BC9A87;
+	--tint-jobs-services-bg: #E2E4DE;
+	--tint-jobs-services-fg: #91978C;
+	--tint-sports-hobby-bg: #DFE3D0;
+	--tint-sports-hobby-fg: #8F9873;
+
+	/* Typography */
+	--font-sans: "Source Sans 3", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+	--font-serif: "Lora", Georgia, "Times New Roman", serif;
+	--font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	--fs-xs: 12px;
+	--fs-sm: 14px;
+	--fs-base: 15px;
+	--fs-md: 16px;
+	--fs-lg: 18px;
+	--fs-xl: 22px;
+	--fs-2xl: 28px;
+	--fs-3xl: 34px;
+	--fw-regular: 400;
+	--fw-medium: 500;
+	--fw-semibold: 600;
+	--fw-bold: 700;
+	--lh-tight: 1.25;
+	--lh-base: 1.5;
+
+	/* Spacing scale (4px step) */
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-5: 20px;
+	--space-6: 24px;
+	--space-8: 32px;
+	--space-10: 40px;
+	--space-12: 48px;
+	--space-16: 64px;
+
+	/* Radius: square-ish */
+	--radius-xs: 2px;
+	--radius-sm: 3px;
+	--radius: 4px;
+	--radius-lg: 6px;
+	--radius-pill: 999px;
+
+	/* Shadows (warm, subtle) */
+	--shadow-sm: 0 1px 2px rgba(42, 36, 32, 0.05);
+	--shadow-md: 0 4px 14px rgba(42, 36, 32, 0.08);
+	--shadow-lg: 0 14px 36px rgba(42, 36, 32, 0.18);
+	--backdrop: rgba(35, 30, 26, 0.55);
+
+	/* Focus */
+	--focus-color: #2A2420;
+	--focus-ring: 0 0 0 3px rgba(181, 83, 47, 0.25);
+
+	/* Layout: site */
+	--container: 1280px;
+	--gutter: 32px;
+	--bottom-nav-h: 68px;
+
+	/* Layout: admin */
+	--sidebar-width: 248px;
+	--topbar-height: 60px;
+	--content-max: 1440px;
+
+	/* Controls */
+	--control-height: 44px;
+	--control-height-sm: 34px;
+	--tap-size: 44px;
+
+	/* Motion */
+	--transition: 0.15s ease;
+	--transition-slow: 0.25s ease;
+
+	/* Layers */
+	--z-sticky: 10;
+	--z-dropdown: 50;
+	--z-bottom-nav: 80;
+	--z-overlay: 90;
+	--z-sidebar: 100;
+	--z-toast: 300;
+}
+
+/* Tighter gutter on phones */
+@media (max-width: 767px) {
+	:root {
+		--gutter: 16px;
+	}
+}
