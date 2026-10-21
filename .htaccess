@@ -1,0 +1,9 @@
+DirectoryIndex index.php
+
+RewriteEngine On
+
+# Служебные PHP-файлы подключаются только через include, напрямую из браузера не открываются
+RewriteRule ^source/.*\.php$ - [F,L]
+
+# Файл состояния деплоя (список файлов и хэшей) наружу не отдаём
+RewriteRule ^\.ftp-deploy-sync-state\.json$ - [F,L]
