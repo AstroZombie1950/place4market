@@ -1345,7 +1345,10 @@ button {
 
 .results-bar__count {
 	color: var(--color-text-muted);
+	font-family: var(--font-sans);
+	font-size: var(--fs-md);
 	font-weight: var(--fw-semibold);
+	line-height: var(--lh-base);
 }
 
 .results-bar__tools {

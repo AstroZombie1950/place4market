@@ -208,7 +208,7 @@ require INC_DIR . '/header.php';
 		<!-- Results -->
 		<section class="layout__main" aria-labelledby="results-count">
 			<div class="results-bar">
-				<p class="results-bar__count" id="results-count"><?= e(tp('cat.count', $total)) ?></p>
+				<h2 class="results-bar__count" id="results-count"><?= e(tp('cat.count', $total)) ?></h2>
 
 				<div class="results-bar__tools">
 					<button type="button" class="btn btn--soft filters-toggle" data-drawer-open="filters" aria-controls="filters" aria-expanded="false"><?= icon('filter', 18) ?><?= e(t('cat.show_filters')) ?><?php if ($chips): ?> <span class="count-badge"><?= count($chips) ?></span><?php endif; ?></button>

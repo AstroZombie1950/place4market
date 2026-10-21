@@ -106,7 +106,7 @@ require ADMIN_INC . '/header.php';
 			<div class="photos">
 				<?php for ($i = 1; $i <= $listing['photos']; $i++): ?>
 				<figure class="photo">
-					<img src="<?= ASSETS_URL ?>/img/placeholder.svg" alt="Photo <?= $i ?> of “<?= e($listing['title']) ?>”" loading="lazy">
+					<img src="<?= asset('img/placeholder.svg') ?>" alt="Photo <?= $i ?> of “<?= e($listing['title']) ?>”" loading="lazy">
 					<?php if ($i === 1): ?><span class="badge badge--info badge--plain photo__cover">Cover</span><?php endif; ?>
 					<figcaption class="photo__bar">
 						<button type="button" class="btn btn--ghost btn--sm"<?= $i === 1 ? ' disabled' : '' ?> data-toast="Cover photo updated">Make cover</button>

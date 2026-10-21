@@ -9,6 +9,15 @@ function e($value): string
 	return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
+// Versioned asset URL, so assets can be cached for a year:
+// asset('css/site.css') → source/css/site.css?v=1729500000 (changes when the file changes)
+function asset(string $path): string
+{
+	$file = SOURCE_DIR . '/' . $path;
+
+	return ASSETS_URL . '/' . $path . (is_file($file) ? '?v=' . filemtime($file) : '');
+}
+
 // Price: 9800, 'EUR' → "9 800 €"; null → "By agreement"
 function format_price(?int $amount, string $currency = 'RSD'): string
 {

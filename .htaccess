@@ -1,9 +1,30 @@
 DirectoryIndex index.php
 ErrorDocument 404 /404.php
 
-# DEV-ONLY: сайт закрыт от индексации на время разработки. Убрать при запуске (doc/ROADMAP.md, этап 6)
+# DEV-ONLY: сайт закрыт от индексации на время разработки. Убрать при запуске (doc/ROADMAP.md, этап 7)
 <IfModule mod_headers.c>
 	Header always set X-Robots-Tag "noindex, nofollow"
+</IfModule>
+
+# Типы файлов
+AddType font/woff2 .woff2
+AddType application/manifest+json .webmanifest
+
+# Кэш браузера. CSS и JS подключаются через asset() с ?v= (меняется вместе с файлом),
+# шрифт при изменении получает новое имя, поэтому всё это кэшируется на год.
+# Картинки и иконки без версии кэшируются на неделю
+<IfModule mod_headers.c>
+	<FilesMatch "\.(css|js|woff2)$">
+		Header set Cache-Control "public, max-age=31536000, immutable"
+	</FilesMatch>
+	<FilesMatch "\.(svg|png|jpe?g|webp|avif|ico|webmanifest)$">
+		Header set Cache-Control "public, max-age=604800"
+	</FilesMatch>
+</IfModule>
+
+# Сжатие текстовых ответов (если сервер не делает его сам)
+<IfModule mod_deflate.c>
+	AddOutputFilterByType DEFLATE text/html text/css text/plain application/javascript image/svg+xml application/xml application/json application/manifest+json
 </IfModule>
 
 RewriteEngine On

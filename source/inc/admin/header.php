@@ -16,13 +16,10 @@ $openReportsCount = count_by($reports, 'status', 'open');
 	<meta name="robots" content="noindex, nofollow">
 	<title><?= e($pageTitle) ?> — Place4Market Admin</title>
 	<link rel="icon" href="../favicon.ico" sizes="32x32">
-	<link rel="icon" href="<?= ASSETS_URL ?>/img/icons/favicon.svg" type="image/svg+xml">
-	<link rel="preconnect" href="https://fonts.googleapis.com">
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,700;1,700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
-	<link rel="stylesheet" href="<?= ASSETS_URL ?>/css/variables.css">
-	<link rel="stylesheet" href="<?= ASSETS_URL ?>/css/admin.css">
-	<script src="<?= ASSETS_URL ?>/js/admin.js" defer></script>
+	<link rel="icon" href="<?= asset('img/icons/favicon.svg') ?>" type="image/svg+xml">
+	<link rel="stylesheet" href="<?= asset('css/variables.css') ?>">
+	<link rel="stylesheet" href="<?= asset('css/admin.css') ?>">
+	<script src="<?= asset('js/admin.js') ?>" defer></script>
 </head>
 <body class="admin">
 <a class="skip-link" href="#content">Skip to content</a>

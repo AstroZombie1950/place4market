@@ -19,6 +19,10 @@ require INC_DIR . '/i18n.php';
 require INC_DIR . '/site.php';
 require INC_DIR . '/seo.php';
 
+// DEV-ONLY: closed from indexing while in development (duplicates .htaccess,
+// works on any server). Remove at launch together with the .htaccess block
+header('X-Robots-Tag: noindex, nofollow');
+
 // Language must be set before any output (cookie)
 i18n_init();
 

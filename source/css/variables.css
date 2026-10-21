@@ -3,6 +3,93 @@
 	Shared by the site and the admin. Change values here, not in components.
 	========================================================================== */
 
+/* ==========================================================================
+	Fonts: self-hosted Lora (500–700, italic digits for the logo "4")
+	and Source Sans 3 (400–700), variable woff2 split like Google Fonts:
+	latin / latin-ext (Serbian Latin) / cyrillic, so a page loads only what it uses.
+	Fallback faces copy the web fonts' metrics, so the swap doesn't shift the layout.
+	========================================================================== */
+@font-face {
+	font-family: "Lora";
+	font-style: normal;
+	font-weight: 500 700;
+	font-display: swap;
+	src: url("../fonts/lora-latin.woff2") format("woff2");
+	unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+	font-family: "Lora";
+	font-style: normal;
+	font-weight: 500 700;
+	font-display: swap;
+	src: url("../fonts/lora-latin-ext.woff2") format("woff2");
+	unicode-range: U+0100-017F, U+0218-021B, U+1E9E, U+20A0-20AB, U+20AD-20C0, U+2113;
+}
+
+@font-face {
+	font-family: "Lora";
+	font-style: normal;
+	font-weight: 500 700;
+	font-display: swap;
+	src: url("../fonts/lora-cyrillic.woff2") format("woff2");
+	unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+	font-family: "Lora";
+	font-style: italic;
+	font-weight: 700;
+	font-display: swap;
+	src: url("../fonts/lora-italic-digits.woff2") format("woff2");
+	unicode-range: U+0020, U+0030-0039;
+}
+
+@font-face {
+	font-family: "Source Sans 3";
+	font-style: normal;
+	font-weight: 400 700;
+	font-display: swap;
+	src: url("../fonts/source-sans-3-latin.woff2") format("woff2");
+	unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+	font-family: "Source Sans 3";
+	font-style: normal;
+	font-weight: 400 700;
+	font-display: swap;
+	src: url("../fonts/source-sans-3-latin-ext.woff2") format("woff2");
+	unicode-range: U+0100-017F, U+0218-021B, U+1E9E, U+20A0-20AB, U+20AD-20C0, U+2113;
+}
+
+@font-face {
+	font-family: "Source Sans 3";
+	font-style: normal;
+	font-weight: 400 700;
+	font-display: swap;
+	src: url("../fonts/source-sans-3-cyrillic.woff2") format("woff2");
+	unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+	font-family: "Lora Fallback";
+	src: local("Georgia");
+	size-adjust: 105.74%;
+	ascent-override: 95.14%;
+	descent-override: 25.91%;
+	line-gap-override: 0%;
+}
+
+@font-face {
+	font-family: "Source Sans 3 Fallback";
+	src: local("Arial");
+	size-adjust: 93.36%;
+	ascent-override: 109.68%;
+	descent-override: 42.84%;
+	line-gap-override: 0%;
+}
+
 :root {
 	/* Brand: terracotta accent */
 	--color-accent: #B5532F;
@@ -86,8 +173,8 @@
 	--tint-sports-hobby-fg: #8F9873;
 
 	/* Typography */
-	--font-sans: "Source Sans 3", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-	--font-serif: "Lora", Georgia, "Times New Roman", serif;
+	--font-sans: "Source Sans 3", "Source Sans 3 Fallback", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+	--font-serif: "Lora", "Lora Fallback", Georgia, "Times New Roman", serif;
 	--font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 	--fs-xs: 12px;
 	--fs-sm: 14px;

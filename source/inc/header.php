@@ -20,19 +20,20 @@ $searchCity = (string) ($_GET['city'] ?? '');
 
 	<!-- Icons, theme -->
 	<link rel="icon" href="favicon.ico" sizes="32x32">
-	<link rel="icon" href="<?= ASSETS_URL ?>/img/icons/favicon.svg" type="image/svg+xml">
-	<link rel="apple-touch-icon" href="<?= ASSETS_URL ?>/img/icons/apple-touch-icon.png">
+	<link rel="icon" href="<?= asset('img/icons/favicon.svg') ?>" type="image/svg+xml">
+	<link rel="apple-touch-icon" href="<?= asset('img/icons/apple-touch-icon.png') ?>">
 	<link rel="manifest" href="site.webmanifest">
 	<meta name="theme-color" content="#FBF8F2">
 
-	<!-- Fonts: Lora (headings, prices) + Source Sans 3 (text), Latin + Cyrillic -->
-	<link rel="preconnect" href="https://fonts.googleapis.com">
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,700;1,700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+	<!-- Fonts of the first screen (self-hosted, see variables.css): Cyrillic or Latin set.
+	     Same URLs as in the CSS, no ?v= (a changed font gets a new file name) -->
+	<?php $fontSet = lang() === 'sr-cyrl' ? 'cyrillic' : 'latin'; ?>
+	<link rel="preload" href="<?= ASSETS_URL ?>/fonts/source-sans-3-<?= $fontSet ?>.woff2" as="font" type="font/woff2" crossorigin>
+	<link rel="preload" href="<?= ASSETS_URL ?>/fonts/lora-<?= $fontSet ?>.woff2" as="font" type="font/woff2" crossorigin>
 
-	<link rel="stylesheet" href="<?= ASSETS_URL ?>/css/variables.css">
-	<link rel="stylesheet" href="<?= ASSETS_URL ?>/css/site.css">
-	<script src="<?= ASSETS_URL ?>/js/main.js" defer></script>
+	<link rel="stylesheet" href="<?= asset('css/variables.css') ?>">
+	<link rel="stylesheet" href="<?= asset('css/site.css') ?>">
+	<script src="<?= asset('js/main.js') ?>" defer></script>
 </head>
 <body class="<?= e(trim('site ' . $page['body_class'])) ?>">
 <a class="skip-link" href="#main"><?= e(t('a11y.skip')) ?></a>
