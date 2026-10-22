@@ -29,11 +29,7 @@ AddType application/manifest+json .webmanifest
 
 RewriteEngine On
 
-# Главная только по адресу /, без дубля /index.php
-RewriteCond %{THE_REQUEST} \s/index\.php[?\s]
-RewriteRule ^index\.php$ / [R=301,L]
-
-# Карта сайта генерируется PHP
+# Карта сайта генерируется PHP (в robots.txt указан sitemap.php, он работает и без этого правила)
 RewriteRule ^sitemap\.xml$ sitemap.php [L]
 
 # Служебные PHP-файлы подключаются только через include, напрямую из браузера не открываются

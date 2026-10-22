@@ -4,6 +4,13 @@
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
 
+// The home page lives at "/" only: /index.php → / (301, query kept)
+if (str_ends_with(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/index.php')) {
+	$query = $_SERVER['QUERY_STRING'] ?? '';
+	header('Location: ' . site_url($query !== '' ? '?' . $query : ''), true, 301);
+	exit;
+}
+
 $page['nav'] = 'home';
 $page['body_class'] = 'body--home';
 $page['schema'][] = schema_site();

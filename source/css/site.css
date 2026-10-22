@@ -772,14 +772,14 @@ button {
 	min-height: 48px;
 }
 
-/* Search: query | city | submit */
+/* Search: query | city | submit, rounded (client request) */
 .search {
 	display: flex;
 	align-items: stretch;
 	min-height: 58px;
 	background: var(--color-surface);
 	border: 1.5px solid var(--color-border-strong);
-	border-radius: var(--radius);
+	border-radius: var(--radius-pill);
 	transition: border-color var(--transition), box-shadow var(--transition);
 }
 
@@ -794,7 +794,7 @@ button {
 	align-items: center;
 	gap: var(--space-3);
 	min-width: 0;
-	padding: 0 var(--space-4) 0 18px;
+	padding: 0 var(--space-4) 0 var(--space-6);
 	color: var(--color-text-muted);
 	cursor: text;
 }
@@ -857,7 +857,7 @@ button {
 .search__submit {
 	margin: 5px;
 	padding: 0 30px;
-	border-radius: var(--radius-sm);
+	border-radius: var(--radius-pill);
 }
 
 .search__submit-icon {
@@ -3060,6 +3060,8 @@ button {
 			"field submit"
 			"city city";
 		min-height: 0;
+		/* Two rows: a pill would cut into the city row, round to the first row instead */
+		border-radius: var(--radius-xl);
 	}
 
 	.search__field {

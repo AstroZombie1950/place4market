@@ -4,4 +4,4 @@
 User-agent: *
 Disallow: /admin/
 
-Sitemap: https://place4market.com/sitemap.xml
+Sitemap: https://place4market.com/sitemap.php

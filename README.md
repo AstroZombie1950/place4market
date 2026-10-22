@@ -22,9 +22,10 @@ auth.php              вход / регистрация (вкладки), вос
 profile.php           профиль: мои объявления / настройки / уведомления
 favorites.php         избранное: объявления / сохранённые поиски
 messages.php          сообщения: список диалогов + переписка
-404.php               страница 404 (ErrorDocument + несуществующие объявления/категории)
-sitemap.php           sitemap.xml (rewrite в .htaccess), все языковые версии
+404.php               страница 404 (несуществующие объявления/категории + ErrorDocument в .htaccess)
+sitemap.php           карта сайта со всеми языковыми версиями (robots.txt ссылается на неё)
 robots.txt, favicon.ico, site.webmanifest
+.htaccess             404, кэш, сжатие, noindex на время разработки, защита source/*.php
 admin/                админка (см. ниже)
 source/
 	css/variables.css   ВСЕ токены: цвета, шрифты, отступы, радиусы (общие для сайта и админки)
@@ -32,6 +33,7 @@ source/
 	css/admin.css       стили админки
 	js/main.js          JS сайта
 	js/admin.js         JS админки
+	fonts/              Lora и Source Sans 3: woff2 по наборам latin / latin-ext / cyrillic
 	img/                заглушка фото, OG-картинка, icons/ (фавиконки)
 	inc/bootstrap.php   подключается первым на каждой странице сайта
 	inc/header.php      шапка (include)
@@ -40,7 +42,7 @@ source/
 	inc/i18n.php        языки, t(), tp(), url(), транслитерация
 	inc/site.php        хелперы сайта (поиск, цены, даты)
 	inc/seo.php         <head>: canonical, hreflang, Open Graph, JSON-LD, хлебные крошки
-	inc/helpers.php     общие хелперы (e(), initials()…)
+	inc/helpers.php     общие хелперы (e(), asset() с ?v=, initials()…)
 	inc/icons.php       SVG-иконки: icon('heart', 20)
 	inc/data-common.php категории, города, языки (сайт + админка)
 	inc/data.php        тестовые данные сайта
@@ -92,7 +94,11 @@ source/
 
 Каждая страница до подключения `header.php` задаёт в `$page`: `title`, `description`, `canonical` (`[путь, параметры]` без языка), `robots`, `schema[]` (JSON-LD), `og_type`/`og`. Тег `<head>` собирает `seo_head()` из `source/inc/seo.php`. На страницах с `noindex` (служебные, выдача с поиском/фильтрами/сортировкой) canonical и hreflang не выводятся.
 
-Пока идёт разработка, сайт закрыт от индексации заголовком `X-Robots-Tag` в `.htaccess` (блок `DEV-ONLY`, снять при запуске).
+Пока идёт разработка, сайт закрыт от индексации заголовком `X-Robots-Tag: noindex, nofollow` — в `.htaccess` и в `source/inc/bootstrap.php` (блоки `DEV-ONLY`, снять оба при запуске).
+
+## Ассеты и кэш
+
+CSS, JS и иконки подключаются через `asset('css/site.css')` → `source/css/site.css?v=<дата изменения>`, поэтому их можно кэшировать на год. Шрифты подключаются без версии: изменённый шрифт кладём под новым именем.
 
 ## Адаптив
 
@@ -100,4 +106,4 @@ source/
 
 ## Цвета и шрифты
 
-`source/css/variables.css`: терракота `--color-accent`, олива `--color-olive`, морской `--color-sea`, бумажный фон `--color-bg`. Шрифты Lora (заголовки, цены) и Source Sans 3 (текст), обе с кириллицей. Для текста на светлом фоне используется `--color-accent-ink` (контраст AA), основной терракотовый — для кнопок с белым текстом.
+`source/css/variables.css`: терракота `--color-accent`, олива `--color-olive`, морской `--color-sea`, бумажный фон `--color-bg`. Шрифты Lora (заголовки, цены) и Source Sans 3 (текст), обе с кириллицей, лежат в `source/fonts/` (`@font-face` в начале `variables.css`, Google Fonts не используется). Браузер грузит только нужные наборы символов; запасные шрифты подогнаны по метрикам, чтобы при загрузке ничего не прыгало. Для текста на светлом фоне используется `--color-accent-ink` (контраст AA), основной терракотовый — для кнопок с белым текстом.
