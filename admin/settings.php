@@ -21,7 +21,7 @@ require ADMIN_INC . '/header.php';
 	</div>
 </div>
 
-<form id="settings-form" method="post" action="" data-demo-submit="Settings saved">
+<form id="settings-form" method="post" data-demo-submit="Settings saved">
 	<section class="card" data-tabs data-tabs-hash>
 		<div class="tabs__list tabs__list--flush" role="tablist" aria-label="Settings sections">
 			<button type="button" class="tabs__tab" role="tab" id="tab-general" aria-controls="panel-general" aria-selected="true"><?= icon('settings', 18) ?>General</button>

@@ -28,7 +28,7 @@ $navGroups = [
 	</div>
 
 	<!-- Navigation groups -->
-	<nav class="sidebar__nav">
+	<nav class="sidebar__nav" aria-label="Sections">
 		<?php foreach ($navGroups as $groupLabel => $items): ?>
 		<div class="sidebar__group">
 			<div class="sidebar__label"><?= e($groupLabel) ?></div>

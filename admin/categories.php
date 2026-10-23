@@ -100,7 +100,7 @@ require ADMIN_INC . '/header.php';
 			<h2 class="card__title" id="category-form-title" data-fill="formTitle"><?= e($current['formTitle']) ?></h2>
 		</div>
 
-		<form id="category-form" class="card__body" method="post" action="" data-demo-submit="Category saved">
+		<form id="category-form" class="card__body" method="post" data-demo-submit="Category saved">
 			<input type="hidden" name="id" value="<?= e($current['id']) ?>">
 
 			<!-- Translations -->

@@ -143,11 +143,11 @@ require ADMIN_INC . '/header.php';
 	<nav class="pagination" aria-label="Pagination">
 		<span>Showing <span data-table-count="listings-table"><?= count($listings) ?></span> of <?= count($listings) ?></span>
 		<ul class="pagination__pages">
-			<li><a class="pagination__page" href="#" aria-label="Previous page" aria-disabled="true"><?= icon('chevron-left', 16) ?></a></li>
-			<li><a class="pagination__page" href="#" aria-current="page">1</a></li>
-			<li><a class="pagination__page" href="#">2</a></li>
-			<li><a class="pagination__page" href="#">3</a></li>
-			<li><a class="pagination__page" href="#" aria-label="Next page"><?= icon('chevron-right', 16) ?></a></li>
+			<li><a class="pagination__page" href="listings.php" aria-label="Previous page" aria-disabled="true"><?= icon('chevron-left', 16) ?></a></li>
+			<li><a class="pagination__page" href="listings.php" aria-current="page">1</a></li>
+			<li><a class="pagination__page" href="listings.php?page=2">2</a></li>
+			<li><a class="pagination__page" href="listings.php?page=3">3</a></li>
+			<li><a class="pagination__page" href="listings.php?page=2" aria-label="Next page"><?= icon('chevron-right', 16) ?></a></li>
 		</ul>
 	</nav>
 </section>

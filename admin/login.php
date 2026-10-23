@@ -43,7 +43,7 @@ require __DIR__ . '/../source/inc/admin/bootstrap.php';
 
 			<div class="auth__row">
 				<label class="check"><input type="checkbox" name="remember"> Remember me</label>
-				<a href="#">Forgot password?</a>
+				<a href="<?= SITE_URL ?>reset.php">Forgot password?</a>
 			</div>
 
 			<button type="submit" class="btn btn--primary btn--block">Sign in</button>

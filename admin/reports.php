@@ -114,7 +114,7 @@ require ADMIN_INC . '/header.php';
 
 <!-- Review dialog -->
 <dialog class="modal" id="report-dialog" aria-labelledby="report-title">
-	<form class="modal__inner" method="post" action="" data-demo-submit="Report resolved">
+	<form class="modal__inner" method="post" data-demo-submit="Report resolved">
 		<div class="modal__head">
 			<h2 class="modal__title" id="report-title">Report <span data-fill="r_id"></span></h2>
 			<button type="button" class="btn btn--ghost btn--icon" data-modal-close aria-label="Close"><?= icon('x') ?></button>

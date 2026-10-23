@@ -20,7 +20,7 @@ $isOwn = $listing['user_id'] === CURRENT_USER_ID;
 $photoCount = max(1, min(8, $listing['photos']));
 
 // Seller's other active listings
-$sellerCount = count(array_filter(active_listings(), fn($l) => $l['user_id'] === $seller['id']));
+$sellerCount = count(seller_listings($seller['id']));
 
 // Similar: same parent category, newest first
 $similar = array_slice(array_values(array_filter(
@@ -137,7 +137,7 @@ require INC_DIR . '/header.php';
 					<div class="seller">
 						<?= avatar($seller['name']) ?>
 						<div>
-							<p class="seller__name"><?= e(person_name($seller['name'])) ?></p>
+							<p class="seller__name"><a href="<?= e(seller_url($seller)) ?>"><?= e(person_name($seller['name'])) ?></a></p>
 							<p class="seller__meta"><?= e(t('l.member_since', ['date' => date_label($seller['since'])])) ?></p>
 						</div>
 					</div>
@@ -145,7 +145,7 @@ require INC_DIR . '/header.php';
 						<?php if ($seller['verified']): ?>
 						<span class="badge badge--verified"><?= icon('check-circle', 16) ?><?= e(t('l.verified')) ?></span>
 						<?php endif; ?>
-						<a href="<?= e(url('category.php')) ?>"><?= e(t('l.all_seller')) ?> (<?= $sellerCount ?>)</a>
+						<a href="<?= e(seller_url($seller)) ?>"><?= e(t('l.all_seller')) ?> (<?= $sellerCount ?>)</a>
 					</div>
 				</div>
 			</section>
@@ -159,7 +159,10 @@ require INC_DIR . '/header.php';
 						<li><?= e(t('l.safety_2')) ?></li>
 						<li><?= e(t('l.safety_3')) ?></li>
 					</ul>
-					<button type="button" class="text-link" data-dialog-open="report-dialog"><?= icon('flag', 16) ?><?= e(t('l.report')) ?></button>
+					<div class="safety__links">
+						<a class="text-link" href="<?= e(url('safety.php')) ?>"><?= icon('shield', 16) ?><?= e(t('l.safety_more')) ?></a>
+						<button type="button" class="text-link" data-dialog-open="report-dialog"><?= icon('flag', 16) ?><?= e(t('l.report')) ?></button>
+					</div>
 				</div>
 			</section>
 		</aside>
@@ -214,7 +217,7 @@ require INC_DIR . '/header.php';
 
 <!-- Report dialog -->
 <dialog class="modal" id="report-dialog" aria-labelledby="report-title">
-	<form class="modal__inner" method="post" action="" data-demo="<?= e(t('l.report_sent')) ?>" data-demo-reset>
+	<form class="modal__inner" method="post" data-demo="<?= e(t('l.report_sent')) ?>" data-demo-reset>
 		<div class="modal__head">
 			<h2 class="modal__title" id="report-title"><?= e(t('l.report_title')) ?></h2>
 			<button type="button" class="btn btn--ghost btn--icon" data-dialog-close aria-label="<?= e(t('common.close')) ?>"><?= icon('x') ?></button>

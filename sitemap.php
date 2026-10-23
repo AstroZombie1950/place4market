@@ -1,6 +1,7 @@
 <?php
 /* ==========================================================================
-	sitemap.xml (served via .htaccess rewrite): home, categories, listings.
+	sitemap.xml (served via .htaccess rewrite): home, categories, listings,
+	sellers, info pages.
 	Every URL lists all its language versions (hreflang + x-default).
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
@@ -22,6 +23,17 @@ foreach ($categories as $parent) {
 
 foreach (active_listings() as $listing) {
 	$entries[] = ['listing.php', ['id' => $listing['id']], date('c', strtotime($listing['created']))];
+}
+
+// Sellers with active listings
+foreach ($users as $user) {
+	if (seller_listings($user['id'])) {
+		$entries[] = ['seller.php', ['id' => $user['id']], null];
+	}
+}
+
+foreach (info_pages() as $info) {
+	$entries[] = [$info['path'], [], null];
 }
 
 header('Content-Type: application/xml; charset=utf-8');

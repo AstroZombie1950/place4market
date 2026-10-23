@@ -5,7 +5,7 @@
 	========================================================================== */
 ?>
 <dialog class="modal" id="reject-dialog" aria-labelledby="reject-title">
-	<form class="modal__inner" method="post" action="" data-demo-submit="Listing rejected, seller notified">
+	<form class="modal__inner" method="post" data-demo-submit="Listing rejected, seller notified">
 		<div class="modal__head">
 			<h2 class="modal__title" id="reject-title">Reject listing</h2>
 			<button type="button" class="btn btn--ghost btn--icon" data-modal-close aria-label="Close"><?= icon('x') ?></button>

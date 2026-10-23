@@ -1,6 +1,6 @@
 <?php
 /* ==========================================================================
-	Log in / register (tabs) + reset password dialog
+	Log in / register (tabs); forgotten password → reset.php
 	GET: tab=register opens the second tab
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
@@ -30,7 +30,7 @@ require INC_DIR . '/header.php';
 				<h2 class="auth__heading"><?= e(t('auth.welcome')) ?></h2>
 				<p class="muted"><?= e(t('auth.welcome_sub')) ?></p>
 
-				<form class="auth__form" method="post" action="" data-demo="<?= e(t('auth.logged_in')) ?>">
+				<form class="auth__form" method="post" data-demo="<?= e(t('auth.logged_in')) ?>">
 					<div class="field">
 						<label class="field__label" for="login-email"><?= e(t('auth.email')) ?></label>
 						<input class="input" id="login-email" name="email" type="email" autocomplete="username" required>
@@ -44,7 +44,7 @@ require INC_DIR . '/header.php';
 					</div>
 					<div class="auth__row">
 						<label class="check"><input type="checkbox" name="remember" checked><span><?= e(t('auth.remember')) ?></span></label>
-						<button type="button" class="text-link" data-dialog-open="reset-dialog"><?= e(t('auth.forgot')) ?></button>
+						<a class="text-link" href="<?= e(url('reset.php')) ?>"><?= e(t('auth.forgot')) ?></a>
 					</div>
 					<button type="submit" class="btn btn--primary btn--lg btn--block"><?= e(t('auth.submit_login')) ?></button>
 				</form>
@@ -57,7 +57,7 @@ require INC_DIR . '/header.php';
 				<h2 class="auth__heading"><?= e(t('auth.create')) ?></h2>
 				<p class="muted"><?= e(t('auth.create_sub')) ?></p>
 
-				<form class="auth__form" method="post" action="" data-demo="<?= e(t('auth.registered')) ?>">
+				<form class="auth__form" method="post" data-demo="<?= e(t('auth.registered')) ?>">
 					<div class="field">
 						<label class="field__label" for="reg-name"><?= e(t('auth.name')) ?></label>
 						<input class="input" id="reg-name" name="name" type="text" autocomplete="name" required>
@@ -84,7 +84,7 @@ require INC_DIR . '/header.php';
 						</div>
 						<span class="field__hint" id="reg-password-hint"><?= e(t('auth.password_hint')) ?></span>
 					</div>
-					<label class="check"><input type="checkbox" name="terms" required><span><?= e(t('auth.terms')) ?></span></label>
+					<label class="check"><input type="checkbox" name="terms" required><span><?= terms_label('auth.terms') ?></span></label>
 					<button type="submit" class="btn btn--primary btn--lg btn--block"><?= e(t('auth.submit_register')) ?></button>
 				</form>
 
@@ -112,26 +112,5 @@ require INC_DIR . '/header.php';
 		</aside>
 	</div>
 </div>
-
-<!-- Reset password dialog -->
-<dialog class="modal modal--sm" id="reset-dialog" aria-labelledby="reset-title">
-	<form class="modal__inner" method="post" action="" data-demo="<?= e(t('auth.reset_sent')) ?>" data-demo-reset>
-		<div class="modal__head">
-			<h2 class="modal__title" id="reset-title"><?= e(t('auth.reset_title')) ?></h2>
-			<button type="button" class="btn btn--ghost btn--icon" data-dialog-close aria-label="<?= e(t('common.close')) ?>"><?= icon('x') ?></button>
-		</div>
-		<div class="modal__body">
-			<p class="muted"><?= e(t('auth.reset_text')) ?></p>
-			<div class="field">
-				<label class="field__label" for="reset-email"><?= e(t('auth.email')) ?></label>
-				<input class="input" id="reset-email" name="email" type="email" autocomplete="email" required>
-			</div>
-		</div>
-		<div class="modal__foot">
-			<button type="button" class="btn btn--outline" data-dialog-close><?= e(t('common.cancel')) ?></button>
-			<button type="submit" class="btn btn--primary"><?= e(t('auth.reset_send')) ?></button>
-		</div>
-	</form>
-</dialog>
 
 <?php require INC_DIR . '/footer.php'; ?>

@@ -49,7 +49,7 @@ require INC_DIR . '/header.php';
 							<span class="conv__bottom">
 								<span class="conv__last"><?= $last['from'] === CURRENT_USER_ID ? e(t('m.you')) . ': ' : '' ?><?= e(tc($last['text'])) ?></span>
 								<?php if ($conv['unread']): ?>
-								<span class="count-badge" aria-label="<?= e(t('m.unread', ['n' => $conv['unread']])) ?>"><?= (int) $conv['unread'] ?></span>
+								<span class="count-badge"><span aria-hidden="true"><?= (int) $conv['unread'] ?></span><span class="visually-hidden"><?= e(t('m.unread', ['n' => $conv['unread']])) ?></span></span>
 								<?php endif; ?>
 							</span>
 						</span>
@@ -113,7 +113,7 @@ require INC_DIR . '/header.php';
 			</div>
 
 			<!-- Composer -->
-			<form class="composer" method="post" action="" data-composer>
+			<form class="composer" method="post" data-composer>
 				<input type="hidden" name="conversation" value="<?= (int) $conv['id'] ?>">
 				<button type="button" class="btn btn--ghost btn--icon" aria-label="<?= e(t('m.attach')) ?>"><?= icon('paperclip', 20) ?></button>
 				<label class="visually-hidden" for="msg-<?= (int) $conv['id'] ?>"><?= e(t('m.message_input')) ?></label>

@@ -275,11 +275,13 @@ function time_ago(string $datetime): string
 	if ($diff < 86400 && date('Y-m-d', $ts) === date('Y-m-d')) {
 		return t('time.hours', ['n' => intdiv($diff, 3600)]);
 	}
-	if (date('Y-m-d', $ts) === date('Y-m-d', strtotime('-1 day')) || $diff < 86400) {
+	// Calendar days, not 24h periods: posted the day before yesterday is "2 days ago" even 30 hours later
+	$days = (int) round((strtotime('today') - strtotime(date('Y-m-d', $ts))) / 86400);
+	if ($days <= 1) {
 		return t('time.yesterday');
 	}
-	if ($diff < 86400 * 7) {
-		return t('time.days', ['n' => (int) round($diff / 86400)]);
+	if ($days < 7) {
+		return t('time.days', ['n' => $days]);
 	}
 
 	return date_label($datetime);
@@ -391,4 +393,75 @@ function pagination(int $total, int $perPage, int $current, string $path): strin
 function nav_current(string $key, string $active): string
 {
 	return $key === $active ? ' aria-current="page"' : '';
+}
+
+/* ---------- Info pages (about, help, legal…) ---------- */
+
+// Static pages in footer / side menu order: key → file, label, icon
+function info_pages(): array
+{
+	return [
+		'about' => ['path' => 'about.php', 'label' => 'footer.about', 'icon' => 'info'],
+		'help' => ['path' => 'help.php', 'label' => 'footer.help', 'icon' => 'message'],
+		'safety' => ['path' => 'safety.php', 'label' => 'footer.safety', 'icon' => 'shield'],
+		'terms' => ['path' => 'terms.php', 'label' => 'footer.terms', 'icon' => 'list'],
+		'privacy' => ['path' => 'privacy.php', 'label' => 'footer.privacy', 'icon' => 'lock'],
+		'contact' => ['path' => 'contact.php', 'label' => 'footer.contact', 'icon' => 'mail'],
+	];
+}
+
+// Breadcrumbs of an info page: Home / Page
+function info_crumbs(string $key): array
+{
+	return [
+		['label' => t('common.home'), 'href' => url('index.php')],
+		['label' => t(info_pages()[$key]['label'])],
+	];
+}
+
+// Page texts from source/inc/content/{key}.php; values are ['en' => …, 'sr' => …] like user content (tc())
+function page_content(string $key): array
+{
+	return require INC_DIR . '/content/' . $key . '.php';
+}
+
+// Text blocks: a pair is a paragraph, ['list' => [pairs]] is a bulleted list
+function content_blocks(array $blocks): string
+{
+	$html = '';
+
+	foreach ($blocks as $block) {
+		if (isset($block['list'])) {
+			$html .= '<ul>' . implode('', array_map(fn($item) => '<li>' . e(tc($item)) . '</li>', $block['list'])) . '</ul>';
+		} else {
+			$html .= '<p>' . e(tc($block)) . '</p>';
+		}
+	}
+
+	return $html;
+}
+
+// Consent text with links: "I agree to the {terms} and {privacy}".
+// Links open a new tab, so a half-filled form isn't lost
+function terms_label(string $key): string
+{
+	$link = fn(string $path, string $label) => '<a href="' . e(url($path)) . '" target="_blank" rel="noopener">' . e(t($label)) . '</a>';
+
+	return strtr(e(t($key)), [
+		'{terms}' => $link('terms.php', 'auth.terms_link'),
+		'{privacy}' => $link('privacy.php', 'auth.privacy_link'),
+	]);
+}
+
+/* ---------- Sellers ---------- */
+
+function seller_url(array $user): string
+{
+	return url('seller.php', ['id' => $user['id']]);
+}
+
+// Active listings of a user, newest first
+function seller_listings(int $userId): array
+{
+	return array_values(array_filter(search_listings([]), fn($l) => $l['user_id'] === $userId));
 }

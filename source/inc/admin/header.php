@@ -40,10 +40,11 @@ $openReportsCount = count_by($reports, 'status', 'open');
 				<label class="visually-hidden" for="global-search">Search listings and users</label>
 				<?= icon('search', 18) ?>
 				<input class="input" id="global-search" type="search" name="q" placeholder="Search listings, users, IDs…">
+				<button class="visually-hidden" type="submit">Search</button>
 			</form>
 
 			<div class="topbar__actions">
-				<a class="btn btn--ghost" href="<?= SITE_URL ?>" target="_blank" rel="noopener"><?= icon('external', 18) ?><span class="topbar__label">View site</span></a>
+				<a class="btn btn--ghost" href="<?= SITE_URL ?>" target="_blank" rel="noopener" aria-label="View site"><?= icon('external', 18) ?><span class="topbar__label" aria-hidden="true">View site</span></a>
 
 				<!-- Notifications: open reports -->
 				<a class="btn btn--ghost btn--icon" href="reports.php" aria-label="Reports: <?= $openReportsCount ?> open">

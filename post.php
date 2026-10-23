@@ -29,7 +29,7 @@ require INC_DIR . '/header.php';
 	</div>
 
 	<div class="post">
-		<form class="post__form" id="post-form" method="post" action="" enctype="multipart/form-data" data-post-form data-demo="<?= e(t('post.submitted')) ?>">
+		<form class="post__form" id="post-form" method="post" enctype="multipart/form-data" data-post-form data-demo="<?= e(t('post.submitted')) ?>">
 			<!-- 1. Category -->
 			<section class="form-card" aria-labelledby="s-category">
 				<h2 class="form-card__title" id="s-category"><span class="step">1</span><?= e(t('post.s_category')) ?></h2>
@@ -139,7 +139,7 @@ require INC_DIR . '/header.php';
 
 			<!-- Terms + submit -->
 			<div class="form-card">
-				<label class="check"><input type="checkbox" name="terms" required><span><?= e(t('post.terms')) ?> · <a href="#"><?= e(t('footer.terms')) ?></a></span></label>
+				<label class="check"><input type="checkbox" name="terms" required><span><?= terms_label('post.terms') ?></span></label>
 				<div class="form-actions">
 					<button type="button" class="btn btn--outline" data-toast="<?= e(t('post.draft_saved')) ?>"><?= e(t('post.draft')) ?></button>
 					<button type="submit" class="btn btn--primary btn--lg"><?= icon('check', 20) ?><?= e(t('post.submit')) ?></button>
@@ -160,7 +160,7 @@ require INC_DIR . '/header.php';
 							<span data-preview-icon="<?= e($category['slug']) ?>" hidden><?= icon($category['icon'], 64) ?></span>
 							<?php endforeach; ?>
 						</span>
-						<img src="" alt="" hidden>
+						<img src="data:," alt="" hidden>
 						<span class="tag card__tag" data-preview="tag" hidden><?= e(t('card.negotiable')) ?></span>
 					</div>
 					<div class="card__body">
@@ -188,7 +188,7 @@ require INC_DIR . '/header.php';
 <!-- Template for an uploaded photo (used by main.js) -->
 <template id="photo-item-tpl">
 	<li class="photo-item">
-		<img src="" alt="">
+		<img src="data:," alt="">
 		<span class="tag photo-item__cover" data-cover-tag><?= e(t('post.photo_cover')) ?></span>
 		<span class="photo-item__actions">
 			<button type="button" class="photo-item__btn" data-make-cover aria-label="<?= e(t('post.photo_make_cover')) ?>" title="<?= e(t('post.photo_make_cover')) ?>"><?= icon('star', 18) ?></button>

@@ -108,6 +108,7 @@
 	--color-sea-soft: #E1EAEF;
 	--color-on-sea: #F2EDE4;
 	--color-on-sea-muted: #C9D6DE;
+	--color-on-sea-line: rgba(242, 237, 228, 0.2);  /* rules on sea blue (footer) */
 
 	/* Paper & neutrals */
 	--color-bg: #F7F3EC;

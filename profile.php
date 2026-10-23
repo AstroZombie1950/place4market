@@ -97,7 +97,7 @@ require INC_DIR . '/header.php';
 
 		<!-- Account settings -->
 		<div class="tabs__panel" role="tabpanel" id="panel-settings" aria-labelledby="tab-settings" tabindex="0" hidden>
-			<form class="panel" method="post" action="" data-demo="<?= e(t('p.saved')) ?>">
+			<form class="panel" method="post" data-demo="<?= e(t('p.saved')) ?>">
 				<div class="panel__body">
 					<h2 class="panel__title"><?= e(t('p.personal')) ?></h2>
 					<div class="form-grid">
@@ -132,7 +132,7 @@ require INC_DIR . '/header.php';
 				</div>
 			</form>
 
-			<form class="panel" method="post" action="" data-demo="<?= e(t('p.password_saved')) ?>" data-demo-reset>
+			<form class="panel" method="post" data-demo="<?= e(t('p.password_saved')) ?>" data-demo-reset>
 				<div class="panel__body">
 					<h2 class="panel__title"><?= e(t('p.change_password')) ?></h2>
 					<div class="form-grid">
@@ -165,7 +165,7 @@ require INC_DIR . '/header.php';
 
 		<!-- Notifications -->
 		<div class="tabs__panel" role="tabpanel" id="panel-notifications" aria-labelledby="tab-notifications" tabindex="0" hidden>
-			<form class="panel" method="post" action="" data-demo="<?= e(t('p.saved')) ?>">
+			<form class="panel" method="post" data-demo="<?= e(t('p.saved')) ?>">
 				<div class="panel__body">
 					<h2 class="panel__title"><?= e(t('p.notifications')) ?></h2>
 					<ul class="switch-list">

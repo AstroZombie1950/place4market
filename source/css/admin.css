@@ -695,8 +695,8 @@ button {
 .switch input {
 	position: relative;
 	flex-shrink: 0;
-	width: 38px;
-	height: 22px;
+	width: 44px;
+	height: 26px;
 	margin: 0;
 	border-radius: var(--radius-pill);
 	background: var(--color-border-strong);
@@ -710,8 +710,8 @@ button {
 	position: absolute;
 	top: 3px;
 	left: 3px;
-	width: 16px;
-	height: 16px;
+	width: 20px;
+	height: 20px;
 	border-radius: 50%;
 	background: #FFFFFF;
 	box-shadow: var(--shadow-sm);
@@ -723,7 +723,7 @@ button {
 }
 
 .switch input:checked::after {
-	transform: translateX(16px);
+	transform: translateX(18px);
 }
 
 .switch__text {
@@ -1850,11 +1850,12 @@ a.list__title:hover {
 		width: min(var(--sidebar-width), 86vw);
 		transform: translateX(-100%);
 		transition: transform var(--transition-slow);
-		box-shadow: var(--shadow-lg);
 	}
 
+	/* Shadow only when open, otherwise it shows along the left edge */
 	.sidebar.is-open {
 		transform: none;
+		box-shadow: var(--shadow-lg);
 	}
 
 	.btn.sidebar__close,
@@ -1968,13 +1969,27 @@ a.list__title:hover {
 	}
 
 	.sidebar__link,
+	.sidebar__logo,
 	.dropdown__item {
 		min-height: var(--tap-size);
 	}
 
 	.check input {
-		width: 20px;
-		height: 20px;
+		width: 24px;
+		height: 24px;
+	}
+
+	/* 16px fields: iOS doesn't zoom the page on focus */
+	.input,
+	.select,
+	.textarea {
+		font-size: var(--fs-md);
+	}
+
+	.pagination__page,
+	.tree__toggle {
+		min-width: var(--tap-size);
+		min-height: var(--tap-size);
 	}
 }
 
@@ -1989,6 +2004,14 @@ a.list__title:hover {
 	accent-color: var(--color-accent);
 	vertical-align: middle;
 	cursor: pointer;
+}
+
+@media (pointer: coarse) {
+	.table [data-row-check],
+	.table [data-check-all] {
+		width: 24px;
+		height: 24px;
+	}
 }
 
 /* Inline code */

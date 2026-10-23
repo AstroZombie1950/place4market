@@ -65,7 +65,7 @@ require ADMIN_INC . '/header.php';
 
 	<!-- Profile form -->
 	<div class="tabs__panel card__body" role="tabpanel" id="panel-profile" aria-labelledby="tab-profile" tabindex="0">
-		<form id="user-form" method="post" action="" data-demo-submit="Profile saved">
+		<form id="user-form" method="post" data-demo-submit="Profile saved">
 			<input type="hidden" name="id" value="<?= (int) $user['id'] ?>">
 
 			<div class="form-section">

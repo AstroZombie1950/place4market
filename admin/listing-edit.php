@@ -43,7 +43,7 @@ require ADMIN_INC . '/header.php';
 
 		<!-- Details -->
 		<div class="tabs__panel card__body" role="tabpanel" id="panel-details" aria-labelledby="tab-details" tabindex="0">
-			<form id="listing-form" class="form-grid" method="post" action="" data-demo-submit="Listing saved">
+			<form id="listing-form" class="form-grid" method="post" data-demo-submit="Listing saved">
 				<input type="hidden" name="id" value="<?= (int) $listing['id'] ?>">
 
 				<div class="field field--full">

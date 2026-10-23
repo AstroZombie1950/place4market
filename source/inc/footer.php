@@ -4,23 +4,48 @@
 	========================================================================== */
 
 $unread = unread_count();
+
+// Footer link columns: categories (internal linking), buyers & sellers, company
+$infoPages = info_pages();
+$footerLink = fn(string $path, string $label, array $params = []) => ['href' => url($path, $params), 'label' => $label];
+$footerCols = [
+	'categories' => array_map(
+		fn($c) => $footerLink('category.php', cat_name($c), ['cat' => $c['slug']]),
+		array_filter($categories, fn($c) => $c['active'])
+	),
+	'users' => [
+		$footerLink('post.php', t('nav.post_ad')),
+		$footerLink($infoPages['help']['path'], t($infoPages['help']['label'])),
+		$footerLink($infoPages['safety']['path'], t($infoPages['safety']['label'])),
+	],
+	'company' => array_map(
+		fn($key) => $footerLink($infoPages[$key]['path'], t($infoPages[$key]['label'])),
+		['about', 'contact', 'terms', 'privacy']
+	),
+];
 ?>
 </main>
 
 <!-- Footer -->
 <footer class="site-footer">
 	<div class="container site-footer__inner">
-		<a class="site-footer__logo" href="<?= e(url('index.php')) ?>">Place<span class="logo__4">4</span>Market</a>
-		<nav aria-label="<?= e(t('footer.nav')) ?>">
+		<div class="site-footer__brand">
+			<a class="site-footer__logo" href="<?= e(url('index.php')) ?>">Place<span class="logo__4">4</span>Market</a>
+			<p class="site-footer__tagline"><?= e(t('footer.tagline')) ?></p>
+		</div>
+
+		<?php foreach ($footerCols as $col => $links): ?>
+		<nav class="site-footer__col site-footer__col--<?= $col ?>" aria-labelledby="footer-<?= $col ?>">
+			<p class="site-footer__title" id="footer-<?= $col ?>"><?= e(t('footer.' . $col)) ?></p>
 			<ul class="site-footer__links">
-				<li><a href="#"><?= e(t('footer.about')) ?></a></li>
-				<li><a href="#"><?= e(t('footer.help')) ?></a></li>
-				<li><a href="#"><?= e(t('footer.safety')) ?></a></li>
-				<li><a href="#"><?= e(t('footer.terms')) ?></a></li>
-				<li><a href="#"><?= e(t('footer.privacy')) ?></a></li>
-				<li><a href="#"><?= e(t('footer.contact')) ?></a></li>
+				<?php foreach ($links as $link): ?>
+				<li><a href="<?= e($link['href']) ?>"><?= e($link['label']) ?></a></li>
+				<?php endforeach; ?>
 			</ul>
 		</nav>
+		<?php endforeach; ?>
+	</div>
+	<div class="container site-footer__bottom">
 		<p class="site-footer__copy">© <?= date('Y') ?> Place4Market. <?= e(t('footer.rights')) ?></p>
 	</div>
 </footer>

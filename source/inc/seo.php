@@ -10,6 +10,7 @@
 
 const SITE_NAME = 'Place4Market';
 const SITE_HOST = 'place4market.com';
+const SITE_EMAIL = 'support@place4market.com'; // placeholder until the client gives the real one
 
 // Absolute URL for a link built by url(): site_url('listing.php?id=5')
 function site_url(string $link = ''): string
@@ -181,6 +182,70 @@ function schema_item_list(array $listings): array
 	}
 
 	return ['@type' => 'ItemList', 'itemListElement' => $items];
+}
+
+// Static page: AboutPage, ContactPage, WebPage… (+ main entity)
+function schema_page(string $type, ?array $mainEntity = null): array
+{
+	$schema = [
+		'@type' => $type,
+		'name' => $GLOBALS['page']['title'],
+		'url' => canonical_url(),
+		'inLanguage' => lang_meta()['html'],
+		'isPartOf' => ['@type' => 'WebSite', 'name' => SITE_NAME, 'url' => site_url()],
+	];
+
+	if ($mainEntity) {
+		$schema['mainEntity'] = $mainEntity;
+	}
+
+	return $schema;
+}
+
+// Organization with a support contact (contact page)
+function schema_organization(): array
+{
+	return [
+		'@type' => 'Organization',
+		'name' => SITE_NAME,
+		'url' => site_url(),
+		'logo' => site_url(ASSETS_URL . '/img/icons/icon-512.png'),
+		'contactPoint' => [
+			'@type' => 'ContactPoint',
+			'contactType' => 'customer support',
+			'email' => SITE_EMAIL,
+			'areaServed' => 'RS',
+			'availableLanguage' => ['English', 'Serbian'],
+		],
+	];
+}
+
+// Help: questions and answers, [['q' => text, 'a' => text], …]
+function schema_faq(array $items): array
+{
+	return [
+		'@type' => 'FAQPage',
+		'mainEntity' => array_map(fn($item) => [
+			'@type' => 'Question',
+			'name' => $item['q'],
+			'acceptedAnswer' => ['@type' => 'Answer', 'text' => $item['a']],
+		], $items),
+	];
+}
+
+// Seller page: profile of a person
+function schema_profile(array $user): array
+{
+	return [
+		'@type' => 'ProfilePage',
+		'url' => canonical_url(),
+		'dateCreated' => date('c', strtotime($user['since'])),
+		'mainEntity' => [
+			'@type' => 'Person',
+			'name' => person_name($user['name']),
+			'address' => ['@type' => 'PostalAddress', 'addressLocality' => city_name($user['city']), 'addressCountry' => 'RS'],
+		],
+	];
 }
 
 /* ---------- Breadcrumbs ---------- */

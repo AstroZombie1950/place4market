@@ -135,9 +135,9 @@ require ADMIN_INC . '/header.php';
 	<nav class="pagination" aria-label="Pagination">
 		<span>Showing <span data-table-count="users-table"><?= count($users) ?></span> of <?= count($users) ?></span>
 		<ul class="pagination__pages">
-			<li><a class="pagination__page" href="#" aria-label="Previous page" aria-disabled="true"><?= icon('chevron-left', 16) ?></a></li>
-			<li><a class="pagination__page" href="#" aria-current="page">1</a></li>
-			<li><a class="pagination__page" href="#" aria-label="Next page" aria-disabled="true"><?= icon('chevron-right', 16) ?></a></li>
+			<li><a class="pagination__page" href="users.php" aria-label="Previous page" aria-disabled="true"><?= icon('chevron-left', 16) ?></a></li>
+			<li><a class="pagination__page" href="users.php" aria-current="page">1</a></li>
+			<li><a class="pagination__page" href="users.php" aria-label="Next page" aria-disabled="true"><?= icon('chevron-right', 16) ?></a></li>
 		</ul>
 	</nav>
 </section>

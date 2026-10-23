@@ -237,7 +237,7 @@ require INC_DIR . '/header.php';
 
 			<!-- Active filters -->
 			<?php if ($chips): ?>
-			<ul class="chips filter-chips" aria-label="<?= e(t('cat.active_filters')) ?>">
+			<ul class="chips filter-chips" role="list" aria-label="<?= e(t('cat.active_filters')) ?>">
 				<?php foreach ($chips as $chip): ?>
 				<li><a class="chip chip--removable" href="<?= e($chip['href']) ?>" aria-label="<?= e(t('cat.remove_filter', ['name' => $chip['label']])) ?>"><?= e($chip['label']) ?><?= icon('x', 16) ?></a></li>
 				<?php endforeach; ?>
