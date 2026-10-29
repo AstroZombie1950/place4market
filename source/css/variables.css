@@ -124,6 +124,11 @@
 	--color-text-muted: #6B6058;
 	--color-text-subtle: #766A60;
 
+	/* On top of photos and video */
+	--color-scrim: rgba(42, 36, 32, 0.78);  /* dark labels and buttons over a photo */
+	--color-on-scrim: #FFFFFF;
+	--color-media-bg: #000000;             /* video player letterbox */
+
 	/* Status colors (text on soft background passes WCAG AA) */
 	--color-success: #3D6B2C;
 	--color-success-hover: #2F5422;

@@ -8,12 +8,13 @@
 
 	/* ----------------------------------------------------------------------
 		Error reporting: uncaught errors and rejected promises → /js-error.php
-		(server log, channel "js"). Same block in main.js
+		(server log, channel "js"); reportError(message, source, stack) for
+		failures that are caught but still worth knowing about. Same block in main.js
 		---------------------------------------------------------------------- */
-	(() => {
+	const reportError = (() => {
 		let sent = 0;
 
-		const report = (message, source, stack) => {
+		const report = (message, source = '', stack = '') => {
 			// A broken page must not flood the log; extensions are not our code
 			if (sent >= 5 || !navigator.sendBeacon || /extension:\/\//.test(`${source} ${stack}`)) return;
 			sent++;
@@ -35,6 +36,8 @@
 			const reason = event.reason || {};
 			report(reason.message || reason, '', reason.stack);
 		});
+
+		return report;
 	})();
 
 	const $ = (selector, context = document) => context.querySelector(selector);

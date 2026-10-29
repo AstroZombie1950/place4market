@@ -94,6 +94,8 @@ $footerCols = [
 <script type="application/json" id="i18n-js"><?= json_encode([
 	'linkCopied' => t('l.link_copied'),
 	'photosLimit' => t('post.photos_limit'),
+	'photoTooBig' => t('post.photo_too_big'),
+	'photoUnreadable' => t('post.photo_unreadable'),
 	'photoCover' => t('post.photo_cover'),
 	'makeCover' => t('post.photo_make_cover'),
 	'removePhoto' => t('post.photo_remove'),

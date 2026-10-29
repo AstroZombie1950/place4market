@@ -18,7 +18,13 @@ $seller = user($listing['user_id']);
 $title = listing_title($listing);
 $isOwn = $listing['user_id'] === CURRENT_USER_ID;
 $photos = $listing['images'];
-$photoCount = $photos ? count($photos) : max(1, min(8, $listing['photos']));
+// Gallery slides: photos with videos right after the cover; placeholders when there are no photos
+$media = array_map(fn($photo) => ['photo' => $photo], $photos);
+foreach ($listing['videos'] as $j => $video) {
+	array_splice($media, min(1 + $j, count($media)), 0, [['video' => $video]]);
+}
+$media = $media ?: array_fill(0, max(1, min(8, $listing['photos'])), []);
+$mediaCount = count($media);
 
 // Seller's other active listings
 $sellerCount = count(seller_listings($seller['id']));
@@ -85,29 +91,42 @@ require INC_DIR . '/header.php';
 		<!-- Gallery -->
 		<section class="listing__gallery gallery" data-gallery aria-label="<?= e(t('l.gallery')) ?>">
 			<div class="gallery__main" tabindex="0" aria-roledescription="carousel">
-				<?php for ($i = 1; $i <= $photoCount; $i++): ?>
-				<div class="gallery__slide" data-slide<?= $i > 1 ? ' hidden' : '' ?>>
-					<?php $photoAlt = t('l.photo_of', ['n' => $i, 'total' => $photoCount]) . ': ' . $title; ?>
-					<?php if ($photos): ?>
-					<?= photo($photos[$i - 1], photo_sizes_contain(PHOTO_SIZES['gallery'], $photos[$i - 1]), ['alt' => $photoAlt, 'class' => 'pic--contain', 'priority' => $i === 1]) ?>
+				<?php foreach ($media as $i => $item): $n = $i + 1; ?>
+				<div class="gallery__slide" data-slide<?= $i ? ' hidden' : '' ?>>
+					<?php if (isset($item['video'])): $video = $item['video']; ?>
+					<!-- Video facade: poster + play button, the player is created on tap (main.js) -->
+					<button type="button" class="video-facade" data-video="<?= e(video_url($video)) ?>" data-video-label="<?= e(t('l.video_of', ['title' => $title])) ?>" aria-label="<?= e(t('l.play_video', ['time' => video_time($video['duration'])])) ?>">
+						<?= photo($video['poster'], photo_sizes_contain(PHOTO_SIZES['gallery'], $video['poster']), ['class' => 'pic--contain']) ?>
+						<span class="video-facade__play" aria-hidden="true"><?= icon('play', 32) ?></span>
+						<span class="video-facade__time" aria-hidden="true"><?= e(video_time($video['duration'])) ?></span>
+					</button>
+					<?php else: ?>
+					<?php $photoAlt = t('l.photo_of', ['n' => $n, 'total' => $mediaCount]) . ': ' . $title; ?>
+					<?php if (isset($item['photo'])): ?>
+					<?= photo($item['photo'], photo_sizes_contain(PHOTO_SIZES['gallery'], $item['photo']), ['alt' => $photoAlt, 'class' => 'pic--contain', 'priority' => $i === 0]) ?>
 					<?php else: ?>
 					<?= placeholder($listing['category'], 120, $photoAlt) ?>
 					<?php endif; ?>
+					<?php endif; ?>
 				</div>
-				<?php endfor; ?>
+				<?php endforeach; ?>
 
-				<?php if ($photoCount > 1): ?>
+				<?php if ($mediaCount > 1): ?>
 				<button type="button" class="btn btn--icon gallery__nav gallery__nav--prev" data-gallery-prev aria-label="<?= e(t('l.prev_photo')) ?>"><?= icon('chevron-left') ?></button>
 				<button type="button" class="btn btn--icon gallery__nav gallery__nav--next" data-gallery-next aria-label="<?= e(t('l.next_photo')) ?>"><?= icon('chevron-right') ?></button>
-				<span class="gallery__counter" data-gallery-counter aria-live="polite">1 / <?= $photoCount ?></span>
+				<span class="gallery__counter" data-gallery-counter aria-live="polite">1 / <?= $mediaCount ?></span>
 				<?php endif; ?>
 			</div>
 
-			<?php if ($photoCount > 1): ?>
+			<?php if ($mediaCount > 1): ?>
 			<ul class="gallery__thumbs">
-				<?php for ($i = 1; $i <= $photoCount; $i++): ?>
-				<li><button type="button" class="gallery__thumb" data-thumb aria-current="<?= $i === 1 ? 'true' : 'false' ?>" aria-label="<?= e(t('l.photo_of', ['n' => $i, 'total' => $photoCount])) ?>"><?= $photos ? photo($photos[$i - 1], PHOTO_SIZES['thumb'], ['max' => PHOTO_MAX['thumb']]) : placeholder($listing['category'], 24) ?></button></li>
-				<?php endfor; ?>
+				<?php foreach ($media as $i => $item): ?>
+				<?php if (isset($item['video'])): ?>
+				<li><button type="button" class="gallery__thumb gallery__thumb--video" data-thumb aria-current="false" aria-label="<?= e(t('l.video_thumb', ['time' => video_time($item['video']['duration'])])) ?>"><?= photo($item['video']['poster'], PHOTO_SIZES['thumb'], ['max' => PHOTO_MAX['thumb']]) ?><span class="gallery__thumb-play" aria-hidden="true"><?= icon('play', 16) ?></span></button></li>
+				<?php else: ?>
+				<li><button type="button" class="gallery__thumb" data-thumb aria-current="<?= $i === 0 ? 'true' : 'false' ?>" aria-label="<?= e(t('l.photo_of', ['n' => $i + 1, 'total' => $mediaCount])) ?>"><?= isset($item['photo']) ? photo($item['photo'], PHOTO_SIZES['thumb'], ['max' => PHOTO_MAX['thumb']]) : placeholder($listing['category'], 24) ?></button></li>
+				<?php endif; ?>
+				<?php endforeach; ?>
 			</ul>
 			<?php endif; ?>
 		</section>

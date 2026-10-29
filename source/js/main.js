@@ -9,12 +9,13 @@
 
 	/* ----------------------------------------------------------------------
 		Error reporting: uncaught errors and rejected promises → /js-error.php
-		(server log, channel "js"). Same block in admin.js
+		(server log, channel "js"); reportError(message, source, stack) for
+		failures that are caught but still worth knowing about. Same block in admin.js
 		---------------------------------------------------------------------- */
-	(() => {
+	const reportError = (() => {
 		let sent = 0;
 
-		const report = (message, source, stack) => {
+		const report = (message, source = '', stack = '') => {
 			// A broken page must not flood the log; extensions are not our code
 			if (sent >= 5 || !navigator.sendBeacon || /extension:\/\//.test(`${source} ${stack}`)) return;
 			sent++;
@@ -36,6 +37,8 @@
 			const reason = event.reason || {};
 			report(reason.message || reason, '', reason.stack);
 		});
+
+		return report;
 	})();
 
 	const $ = (selector, context = document) => context.querySelector(selector);
@@ -420,7 +423,8 @@
 	/* ----------------------------------------------------------------------
 		Gallery: [data-gallery] with [data-slide] items, [data-thumb] buttons,
 		[data-gallery-prev] / [data-gallery-next], [data-gallery-counter]
-		Arrow keys and swipe work on the main photo
+		Arrow keys and swipe work on the main photo (not on a playing video:
+		there they seek); a video on a slide that gets hidden is paused
 		---------------------------------------------------------------------- */
 	const initGallery = () => {
 		$$('[data-gallery]').forEach((root) => {
@@ -433,7 +437,11 @@
 
 			const show = (index) => {
 				current = (index + slides.length) % slides.length;
-				slides.forEach((s, i) => { s.hidden = i !== current; });
+				slides.forEach((s, i) => {
+					s.hidden = i !== current;
+					const video = s.hidden ? $('video', s) : null;
+					if (video && !video.paused) video.pause();
+				});
 				thumbs.forEach((t, i) => t.setAttribute('aria-current', String(i === current)));
 				if (counter) counter.textContent = `${current + 1} / ${slides.length}`;
 				const thumb = thumbs[current];
@@ -447,12 +455,13 @@
 			thumbs.forEach((t, i) => t.addEventListener('click', () => show(i)));
 
 			main.addEventListener('keydown', (e) => {
+				if (e.target.closest('video')) return;
 				if (e.key === 'ArrowLeft') show(current - 1);
 				if (e.key === 'ArrowRight') show(current + 1);
 			});
 
 			let startX = null;
-			main.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; }, { passive: true });
+			main.addEventListener('touchstart', (e) => { startX = e.target.closest('video') ? null : e.touches[0].clientX; }, { passive: true });
 			main.addEventListener('touchend', (e) => {
 				if (startX === null) return;
 				const dx = e.changedTouches[0].clientX - startX;
@@ -461,6 +470,36 @@
 			});
 
 			show(0);
+		});
+	};
+
+	/* ----------------------------------------------------------------------
+		Video facade: button[data-video="file.mp4"] with a poster photo. Nothing
+		of the video loads until the tap; then a <video> replaces the button and
+		starts. data-video-label names the player for screen readers
+		---------------------------------------------------------------------- */
+	const initVideos = () => {
+		$$('[data-video]').forEach((btn) => {
+			btn.addEventListener('click', () => {
+				const poster = $('img', btn);
+				const video = document.createElement('video');
+				video.className = 'video-player';
+				video.controls = true;
+				video.playsInline = true;
+				video.preload = 'auto';
+				if (poster) video.poster = poster.currentSrc || poster.src;
+				video.setAttribute('aria-label', btn.dataset.videoLabel || '');
+				// Bad file or codec is ours to fix; network drops (codes 1–2) are not
+				video.addEventListener('error', () => {
+					const err = video.error;
+					if (err && err.code >= 3) reportError(`Video error ${err.code}: ${err.message || ''}`, btn.dataset.video);
+				});
+				video.src = btn.dataset.video;
+				btn.replaceWith(video);
+				video.focus();
+				// Blocked autoplay is fine: the controls are there
+				video.play().catch(() => {});
+			});
 		});
 	};
 
@@ -502,7 +541,8 @@
 		- category select [data-category-select] (data-subcats JSON) fills
 		  [data-subcategory-select]
 		- photos: [data-photo-input], [data-dropzone], [data-photo-list],
-		  <template id="photo-item-tpl">; first photo is the cover
+		  <template id="photo-item-tpl">; first photo is the cover. Each photo is
+		  prepared in the browser before upload (see preparePhoto below)
 		- live preview: inputs [data-bind="…"] → [data-preview="…"]
 		---------------------------------------------------------------------- */
 	const initPostForm = () => {
@@ -573,21 +613,92 @@
 		});
 		updatePreview();
 
-		// Photos
+		// Photos. Prepared in the browser before upload (CLAUDE.md, section 2): EXIF
+		// rotation applied, long side up to 2560 px, JPEG 0.9, which also drops EXIF
+		// and GPS. A 5–12 MB phone shot becomes ~1 MB. Small files stay as they are,
+		// so they are not compressed twice. One photo at a time: phones run out of memory
+		const MAX_SIDE = 2560;
+		const KEEP_BYTES = 1.5 * 1024 * 1024;
+		const MAX_BYTES = 30 * 1024 * 1024;
+
 		const input = $('[data-photo-input]', form);
 		const dropzone = $('[data-dropzone]', form);
 		const list = $('[data-photo-list]', form);
 		const tpl = $('#photo-item-tpl');
 		const max = Number(input ? input.dataset.max : 12) || 12;
+		// { file, url, name, busy }: busy while being prepared, file is what gets uploaded
 		let photos = [];
+		let queue = Promise.resolve();
+
+		// Decoded image with EXIF rotation applied; error.unreadable for formats the
+		// browser cannot open (e.g. HEIC outside Safari)
+		const decodePhoto = async (file) => {
+			try {
+				return await createImageBitmap(file, { imageOrientation: 'from-image' });
+			} catch (err) { /* older browsers: <img> applies EXIF rotation itself */ }
+
+			const url = URL.createObjectURL(file);
+			try {
+				const img = new Image();
+				img.src = url;
+				await img.decode();
+				return img;
+			} catch (err) {
+				const error = new Error('Photo cannot be decoded');
+				error.unreadable = true;
+				throw error;
+			} finally {
+				URL.revokeObjectURL(url);
+			}
+		};
+
+		const preparePhoto = async (file) => {
+			const source = await decodePhoto(file);
+			const scale = Math.min(1, MAX_SIDE / Math.max(source.width, source.height));
+
+			if (scale === 1 && file.size <= KEEP_BYTES) {
+				if (source.close) source.close();
+				return file;
+			}
+
+			const canvas = document.createElement('canvas');
+			canvas.width = Math.round(source.width * scale);
+			canvas.height = Math.round(source.height * scale);
+			const ctx = canvas.getContext('2d');
+			// Transparent PNG → white, not black, in JPEG
+			ctx.fillStyle = '#fff';
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+			ctx.imageSmoothingQuality = 'high';
+			ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+			if (source.close) source.close();
+
+			const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+			// Release the canvas memory right away (matters on phones)
+			canvas.width = 0;
+			canvas.height = 0;
+			if (!blob) throw new Error('canvas.toBlob returned nothing');
+
+			return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg', lastModified: file.lastModified });
+		};
 
 		const renderPhotos = () => {
 			list.innerHTML = '';
 			photos.forEach((photo, index) => {
 				const item = tpl.content.firstElementChild.cloneNode(true);
 				const img = $('img', item);
+				img.alt = photo.name;
+				// Being prepared: a pulsing tile, no actions yet
+				if (photo.busy) {
+					item.classList.add('is-busy');
+					item.setAttribute('aria-busy', 'true');
+					item.title = photo.name;
+					img.hidden = true;
+					$('[data-cover-tag]', item).hidden = true;
+					$('.photo-item__actions', item).hidden = true;
+					list.appendChild(item);
+					return;
+				}
 				img.src = photo.url;
-				img.alt = photo.file.name;
 				$('[data-cover-tag]', item).hidden = index !== 0;
 				const coverBtn = $('[data-make-cover]', item);
 				coverBtn.hidden = index === 0;
@@ -608,7 +719,7 @@
 			if (media) {
 				const img = $('img', media);
 				const ph = $('.ph', media);
-				if (photos[0]) {
+				if (photos[0] && !photos[0].busy) {
 					img.src = photos[0].url;
 					img.hidden = false;
 					ph.hidden = true;
@@ -620,13 +731,35 @@
 		};
 
 		const addFiles = (files) => {
+			let limitShown = false;
+
 			Array.from(files).forEach((file) => {
 				if (!file.type.startsWith('image/')) return;
 				if (photos.length >= max) {
-					toast(i18n.photosLimit, 'info');
+					if (!limitShown) toast(i18n.photosLimit, 'info');
+					limitShown = true;
 					return;
 				}
-				photos.push({ file, url: URL.createObjectURL(file) });
+				if (file.size > MAX_BYTES) {
+					toast(i18n.photoTooBig, 'info');
+					return;
+				}
+
+				const photo = { file: null, url: '', name: file.name, busy: true };
+				photos.push(photo);
+				queue = queue.then(async () => {
+					try {
+						photo.file = await preparePhoto(file);
+						photo.url = URL.createObjectURL(photo.file);
+						photo.busy = false;
+					} catch (err) {
+						photos.splice(photos.indexOf(photo), 1);
+						toast(i18n.photoUnreadable, 'info');
+						// A format the browser cannot open is the user's case; anything else is ours
+						if (!err.unreadable) reportError(err.message, 'post form: preparePhoto', err.stack);
+					}
+					renderPhotos();
+				});
 			});
 			renderPhotos();
 		};
@@ -800,6 +933,7 @@
 	initForms();
 	initViewToggle();
 	initGallery();
+	initVideos();
 	initContacts();
 	initPostForm();
 	initChat();

@@ -1778,10 +1778,95 @@ button {
 	z-index: 2;
 	padding: 4px 10px;
 	border-radius: var(--radius-sm);
-	background: rgba(42, 36, 32, 0.78);
-	color: #FFFFFF;
+	background: var(--color-scrim);
+	color: var(--color-on-scrim);
 	font-size: var(--fs-sm);
 	font-weight: var(--fw-semibold);
+}
+
+/* Video in the gallery: facade (poster + play) until tapped, then the player */
+.video-facade {
+	position: relative;
+	display: block;
+	width: 100%;
+	height: 100%;
+	padding: 0;
+	border: 0;
+	background: none;
+	cursor: pointer;
+}
+
+.video-facade__play {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 72px;
+	height: 72px;
+	border-radius: var(--radius);
+	background: var(--color-scrim);
+	color: var(--color-on-scrim);
+	transform: translate(-50%, -50%);
+	transition: background var(--transition);
+}
+
+.video-facade__play .icon {
+	fill: currentColor;
+	stroke: none;
+}
+
+.video-facade:hover .video-facade__play,
+.video-facade:focus-visible .video-facade__play {
+	background: var(--color-accent);
+}
+
+.video-facade__time {
+	position: absolute;
+	left: var(--space-3);
+	bottom: var(--space-3);
+	padding: 4px 10px;
+	border-radius: var(--radius-sm);
+	background: var(--color-scrim);
+	color: var(--color-on-scrim);
+	font-size: var(--fs-sm);
+	font-weight: var(--fw-semibold);
+}
+
+/* The counter moves up while the open slide has a player: bottom right is its controls */
+.gallery__main:has(.gallery__slide:not([hidden]) .video-player) .gallery__counter {
+	top: var(--space-3);
+	bottom: auto;
+}
+
+.video-player {
+	display: block;
+	width: 100%;
+	height: 100%;
+	background: var(--color-media-bg);
+	object-fit: contain;
+}
+
+.gallery__thumb--video {
+	position: relative;
+}
+
+.gallery__thumb-play {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	display: flex;
+	padding: 6px;
+	border-radius: var(--radius-sm);
+	background: var(--color-scrim);
+	color: var(--color-on-scrim);
+	transform: translate(-50%, -50%);
+}
+
+.gallery__thumb-play .icon {
+	fill: currentColor;
+	stroke: none;
 }
 
 .gallery__thumbs {
@@ -2157,6 +2242,16 @@ button {
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
+}
+
+/* Photo being prepared in the browser (main.js): soft pulse until it is ready */
+.photo-item.is-busy {
+	animation: photo-busy 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes photo-busy {
+	from { opacity: 1; }
+	to { opacity: 0.5; }
 }
 
 .photo-item__cover {

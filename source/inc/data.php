@@ -182,10 +182,13 @@ $listings = [
 	],
 ];
 
-// Demo photos (Pexels, demo-photos.php) by listing id; 'photos' becomes their count
+// Demo photos and videos (Pexels, demo-photos.php / demo-videos.php) by listing id;
+// 'photos' becomes the photo count
 $demoPhotos = require SOURCE_DIR . '/inc/demo-photos.php';
+$demoVideos = require SOURCE_DIR . '/inc/demo-videos.php';
 foreach ($listings as $i => $item) {
 	$listings[$i]['images'] = $demoPhotos[$item['id']] ?? [];
+	$listings[$i]['videos'] = $demoVideos[$item['id']] ?? [];
 	$listings[$i]['photos'] = count($listings[$i]['images']) ?: $item['photos'];
 }
 unset($i, $item);

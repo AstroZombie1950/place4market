@@ -157,6 +157,19 @@ function schema_listing(array $listing, array $seller, array $category): array
 			: site_url(ASSETS_URL . '/img/og-image.png'),
 	];
 
+	// Videos: VideoObject with the poster as thumbnail (video rich results)
+	if ($listing['videos']) {
+		$schema['subjectOf'] = array_map(fn($video) => [
+			'@type' => 'VideoObject',
+			'name' => listing_title($listing),
+			'description' => tc($listing['description']),
+			'thumbnailUrl' => site_url(photo_url($video['poster'], array_key_first($video['poster']['sizes']))),
+			'contentUrl' => site_url(video_url($video)),
+			'uploadDate' => date('c', strtotime($listing['created'])),
+			'duration' => 'PT' . (int) floor($video['duration']) . 'S',
+		], $listing['videos']);
+	}
+
 	if ($listing['price'] !== null) {
 		$offer = [
 			'@type' => 'Offer',

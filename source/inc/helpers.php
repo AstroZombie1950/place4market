@@ -54,6 +54,20 @@ function photo(array $photo, string $sizes, array $opts = []): string
 		. ' decoding="async" style="background-color:' . e($photo['color']) . '">';
 }
 
+// Listing video file URL; $video: ['path', 'file', 'width', 'height', 'duration', 'bytes', 'poster' => photo]
+function video_url(array $video): string
+{
+	return ASSETS_URL . '/' . $video['path'] . '/' . $video['file'];
+}
+
+// Video length as players show it (whole seconds, rounded down): 10.7 → "0:10", 75 → "1:15"
+function video_time(float $seconds): string
+{
+	$total = (int) floor($seconds);
+
+	return intdiv($total, 60) . ':' . str_pad((string) ($total % 60), 2, '0', STR_PAD_LEFT);
+}
+
 // Price: 9800, 'EUR' → "9 800 €"; null → "By agreement"
 function format_price(?int $amount, string $currency = 'RSD'): string
 {
