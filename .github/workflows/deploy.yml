@@ -24,6 +24,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Минификация CSS и JS прямо в рабочей копии раннера: в репозитории исходники
+      # остаются читаемыми, на хостинг уходят сжатые. Комментарии и пробелы убираются,
+      # синтаксис не понижается. Версия esbuild зафиксирована, чтобы вывод не менялся сам
+      - name: Minify CSS and JS
+        run: npx -y esbuild@0.25.10 source/css/*.css source/js/*.js --minify --outdir=source --outbase=source --allow-overwrite --log-level=warning
+
       - uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}

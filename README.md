@@ -27,7 +27,7 @@ messages.php          сообщения: список диалогов + пер
 about.php, help.php, safety.php, terms.php, privacy.php, contact.php
                       информационные страницы (подвал): общий макет с боковым меню
 404.php               страница 404 (несуществующие объявления/категории + ErrorDocument в .htaccess)
-sitemap.php           карта сайта со всеми языковыми версиями (robots.txt ссылается на неё)
+sitemap.php           карта сайта со всеми языковыми версиями, открывается как /sitemap.xml (rewrite в .htaccess)
 robots.txt, favicon.ico, site.webmanifest
 .htaccess             404, кэш, сжатие, noindex на время разработки, защита source/*.php
 admin/                админка (см. ниже)
@@ -105,6 +105,8 @@ source/
 ## Ассеты и кэш
 
 CSS, JS и иконки подключаются через `asset('css/site.css')` → `source/css/site.css?v=<дата изменения>`, поэтому их можно кэшировать на год. Шрифты подключаются без версии: изменённый шрифт кладём под новым именем.
+
+CSS и JS минифицируются при деплое (esbuild в `.github/workflows/deploy.yml`), в репозитории лежат читаемые исходники. Локально (`php -S`) работают исходники как есть.
 
 ## Адаптив
 

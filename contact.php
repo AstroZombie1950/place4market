@@ -1,6 +1,6 @@
 <?php
 /* ==========================================================================
-	Contact: message form + support email and hours
+	Contact: message form + support email
 	GET: topic, listing (prefill, e.g. contact.php?topic=fraud&listing=1048)
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
@@ -69,16 +69,12 @@ require INC_DIR . '/header.php';
 					</form>
 				</section>
 
-				<!-- Email, hours, help links -->
+				<!-- Email, help links -->
 				<div class="contact__aside">
 					<section class="panel" aria-labelledby="support-title">
 						<div class="panel__body">
 							<h2 class="panel__title" id="support-title"><?= e(t('contact.email')) ?></h2>
 							<p><a class="contact__email" href="mailto:<?= e(SITE_EMAIL) ?>"><?= icon('mail', 20) ?><span><?= str_replace('@', '@<wbr>', e(SITE_EMAIL)) ?></span></a></p>
-							<dl class="contact__facts">
-								<dt><?= e(t('contact.hours')) ?></dt>
-								<dd><?= e(t('contact.hours_value')) ?></dd>
-							</dl>
 							<p class="muted"><?= e(t('contact.reply')) ?></p>
 						</div>
 					</section>

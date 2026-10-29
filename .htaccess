@@ -29,7 +29,7 @@ AddType application/manifest+json .webmanifest
 
 RewriteEngine On
 
-# Карта сайта генерируется PHP (в robots.txt указан sitemap.php, он работает и без этого правила)
+# Карта сайта генерируется PHP (sitemap.php тоже открывается напрямую)
 RewriteRule ^sitemap\.xml$ sitemap.php [L]
 
 # Служебные PHP-файлы подключаются только через include, напрямую из браузера не открываются
