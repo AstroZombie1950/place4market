@@ -325,13 +325,17 @@ function chat_day(string $datetime): string
 
 /* ---------- Render helpers ---------- */
 
-// "sizes" for photo() by place, from the rendered widths at 360–1920 px
-// (card 157–348, gallery 360–964, gallery thumb 72–88, "My listings" 120, chat 56).
+// "sizes" for photo() by place, from the rendered widths at 320–1920 px
+// (gallery 360–964, gallery thumb 72–88, "My listings" 120, chat 56).
+// Card: phones exactly (100vw − gutters − gap) / 2, tablets ≈ (100vw − 93px) / 3,
+// 214–327 from 1024 up. Phones say 24px instead of the exact 23px: Chrome takes the
+// smallest file not below the screen density, and the 183 px card on a 412 px 1.75x
+// screen (Lighthouse mobile) needs 320.25 px, so 1 px less lets it take the 320 file.
 // Gallery on phones says 67vw on purpose: it caps density at ~2x, so a 3x phone gets
 // 960 instead of 1920 (no visible difference at 390 px, a 4× lighter LCP photo).
 // 960px on desktop: the 964 px box would otherwise jump to the 1920 file at 1x
 const PHOTO_SIZES = [
-	'card' => '(max-width: 767px) 50vw, (max-width: 1023px) 33vw, 260px',
+	'card' => '(max-width: 767px) calc(50vw - 24px), (max-width: 1023px) calc(33vw - 30px), 260px',
 	'gallery' => '(max-width: 767px) 67vw, (max-width: 1023px) 100vw, (max-width: 1439px) 60vw, 960px',
 	'thumb' => '88px',
 	'row' => '120px',
