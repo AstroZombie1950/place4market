@@ -325,7 +325,40 @@ function chat_day(string $datetime): string
 
 /* ---------- Render helpers ---------- */
 
-// Photo placeholder: tinted box with the category icon
+// "sizes" for photo() by place, from the rendered widths at 360–1920 px
+// (card 157–348, gallery 360–964, gallery thumb 72–88, "My listings" 120, chat 56).
+// Gallery on phones says 67vw on purpose: it caps density at ~2x, so a 3x phone gets
+// 960 instead of 1920 (no visible difference at 390 px, a 4× lighter LCP photo).
+// 960px on desktop: the 964 px box would otherwise jump to the 1920 file at 1x
+const PHOTO_SIZES = [
+	'card' => '(max-width: 767px) 50vw, (max-width: 1023px) 33vw, 260px',
+	'gallery' => '(max-width: 767px) 67vw, (max-width: 1023px) 100vw, (max-width: 1439px) 60vw, 960px',
+	'thumb' => '88px',
+	'row' => '120px',
+	'chat' => '56px',
+];
+// Largest size offered per place (small boxes stay small on 3x screens)
+const PHOTO_MAX = ['card' => 480, 'thumb' => 200, 'row' => 480, 'chat' => 200];
+
+// "sizes" for a photo shown whole (object-fit: contain) in a box of $boxRatio:
+// a portrait shot fills only part of the width, e.g. 2:3 in 4:3 is half as wide
+function photo_sizes_contain(string $sizes, array $photo, float $boxRatio = 4 / 3): string
+{
+	[$w, $h] = reset($photo['sizes']);
+	$factor = min(1, ($w / $h) / $boxRatio);
+
+	if ($factor >= 1) {
+		return $sizes;
+	}
+
+	// Scale only the length at the end of each entry, not the media conditions
+	return implode(', ', array_map(
+		fn($part) => preg_replace_callback('/([\d.]+)(vw|px)\s*$/', fn($m) => round($m[1] * $factor) . $m[2], trim($part)),
+		explode(',', $sizes)
+	));
+}
+
+// Photo placeholder: tinted box with the category icon (listings without photos)
 function placeholder(string $categorySlug, int $iconSize = 64, string $label = ''): string
 {
 	$parent = parent_category($categorySlug);

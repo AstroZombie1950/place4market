@@ -91,7 +91,7 @@ require ADMIN_INC . '/header.php';
 					<td class="col-check"><input type="checkbox" data-row-check aria-label="Select “<?= e($listing['title']) ?>”"></td>
 					<td>
 						<div class="cell-main">
-							<?= thumb($listing['category']) ?>
+							<?= thumb($listing) ?>
 							<div class="cell-main__text">
 								<a class="cell-main__title" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= e($listing['title']) ?></a>
 								<div class="cell-main__sub">#<?= (int) $listing['id'] ?><?= $listing['negotiable'] ? ' · Negotiable' : '' ?></div>

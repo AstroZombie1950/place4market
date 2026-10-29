@@ -88,7 +88,7 @@ require ADMIN_INC . '/header.php';
 					</td>
 					<td>
 						<div class="cell-main">
-							<?= thumb($listing['category'], 'sm') ?>
+							<?= thumb($listing, 'sm') ?>
 							<div class="cell-main__text">
 								<a class="cell-main__title" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= e($listing['title']) ?></a>
 								<div class="cell-main__sub">Seller: <?= e(user_name($listing['user_id'])) ?></div>

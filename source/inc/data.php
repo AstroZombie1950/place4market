@@ -182,6 +182,14 @@ $listings = [
 	],
 ];
 
+// Demo photos (Pexels, demo-photos.php) by listing id; 'photos' becomes their count
+$demoPhotos = require SOURCE_DIR . '/inc/demo-photos.php';
+foreach ($listings as $i => $item) {
+	$listings[$i]['images'] = $demoPhotos[$item['id']] ?? [];
+	$listings[$i]['photos'] = count($listings[$i]['images']) ?: $item['photos'];
+}
+unset($i, $item);
+
 // Favorites of the current user (listing ids)
 $favorites = [1047, 1042, 1036, 1034, 1043];
 

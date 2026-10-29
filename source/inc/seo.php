@@ -151,7 +151,10 @@ function schema_listing(array $listing, array $seller, array $category): array
 		'description' => tc($listing['description']),
 		'productID' => (string) $listing['id'],
 		'category' => cat_name($category),
-		'image' => site_url(ASSETS_URL . '/img/og-image.png'),
+		// All photos in the largest size; the site image when there are none
+		'image' => $listing['images']
+			? array_map(fn($photo) => site_url(photo_url($photo, array_key_first($photo['sizes']))), $listing['images'])
+			: site_url(ASSETS_URL . '/img/og-image.png'),
 	];
 
 	if ($listing['price'] !== null) {

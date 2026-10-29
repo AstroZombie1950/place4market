@@ -7,6 +7,11 @@ require_once __DIR__ . '/source/inc/bootstrap.php';
 
 http_response_code(404);
 
+// A broken link on our own pages is worth fixing; hits from outside (bots, old links) are just info
+$referer = $_SERVER['HTTP_REFERER'] ?? '';
+$internal = $referer !== '' && parse_url($referer, PHP_URL_HOST) === parse_url('//' . ($_SERVER['HTTP_HOST'] ?? ''), PHP_URL_HOST);
+log_event($internal ? 'warning' : 'info', 'Not found', ['referer' => $referer !== '' ? log_mask_url($referer) : null], 'http');
+
 $page = array_merge(page_defaults(), [
 	'title' => t('404.title'),
 	'robots' => 'noindex, follow',

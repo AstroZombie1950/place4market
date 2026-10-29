@@ -1,15 +1,21 @@
 <?php
 /* ==========================================================================
 	Listing card. Expects $listing.
-	Optional: $cardRemoveOnUnsave = true (favorites page removes the card)
+	Optional: $cardRemoveOnUnsave = true (favorites page removes the card),
+	$cardEager = true (first row on the screen: photo is not lazy-loaded),
+	$cardPriority = true (the very first card: its photo is the LCP on phones)
 	========================================================================== */
 
 $cardTitle = listing_title($listing);
 ?>
 <article class="card" data-card>
-	<!-- Photo (placeholder) + tag + heart -->
+	<!-- Cover photo (or placeholder) + tag + heart -->
 	<div class="card__media">
+		<?php if ($listing['images']): ?>
+		<?= photo($listing['images'][0], PHOTO_SIZES['card'], ['alt' => t('card.photo', ['title' => $cardTitle]), 'lazy' => empty($cardEager), 'priority' => !empty($cardPriority), 'max' => PHOTO_MAX['card']]) ?>
+		<?php else: ?>
 		<?= placeholder($listing['category'], 64, t('card.photo', ['title' => $cardTitle])) ?>
+		<?php endif; ?>
 		<?php if ($listing['negotiable']): ?>
 		<span class="tag card__tag"><?= e(t('card.negotiable')) ?></span>
 		<?php endif; ?>

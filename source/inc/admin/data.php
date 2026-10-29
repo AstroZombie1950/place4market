@@ -38,6 +38,16 @@ $listings = [
 	['id' => 1037, 'title' => 'Winter tyres 205/55 R16', 'category' => 'auto-parts', 'price' => 18000, 'currency' => 'RSD', 'negotiable' => true, 'city' => 'Novi Sad', 'user_id' => 1, 'status' => 'expired', 'created' => '2026-08-10 17:20', 'views' => 188, 'favorites' => 9, 'messages' => 5, 'photos' => 4],
 ];
 
+// Demo photos (shared with the site, keyed by site listing id). Admin mock ids mostly
+// match the site; the PlayStation is 1033 there, plumbing has no photos
+$demoPhotos = require SOURCE_DIR . '/inc/demo-photos.php';
+$demoIds = [1039 => 1033, 1038 => 0];
+foreach ($listings as $i => $item) {
+	$listings[$i]['images'] = $demoPhotos[$demoIds[$item['id']] ?? $item['id']] ?? [];
+	$listings[$i]['photos'] = count($listings[$i]['images']) ?: $item['photos'];
+}
+unset($i, $item);
+
 // Reports (complaints about listings)
 $reports = [
 	['id' => 307, 'listing_id' => 1039, 'reason' => 'Suspected fraud', 'reporter_id' => 2, 'comment' => 'Price is well below market and the seller asks for an advance payment.', 'created' => '2026-10-20 12:05', 'status' => 'open'],

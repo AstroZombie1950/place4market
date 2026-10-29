@@ -80,7 +80,7 @@ require INC_DIR . '/header.php';
 
 			<!-- Listing the conversation is about -->
 			<div class="thread__listing">
-				<span class="thread__thumb"><?= placeholder($item['category'], 20) ?></span>
+				<span class="thread__thumb"><?= $item['images'] ? photo($item['images'][0], PHOTO_SIZES['chat'], ['max' => PHOTO_MAX['chat']]) : placeholder($item['category'], 20) ?></span>
 				<div class="thread__listing-text">
 					<p class="thread__listing-title"><?= e(listing_title($item)) ?></p>
 					<p class="price"><?= price_html($item['price'], $item['currency']) ?></p>

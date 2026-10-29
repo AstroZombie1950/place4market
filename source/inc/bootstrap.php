@@ -9,6 +9,9 @@ define('ROOT_DIR', dirname(__DIR__, 2));
 define('SOURCE_DIR', ROOT_DIR . '/source');
 define('INC_DIR', __DIR__);
 
+// Logging and error handlers first: failures in everything below are caught
+require INC_DIR . '/log.php';
+
 // Asset URLs (pages live in the site root)
 define('ASSETS_URL', 'source');
 

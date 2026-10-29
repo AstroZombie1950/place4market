@@ -18,6 +18,42 @@ function asset(string $path): string
 	return ASSETS_URL . '/' . $path . (is_file($file) ? '?v=' . filemtime($file) : '');
 }
 
+// Listing photo URL: photo_url($photo, 480) → source/img/demo/1048-1/480.webp
+// $photo: ['path' => under source/, 'color' => '#rrggbb', 'sizes' => [long side => [w, h]]]
+function photo_url(array $photo, int $size): string
+{
+	return ASSETS_URL . '/' . $photo['path'] . '/' . $size . '.webp';
+}
+
+// Listing photo <img>: every stored size in srcset (the browser picks one for the box
+// and screen density), width/height of the largest for the aspect ratio, average colour
+// behind it until it loads (no CLS, no white flash).
+// $sizes: "sizes" attribute for the place it is shown (PHOTO_SIZES in site.php).
+// $opts: alt (empty = decorative), class, lazy (default true), priority (LCP photo),
+// max: largest size offered (small boxes on 3x screens would otherwise pull a bigger file)
+function photo(array $photo, string $sizes, array $opts = []): string
+{
+	$opts += ['alt' => '', 'class' => '', 'lazy' => true, 'priority' => false, 'max' => 0];
+	$offered = array_filter($photo['sizes'], fn($size) => !$opts['max'] || $size <= $opts['max'], ARRAY_FILTER_USE_KEY)
+		?: array_slice($photo['sizes'], -1, 1, true);
+	$srcset = [];
+
+	foreach ($offered as $size => [$w]) {
+		$srcset[] = photo_url($photo, $size) . ' ' . $w . 'w';
+	}
+
+	[$width, $height] = reset($photo['sizes']);
+	// Fallback src for browsers without srcset: a card-sized file
+	$src = isset($offered[480]) ? 480 : array_key_first($offered);
+
+	return '<img class="' . e(trim('pic ' . $opts['class'])) . '" src="' . e(photo_url($photo, $src)) . '"'
+		. ' srcset="' . e(implode(', ', $srcset)) . '" sizes="' . e($sizes) . '"'
+		. ' width="' . (int) $width . '" height="' . (int) $height . '" alt="' . e($opts['alt']) . '"'
+		. ($opts['lazy'] && !$opts['priority'] ? ' loading="lazy"' : '')
+		. ($opts['priority'] ? ' fetchpriority="high"' : '')
+		. ' decoding="async" style="background-color:' . e($photo['color']) . '">';
+}
+
 // Price: 9800, 'EUR' → "9 800 €"; null → "By agreement"
 function format_price(?int $amount, string $currency = 'RSD'): string
 {

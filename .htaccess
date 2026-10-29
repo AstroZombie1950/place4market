@@ -35,5 +35,8 @@ RewriteRule ^sitemap\.xml$ sitemap.php [L]
 # Служебные PHP-файлы подключаются только через include, напрямую из браузера не открываются
 RewriteRule ^source/.*\.php$ - [F,L]
 
+# Журнал на проде лежит вне public_html; это правило на случай, если папка logs окажется внутри
+RewriteRule ^logs/ - [F,L]
+
 # Файл состояния деплоя (список файлов и хэшей) наружу не отдаём
 RewriteRule ^\.ftp-deploy-sync-state\.json$ - [F,L]

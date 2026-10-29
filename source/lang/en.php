@@ -18,6 +18,9 @@ return [
 	'404.text' => 'The page may have been removed, or the link is wrong.',
 	'404.home' => 'Go to the home page',
 	'404.browse' => 'Browse all listings',
+	'500.title' => 'Something went wrong',
+	'500.text' => 'We have already logged the error and will look into it. Please try again in a few minutes.',
+	'500.code' => 'Error code: {code}',
 	'a11y.skip' => 'Skip to content',
 
 	// Navigation

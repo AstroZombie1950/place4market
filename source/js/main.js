@@ -7,6 +7,37 @@
 (() => {
 	'use strict';
 
+	/* ----------------------------------------------------------------------
+		Error reporting: uncaught errors and rejected promises → /js-error.php
+		(server log, channel "js"). Same block in admin.js
+		---------------------------------------------------------------------- */
+	(() => {
+		let sent = 0;
+
+		const report = (message, source, stack) => {
+			// A broken page must not flood the log; extensions are not our code
+			if (sent >= 5 || !navigator.sendBeacon || /extension:\/\//.test(`${source} ${stack}`)) return;
+			sent++;
+			navigator.sendBeacon('/js-error.php', JSON.stringify({
+				message: String(message).slice(0, 500),
+				source,
+				stack: String(stack || '').slice(0, 2000),
+				page: location.href,
+			}));
+		};
+
+		window.addEventListener('error', (event) => {
+			// Other origins give no details ("Script error.")
+			if (!event.filename || !event.filename.startsWith(location.origin)) return;
+			report(event.message, `${event.filename}:${event.lineno}:${event.colno}`, event.error && event.error.stack);
+		});
+
+		window.addEventListener('unhandledrejection', (event) => {
+			const reason = event.reason || {};
+			report(reason.message || reason, '', reason.stack);
+		});
+	})();
+
 	const $ = (selector, context = document) => context.querySelector(selector);
 	const $$ = (selector, context = document) => Array.from(context.querySelectorAll(selector));
 

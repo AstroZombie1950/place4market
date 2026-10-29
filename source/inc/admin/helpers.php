@@ -106,10 +106,16 @@ function category_path(string $slug): string
 	return $parent['names']['en'] . ' › ' . category_name($slug);
 }
 
-// Photo placeholder tile for a listing category
-function thumb(string $categorySlug, string $size = ''): string
+// Listing thumbnail: cover photo, or a tile with the category icon when there is none
+function thumb(array $listing, string $size = ''): string
 {
-	$parent = category_parent($categorySlug);
+	$px = ['sm' => 40, 'lg' => 72][$size] ?? 48;
+
+	if ($listing['images']) {
+		return '<span class="thumb' . ($size ? ' thumb--' . $size : '') . '">' . photo($listing['images'][0], $px . 'px', ['max' => 200]) . '</span>';
+	}
+
+	$parent = category_parent($listing['category']);
 	$tint = $parent ? $parent['slug'] : '';
 	$iconName = $parent ? $parent['icon'] : 'image';
 	$iconSize = $size === 'lg' ? 30 : 22;

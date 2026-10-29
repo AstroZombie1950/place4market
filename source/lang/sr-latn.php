@@ -19,6 +19,9 @@ return [
 	'404.text' => 'Stranica je možda uklonjena ili je link pogrešan.',
 	'404.home' => 'Na početnu stranu',
 	'404.browse' => 'Pogledajte sve oglase',
+	'500.title' => 'Nešto nije u redu',
+	'500.text' => 'Grešku smo već zabeležili i pogledaćemo je. Pokušajte ponovo za nekoliko minuta.',
+	'500.code' => 'Kod greške: {code}',
 	'a11y.skip' => 'Pređi na sadržaj',
 
 	// Navigation

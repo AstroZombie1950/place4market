@@ -246,7 +246,7 @@ require INC_DIR . '/header.php';
 
 			<?php if ($pageItems): ?>
 			<div class="cards" id="results">
-				<?php foreach ($pageItems as $listing): ?>
+				<?php foreach (array_values($pageItems) as $i => $listing): $cardEager = $i < 4; $cardPriority = $i === 0; ?>
 				<?php include INC_DIR . '/partials/card.php'; ?>
 				<?php endforeach; ?>
 			</div>

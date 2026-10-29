@@ -1269,6 +1269,14 @@ a.cell-main__title:hover {
 	height: 40px;
 }
 
+/* Cover photo inside (photo() in helpers.php) */
+.thumb .pic {
+	width: 100%;
+	height: 100%;
+	border-radius: inherit;
+	object-fit: cover;
+}
+
 .thumb--lg {
 	width: 72px;
 	height: 72px;
@@ -1670,6 +1678,8 @@ a.list__title:hover {
 
 .photo img {
 	width: 100%;
+	/* auto: the height attribute of a real photo would win over aspect-ratio */
+	height: auto;
 	aspect-ratio: 4 / 3;
 	object-fit: cover;
 }

@@ -67,7 +67,7 @@ require ADMIN_INC . '/header.php';
 		<ul class="list">
 			<?php foreach ($pendingListings as $listing): ?>
 			<li class="list__item">
-				<?= thumb($listing['category'], 'sm') ?>
+				<?= thumb($listing, 'sm') ?>
 				<div class="list__main">
 					<a class="list__title" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= e($listing['title']) ?></a>
 					<div class="list__meta"><?= e(user_name($listing['user_id'])) ?> · <?= e($listing['city']) ?> · <?= e(format_date($listing['created'], true)) ?></div>

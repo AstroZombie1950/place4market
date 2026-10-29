@@ -104,9 +104,13 @@ require ADMIN_INC . '/header.php';
 		<div class="tabs__panel card__body" role="tabpanel" id="panel-photos" aria-labelledby="tab-photos" tabindex="0" hidden>
 			<?php if ($listing['photos'] > 0): ?>
 			<div class="photos">
-				<?php for ($i = 1; $i <= $listing['photos']; $i++): ?>
+				<?php for ($i = 1; $i <= $listing['photos']; $i++): $alt = 'Photo ' . $i . ' of “' . $listing['title'] . '”'; ?>
 				<figure class="photo">
-					<img src="<?= asset('img/placeholder.svg') ?>" alt="Photo <?= $i ?> of “<?= e($listing['title']) ?>”" loading="lazy">
+					<?php if ($listing['images']): ?>
+					<?= photo($listing['images'][$i - 1], '(max-width: 1023px) 50vw, 220px', ['alt' => $alt]) ?>
+					<?php else: ?>
+					<img src="<?= asset('img/placeholder.svg') ?>" alt="<?= e($alt) ?>" loading="lazy">
+					<?php endif; ?>
 					<?php if ($i === 1): ?><span class="badge badge--info badge--plain photo__cover">Cover</span><?php endif; ?>
 					<figcaption class="photo__bar">
 						<button type="button" class="btn btn--ghost btn--sm"<?= $i === 1 ? ' disabled' : '' ?> data-toast="Cover photo updated">Make cover</button>

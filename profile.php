@@ -60,7 +60,7 @@ require INC_DIR . '/header.php';
 			<ul class="mylist" id="my-listings">
 				<?php foreach ($myListings as $item): $itemTitle = listing_title($item); $rowId = 'my-' . $item['id']; ?>
 				<li class="mylist__item" id="<?= e($rowId) ?>" data-status="<?= e($item['status']) ?>">
-					<a class="mylist__thumb" href="<?= e(listing_url($item)) ?>" tabindex="-1" aria-hidden="true"><?= placeholder($item['category'], 32) ?></a>
+					<a class="mylist__thumb" href="<?= e(listing_url($item)) ?>" tabindex="-1" aria-hidden="true"><?= $item['images'] ? photo($item['images'][0], PHOTO_SIZES['row'], ['max' => PHOTO_MAX['row']]) : placeholder($item['category'], 32) ?></a>
 
 					<div class="mylist__main">
 						<h2 class="mylist__title"><a href="<?= e(listing_url($item)) ?>"><?= e($itemTitle) ?></a></h2>

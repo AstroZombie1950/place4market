@@ -17,7 +17,8 @@ $seller = user($listing['user_id']);
 [$parentCat, $childCat] = find_category($listing['category']);
 $title = listing_title($listing);
 $isOwn = $listing['user_id'] === CURRENT_USER_ID;
-$photoCount = max(1, min(8, $listing['photos']));
+$photos = $listing['images'];
+$photoCount = $photos ? count($photos) : max(1, min(8, $listing['photos']));
 
 // Seller's other active listings
 $sellerCount = count(seller_listings($seller['id']));
@@ -60,6 +61,16 @@ $page['og_type'] = 'product';
 if ($listing['price'] !== null) {
 	$page['og'] = ['product:price:amount' => (string) $listing['price'], 'product:price:currency' => $listing['currency']];
 }
+// Share preview: the cover photo instead of the site image
+if ($photos) {
+	$ogSize = array_key_first($photos[0]['sizes']);
+	$page['og'] += [
+		'og:image' => site_url(photo_url($photos[0], $ogSize)),
+		'og:image:width' => (string) $photos[0]['sizes'][$ogSize][0],
+		'og:image:height' => (string) $photos[0]['sizes'][$ogSize][1],
+		'og:image:alt' => $title,
+	];
+}
 $page['schema'][] = schema_breadcrumbs($crumbs);
 $page['schema'][] = schema_listing($listing, $seller, $childCat ?? $parentCat);
 
@@ -76,7 +87,12 @@ require INC_DIR . '/header.php';
 			<div class="gallery__main" tabindex="0" aria-roledescription="carousel">
 				<?php for ($i = 1; $i <= $photoCount; $i++): ?>
 				<div class="gallery__slide" data-slide<?= $i > 1 ? ' hidden' : '' ?>>
-					<?= placeholder($listing['category'], 120, t('l.photo_of', ['n' => $i, 'total' => $photoCount]) . ': ' . $title) ?>
+					<?php $photoAlt = t('l.photo_of', ['n' => $i, 'total' => $photoCount]) . ': ' . $title; ?>
+					<?php if ($photos): ?>
+					<?= photo($photos[$i - 1], photo_sizes_contain(PHOTO_SIZES['gallery'], $photos[$i - 1]), ['alt' => $photoAlt, 'class' => 'pic--contain', 'priority' => $i === 1]) ?>
+					<?php else: ?>
+					<?= placeholder($listing['category'], 120, $photoAlt) ?>
+					<?php endif; ?>
 				</div>
 				<?php endfor; ?>
 
@@ -90,7 +106,7 @@ require INC_DIR . '/header.php';
 			<?php if ($photoCount > 1): ?>
 			<ul class="gallery__thumbs">
 				<?php for ($i = 1; $i <= $photoCount; $i++): ?>
-				<li><button type="button" class="gallery__thumb" data-thumb aria-current="<?= $i === 1 ? 'true' : 'false' ?>" aria-label="<?= e(t('l.photo_of', ['n' => $i, 'total' => $photoCount])) ?>"><?= placeholder($listing['category'], 24) ?></button></li>
+				<li><button type="button" class="gallery__thumb" data-thumb aria-current="<?= $i === 1 ? 'true' : 'false' ?>" aria-label="<?= e(t('l.photo_of', ['n' => $i, 'total' => $photoCount])) ?>"><?= $photos ? photo($photos[$i - 1], PHOTO_SIZES['thumb'], ['max' => PHOTO_MAX['thumb']]) : placeholder($listing['category'], 24) ?></button></li>
 				<?php endfor; ?>
 			</ul>
 			<?php endif; ?>
