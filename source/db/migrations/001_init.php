@@ -1,11 +1,14 @@
--- ==========================================================================
--- 001_init: dictionaries, users, listings with photos and videos, favorites,
--- saved searches, conversations and messages, reports.
--- MariaDB 10.11, InnoDB, utf8mb4. Dates in UTC (see source/inc/db.php).
--- User text is stored as written + its language (sr-latn | sr-cyrl | en);
--- search_text is the same text in Latin for search across both scripts.
--- ==========================================================================
+<?php
+/* ==========================================================================
+	001_init: dictionaries, users, listings with photos and videos, favorites,
+	saved searches, conversations and messages, reports.
+	MariaDB 10.11, InnoDB, utf8mb4. Dates in UTC (see source/inc/db.php).
+	User text is stored as written + its language (sr-latn | sr-cyrl | en);
+	search_text is the same text in Latin for search across both scripts.
+	A PHP file, not .sql: the web server never hands it out as text.
+	========================================================================== */
 
+return <<<'SQL'
 CREATE TABLE cities (
 	id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT,
 	latn VARCHAR(64) NOT NULL,
@@ -194,3 +197,4 @@ CREATE TABLE reports (
 	CONSTRAINT fk_reports_reporter FOREIGN KEY (reporter_id) REFERENCES users (id) ON DELETE SET NULL,
 	CONSTRAINT fk_reports_resolved_by FOREIGN KEY (resolved_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+SQL;

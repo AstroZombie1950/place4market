@@ -29,8 +29,6 @@
 *.rar
 *.7z
 *.sql
-# …except database migrations
-!/source/db/migrations/*.sql
 *.sql.gz
 
 # macOS

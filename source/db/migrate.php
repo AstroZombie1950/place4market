@@ -1,9 +1,10 @@
 <?php
 /* ==========================================================================
 	Apply new migrations: php source/db/migrate.php
-	Migrations are source/db/migrations/NNN_name.sql, applied once each in
-	name order; applied ones are listed in schema_migrations. A migration is
-	never edited after it reached production: changes go into a new file.
+	Migrations are source/db/migrations/NNN_name.php: each returns its SQL
+	(PHP, so the web server never shows the schema as text). Applied once each
+	in name order, applied ones are listed in schema_migrations. A migration
+	is never edited after it reached production: changes go into a new file.
 	========================================================================== */
 
 require __DIR__ . '/cli.php';
@@ -15,12 +16,12 @@ db()->exec('CREATE TABLE IF NOT EXISTS schema_migrations (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
 
 $applied = db_column('SELECT version FROM schema_migrations');
-$files = glob(__DIR__ . '/migrations/*.sql') ?: [];
+$files = glob(__DIR__ . '/migrations/*.php') ?: [];
 sort($files);
 $count = 0;
 
 foreach ($files as $file) {
-	$version = basename($file, '.sql');
+	$version = basename($file, '.php');
 
 	if (in_array($version, $applied, true)) {
 		continue;
@@ -28,7 +29,7 @@ foreach ($files as $file) {
 
 	// One statement at a time: PDO reports errors of the first statement only.
 	// Statements are split on ";" at the end of a line, comments are dropped
-	$sql = preg_replace('/^\s*--.*$/m', '', file_get_contents($file));
+	$sql = preg_replace('/^\s*--.*$/m', '', require $file);
 
 	foreach (preg_split('/;\s*$/m', $sql) as $statement) {
 		if (trim($statement) !== '') {
