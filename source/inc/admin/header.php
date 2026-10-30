@@ -6,7 +6,7 @@
 
 $pageTitle = $pageTitle ?? 'Admin';
 $activeNav = $activeNav ?? '';
-$openReportsCount = count_by($reports, 'status', 'open');
+$openReportsCount = report_status_counts()['open'] ?? 0;
 ?>
 <!doctype html>
 <html lang="en">

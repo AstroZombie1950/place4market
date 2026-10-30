@@ -16,7 +16,7 @@ $page['body_class'] = 'body--home';
 $page['schema'][] = schema_site();
 
 // 12 newest listings: 4 rows on desktop, 6 on phones
-$recent = array_slice(search_listings([]), 0, 12);
+$recent = search_listings([], 12);
 
 require INC_DIR . '/header.php';
 ?>
@@ -30,7 +30,7 @@ require INC_DIR . '/header.php';
 			<h2 class="side-title"><?= e(t('home.categories')) ?></h2>
 			<nav aria-label="<?= e(t('home.categories')) ?>">
 				<ul class="cat-list">
-					<?php foreach ($categories as $category): ?>
+					<?php foreach (categories() as $category): ?>
 					<li>
 						<a class="cat-list__link" href="<?= e(url('category.php', ['cat' => $category['slug']])) ?>">
 							<?= icon($category['icon'], 24) ?>
@@ -46,7 +46,7 @@ require INC_DIR . '/header.php';
 			<h2 class="side-title side-title--cities"><?= e(t('home.cities')) ?></h2>
 			<nav aria-label="<?= e(t('home.cities')) ?>">
 				<ul class="chips chips--scroll">
-					<?php foreach ($cities as $city): ?>
+					<?php foreach (cities() as $city): ?>
 					<li><a class="chip" href="<?= e(url('category.php', ['city' => $city['latn']])) ?>"><?= e(city_name($city['latn'])) ?></a></li>
 					<?php endforeach; ?>
 				</ul>

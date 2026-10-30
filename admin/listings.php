@@ -7,6 +7,8 @@ require __DIR__ . '/../source/inc/admin/bootstrap.php';
 $pageTitle = 'Listings';
 $activeNav = 'listings';
 
+$listings = all_listings();
+
 // Status tabs: value => label
 $statusTabs = [
 	'' => 'All',

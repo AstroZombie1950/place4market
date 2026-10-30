@@ -16,7 +16,7 @@ if (!$listing) {
 $seller = user($listing['user_id']);
 [$parentCat, $childCat] = find_category($listing['category']);
 $title = listing_title($listing);
-$isOwn = $listing['user_id'] === CURRENT_USER_ID;
+$isOwn = $listing['user_id'] === current_user_id();
 $photos = $listing['images'];
 // Gallery slides: photos with videos right after the cover; placeholders when there are no photos
 $media = array_map(fn($photo) => ['photo' => $photo], $photos);
@@ -27,25 +27,17 @@ $media = $media ?: array_fill(0, max(1, min(8, $listing['photos'])), []);
 $mediaCount = count($media);
 
 // Seller's other active listings
-$sellerCount = count(seller_listings($seller['id']));
+$sellerCount = count_listings(['user' => $seller['id']]);
 
 // Similar: same parent category, newest first
-$similar = array_slice(array_values(array_filter(
-	search_listings(['cat' => $parentCat['slug']]),
-	fn($l) => $l['id'] !== $listing['id']
-)), 0, 4);
+$similar = search_listings(['cat' => $parentCat['slug'], 'exclude' => [$listing['id']]], 4);
 if (count($similar) < 4) {
-	$extra = array_filter(search_listings([]), fn($l) => $l['id'] !== $listing['id'] && !in_array($l['id'], array_column($similar, 'id'), true));
-	$similar = array_merge($similar, array_slice(array_values($extra), 0, 4 - count($similar)));
+	$exclude = [$listing['id'], ...array_column($similar, 'id')];
+	$similar = array_merge($similar, search_listings(['exclude' => $exclude], 4 - count($similar)));
 }
 
 // Existing conversation about this listing
-$chatId = null;
-foreach ($conversations as $conversation) {
-	if ($conversation['listing_id'] === $listing['id']) {
-		$chatId = $conversation['id'];
-	}
-}
+$chatId = listing_conversation($listing['id'])['id'] ?? null;
 $messageUrl = url('messages.php', ['c' => $chatId]);
 
 // Breadcrumbs
@@ -59,7 +51,7 @@ if ($childCat) {
 $crumbs[] = ['label' => $title];
 
 $page['title'] = $title;
-$page['description'] = mb_substr(preg_replace('/\s+/u', ' ', tc($listing['description'])), 0, 155);
+$page['description'] = mb_substr(preg_replace('/\s+/u', ' ', listing_description($listing)), 0, 155);
 $page['nav'] = 'home';
 $page['body_class'] = 'body--listing';
 $page['canonical'] = ['listing.php', ['id' => $listing['id']]];
@@ -173,7 +165,7 @@ require INC_DIR . '/header.php';
 						<?= avatar($seller['name']) ?>
 						<div>
 							<p class="seller__name"><a href="<?= e(seller_url($seller)) ?>"><?= e(person_name($seller['name'])) ?></a></p>
-							<p class="seller__meta"><?= e(t('l.member_since', ['date' => date_label($seller['since'])])) ?></p>
+							<p class="seller__meta"><?= e(t('l.member_since', ['date' => date_label($seller['registered'])])) ?></p>
 						</div>
 					</div>
 					<div class="seller__foot">
@@ -218,7 +210,7 @@ require INC_DIR . '/header.php';
 
 			<section class="listing__section" aria-labelledby="description-title">
 				<h2 class="listing__section-title" id="description-title"><?= e(t('l.description')) ?></h2>
-				<p class="description"><?= e(tc($listing['description'])) ?></p>
+				<p class="description"><?= e(listing_description($listing)) ?></p>
 			</section>
 
 			<section class="listing__section" aria-labelledby="location-title">

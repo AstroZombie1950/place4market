@@ -5,7 +5,7 @@
 require __DIR__ . '/source/inc/bootstrap.php';
 
 $me = current_user();
-$myListings = array_values(array_filter($listings, fn($l) => $l['user_id'] === $me['id']));
+$myListings = user_listings($me['id']);
 $counts = [
 	'' => count($myListings),
 	'active' => count(array_filter($myListings, fn($l) => $l['status'] === 'active')),
@@ -30,7 +30,7 @@ require INC_DIR . '/header.php';
 			<h1 class="profile-head__name"><?= e(person_name($me['name'])) ?></h1>
 			<p class="profile-head__meta">
 				<span><?= icon('map-pin', 16) ?><?= e(city_name($me['city'])) ?></span>
-				<span><?= icon('calendar', 16) ?><?= e(t('p.since', ['date' => date_label($me['since'])])) ?></span>
+				<span><?= icon('calendar', 16) ?><?= e(t('p.since', ['date' => date_label($me['registered'])])) ?></span>
 				<span><?= icon('tag', 16) ?><?= e(tp('p.active_count', $counts['active'])) ?></span>
 			</p>
 			<p class="profile-head__badges">

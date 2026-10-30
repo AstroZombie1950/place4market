@@ -60,7 +60,7 @@ require ADMIN_INC . '/header.php';
 				<div class="form-grid">
 					<div class="field">
 						<label class="field__label" for="s-lang">Default language</label>
-						<select class="select" id="s-lang" name="default_language"><?= options(array_column($languages, 'name', 'code'), 'en') ?></select>
+						<select class="select" id="s-lang" name="default_language"><?= options(array_column(language_settings(), 'name', 'code'), 'en') ?></select>
 					</div>
 					<div class="field">
 						<label class="field__label" for="s-currency">Default currency</label>
@@ -100,7 +100,7 @@ require ADMIN_INC . '/header.php';
 						</tr>
 					</thead>
 					<tbody>
-						<?php foreach ($languages as $lang): ?>
+						<?php foreach (language_settings() as $lang): ?>
 						<tr>
 							<td><strong><?= e($lang['name']) ?></strong></td>
 							<td lang="<?= e($lang['code'] === 'sr-cyrl' ? 'sr-Cyrl' : ($lang['code'] === 'sr-latn' ? 'sr-Latn' : 'en')) ?>"><?= e($lang['native']) ?></td>
@@ -147,7 +147,7 @@ require ADMIN_INC . '/header.php';
 						</tr>
 					</thead>
 					<tbody>
-						<?php foreach ($cities as $i => $city): ?>
+						<?php foreach (cities() as $i => $city): ?>
 						<tr>
 							<td><strong lang="sr-Latn"><?= e($city['latn']) ?></strong></td>
 							<td lang="sr-Cyrl"><?= e($city['cyrl']) ?></td>

@@ -29,8 +29,9 @@ header('X-Robots-Tag: noindex, nofollow');
 // Language must be set before any output (cookie)
 i18n_init();
 
-// Mock data (replace with DB queries)
-require INC_DIR . '/data.php';
+// Database and data access (repo.php is the only file that reads storage)
+require INC_DIR . '/db.php';
+require INC_DIR . '/repo.php';
 
 // Page settings; each page overrides what it needs before header.php
 function page_defaults(): array

@@ -30,11 +30,10 @@ if ($f['cat'] !== '' && !$currentCat) {
 }
 
 // Results + pagination
-$results = search_listings($f);
 $perPage = 12;
-$total = count($results);
+$total = count_listings($f);
 $pageNum = max(1, min((int) ($_GET['page'] ?? 1), max(1, (int) ceil($total / $perPage))));
-$pageItems = array_slice($results, ($pageNum - 1) * $perPage, $perPage);
+$pageItems = search_listings($f, $perPage, ($pageNum - 1) * $perPage);
 
 // Title
 if ($f['q'] !== '') {
@@ -147,13 +146,13 @@ require INC_DIR . '/header.php';
 						<ul class="filters__list">
 							<?php if ($parentCat): ?>
 							<li><a class="filters__link filters__link--back" href="<?= e($linkWith(['cat' => null])) ?>"><?= icon('chevron-left', 16) ?><?= e(t('cat.all_categories')) ?></a></li>
-							<li><a class="filters__link" href="<?= e($linkWith(['cat' => $parentCat['slug']])) ?>"<?= !$childCat ? ' aria-current="page"' : '' ?>><span><?= e(cat_name($parentCat)) ?></span><span class="muted"><?= count(search_listings(array_merge($f, ['cat' => $parentCat['slug']]))) ?></span></a></li>
+							<li><a class="filters__link" href="<?= e($linkWith(['cat' => $parentCat['slug']])) ?>"<?= !$childCat ? ' aria-current="page"' : '' ?>><span><?= e(cat_name($parentCat)) ?></span><span class="muted"><?= count_listings(array_merge($f, ['cat' => $parentCat['slug']])) ?></span></a></li>
 							<?php foreach ($parentCat['children'] as $child): ?>
-							<li><a class="filters__link" href="<?= e($linkWith(['cat' => $child['slug']])) ?>"<?= $childCat && $childCat['slug'] === $child['slug'] ? ' aria-current="page"' : '' ?>><span>— <?= e(cat_name($child)) ?></span><span class="muted"><?= count(search_listings(array_merge($f, ['cat' => $child['slug']]))) ?></span></a></li>
+							<li><a class="filters__link" href="<?= e($linkWith(['cat' => $child['slug']])) ?>"<?= $childCat && $childCat['slug'] === $child['slug'] ? ' aria-current="page"' : '' ?>><span>— <?= e(cat_name($child)) ?></span><span class="muted"><?= count_listings(array_merge($f, ['cat' => $child['slug']])) ?></span></a></li>
 							<?php endforeach; ?>
 							<?php else: ?>
-							<?php foreach ($categories as $category): ?>
-							<li><a class="filters__link" href="<?= e($linkWith(['cat' => $category['slug']])) ?>"><span><?= e(cat_name($category)) ?></span><span class="muted"><?= count(search_listings(array_merge($f, ['cat' => $category['slug']]))) ?></span></a></li>
+							<?php foreach (categories() as $category): ?>
+							<li><a class="filters__link" href="<?= e($linkWith(['cat' => $category['slug']])) ?>"><span><?= e(cat_name($category)) ?></span><span class="muted"><?= count_listings(array_merge($f, ['cat' => $category['slug']])) ?></span></a></li>
 							<?php endforeach; ?>
 							<?php endif; ?>
 						</ul>

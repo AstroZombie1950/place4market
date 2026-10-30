@@ -7,6 +7,8 @@ require __DIR__ . '/../source/inc/admin/bootstrap.php';
 $pageTitle = 'Reports';
 $activeNav = 'reports';
 
+$reports = reports();
+
 // Filter tabs: value => label (Open is selected by default)
 $reportTabs = [
 	'open' => 'Open',
@@ -70,7 +72,7 @@ require ADMIN_INC . '/header.php';
 			</thead>
 			<tbody>
 				<?php foreach ($reports as $report):
-					$listing = find_by_id($listings, $report['listing_id']);
+					$listing = find_listing($report['listing_id']);
 					$payload = [
 						'r_id' => '#' . $report['id'],
 						'r_reason' => $report['reason'],

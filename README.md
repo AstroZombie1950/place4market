@@ -51,8 +51,12 @@ source/
 	inc/seo.php         <head>: canonical, hreflang, Open Graph, JSON-LD, хлебные крошки
 	inc/helpers.php     общие хелперы (e(), asset() с ?v=, initials()…)
 	inc/icons.php       SVG-иконки: icon('heart', 20)
-	inc/data-common.php категории, города, языки (сайт + админка)
-	inc/data.php        тестовые данные сайта
+	inc/db.php          подключение к БД (MariaDB), файл настроек, функции запросов db_all() / db_one()…
+	inc/repo.php        доступ к данным (сайт + админка): единственный файл, который делает запросы к БД
+	inc/mock-data.php   демо-данные: источник для seed.php (+ события и языки админки, пока их нет в БД)
+	db/migrations/      миграции SQL (001_init.sql — вся схема)
+	db/migrate.php      применить новые миграции (из консоли)
+	db/seed.php         залить демо-данные (из консоли)
 	inc/demo-photos.php демо-фото по id объявления (генерируется, см. «Фото объявлений»)
 	inc/admin/          шапка, сайдбар, данные админки
 	lang/en.php         английский (по умолчанию)
@@ -72,7 +76,36 @@ source/
 
 ## Данные
 
-Всё тестовое лежит в массивах (`source/inc/data.php`, `data-common.php`, `admin/data.php`). Даты относительные (`ago('-2 hours')`), поэтому демо всегда «свежее». При подключении БД заменить массивы на запросы — вёрстка не меняется.
+База — MariaDB 10.11 (как на хостинге). Страницы и хелперы получают данные только через функции `source/inc/repo.php` (`find_listing()`, `search_listings()`, `count_listings()`, `user()`, `conversations()`, `reports()`…) и сами запросов не делают.
+
+- Объявление — массив `id, category (slug), user_id, status, title, description, lang, price, currency, negotiable, city, created, views, favorites, messages, condition, attrs, reject_reason, images, videos, photos`; пользователь — `id, name, email, phone, city, role, status, verified, registered, last_active`. Списки идут от новых к старым.
+- Тексты пользователей хранятся как написаны, с языком автора (`lang`: `sr-latn`, `sr-cyrl`, `en`). Выводятся через `user_text()` (`listing_title()`, `listing_description()`): сербский текст следует за алфавитом страницы (латиница ↔ кириллица), английский остаётся как есть, перевода нет. `tc()` — только для текстов сайта (`['en' => …, 'sr' => …]`).
+- Поиск идёт по `search_text` — тому же тексту латиницей (`sr_lat()`), поэтому запрос на любом алфавите находит оба; сравнение без учёта регистра и диакритики (`cacak` находит `Čačak`).
+- Даты в БД в UTC, на страницы приходят во времени сайта (`db_local()`, `db_utc()` в `db.php`).
+- Текущий пользователь — `current_user_id()` (пока всегда 1, с авторизацией — из сессии), администратор в админке — `user(3)`.
+
+### Настройки и подключение
+
+Пароль от БД лежит не в репозитории и не в `public_html`. `config()` ищет файл настроек по порядку: переменная окружения `P4M_CONFIG` → `config/local.php` в проекте (локально, закрыт в `.gitignore`) → `app-config.php` рядом с `public_html` (хостинг). Файл возвращает массив:
+
+```php
+<?php
+return ['db' => ['host' => 'localhost', 'port' => 3306, 'name' => 'placemar_p4m', 'user' => 'placemar_p4m', 'pass' => '…']];
+```
+
+Сбой подключения или запроса — исключение: оно уходит в журнал (`critical`), посетитель видит страницу 500 с кодом.
+
+### Схема, миграции, демо-данные
+
+```
+php source/db/migrate.php         # применить новые миграции
+php source/db/seed.php --reset    # заменить данные на демо (даты — от момента запуска)
+```
+
+- Миграция — файл `source/db/migrations/NNN_name.sql`, применяется один раз (список — таблица `schema_migrations`). Попавшую на прод миграцию не правим: изменения — новым файлом.
+- Демо-данные берутся из `source/inc/mock-data.php`, id сохраняются (`listing.php?id=1048` тот же). Чтобы демо снова было «свежим», `seed.php --reset` запускают повторно.
+- Скрипты работают только из консоли; папки `source/db/` и `config/` закрыты для веба в `.htaccess`, скрипты проверяют это и сами.
+- Локально: `brew install mariadb@10.11`, `brew services start mariadb@10.11`; `sql_mode` как на хостинге — в `/opt/homebrew/etc/my.cnf.d/place4market.cnf`.
 
 На сайте работает реальная фильтрация по тестовым данным: категория, поиск, город, цена (EUR → RSD по курсу `EUR_RATE`), состояние, «можно торговаться», сортировка, пагинация.
 

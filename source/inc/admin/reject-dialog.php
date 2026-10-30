@@ -16,7 +16,7 @@
 			<div class="field">
 				<label class="field__label" for="reject-reason">Reason</label>
 				<select class="select" id="reject-reason" name="reason" required>
-					<?= options($rejectReasons) ?>
+					<?= options(reject_reasons()) ?>
 				</select>
 			</div>
 

@@ -7,8 +7,8 @@ require __DIR__ . '/source/inc/bootstrap.php';
 
 $seller = user((int) ($_GET['id'] ?? 0));
 
-// Unknown user → 404
-if (!$seller) {
+// Unknown or blocked user → 404
+if (!$seller || $seller['status'] === 'blocked') {
 	require ROOT_DIR . '/404.php';
 	exit;
 }
@@ -22,7 +22,7 @@ $crumbs = [
 ];
 
 $page['title'] = t('seller.title', ['name' => $name]);
-$page['description'] = t('meta.seller', ['name' => $name, 'city' => city_name($seller['city']), 'date' => date_label($seller['since'])]);
+$page['description'] = t('meta.seller', ['name' => $name, 'city' => city_name($seller['city']), 'date' => date_label($seller['registered'])]);
 $page['canonical'] = ['seller.php', ['id' => $seller['id']]];
 $page['og_type'] = 'profile';
 $page['schema'][] = schema_breadcrumbs($crumbs);
@@ -44,7 +44,7 @@ require INC_DIR . '/header.php';
 			<h1 class="profile-head__name" id="seller-name"><?= e($name) ?></h1>
 			<p class="profile-head__meta">
 				<span><?= icon('map-pin', 16) ?><?= e(city_name($seller['city'])) ?></span>
-				<span><?= icon('calendar', 16) ?><?= e(t('p.since', ['date' => date_label($seller['since'])])) ?></span>
+				<span><?= icon('calendar', 16) ?><?= e(t('p.since', ['date' => date_label($seller['registered'])])) ?></span>
 				<span><?= icon('tag', 16) ?><?= e(tp('p.active_count', count($items))) ?></span>
 			</p>
 			<?php if ($seller['verified']): ?>

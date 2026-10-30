@@ -8,9 +8,9 @@ $navGroups = [
 		['key' => 'dashboard', 'href' => 'index.php', 'icon' => 'grid', 'label' => 'Dashboard'],
 	],
 	'Content' => [
-		['key' => 'listings', 'href' => 'listings.php', 'icon' => 'tag', 'label' => 'Listings', 'count' => count_by($listings, 'status', 'pending')],
+		['key' => 'listings', 'href' => 'listings.php', 'icon' => 'tag', 'label' => 'Listings', 'count' => listing_status_counts()['pending'] ?? 0],
 		['key' => 'categories', 'href' => 'categories.php', 'icon' => 'layers', 'label' => 'Categories'],
-		['key' => 'reports', 'href' => 'reports.php', 'icon' => 'flag', 'label' => 'Reports', 'count' => count_by($reports, 'status', 'open'), 'alert' => true],
+		['key' => 'reports', 'href' => 'reports.php', 'icon' => 'flag', 'label' => 'Reports', 'count' => report_status_counts()['open'] ?? 0, 'alert' => true],
 	],
 	'People' => [
 		['key' => 'users', 'href' => 'users.php', 'icon' => 'users', 'label' => 'Users'],

@@ -184,12 +184,47 @@ function sr_cyr(string $text): string
 	}, $text) ?? $text;
 }
 
-// Pick user content for the current language: ['en' => …, 'sr' => …]
+// Serbian Cyrillic → Latin (exact, letter by letter). For text written in
+// Cyrillic: Latin pages and search (search_text is always Latin).
+function sr_lat(string $text): string
+{
+	static $map = [
+		'Љ' => 'Lj', 'Њ' => 'Nj', 'Џ' => 'Dž', 'љ' => 'lj', 'њ' => 'nj', 'џ' => 'dž',
+		'А' => 'A', 'Б' => 'B', 'В' => 'V', 'Г' => 'G', 'Д' => 'D', 'Ђ' => 'Đ', 'Е' => 'E', 'Ж' => 'Ž',
+		'З' => 'Z', 'И' => 'I', 'Ј' => 'J', 'К' => 'K', 'Л' => 'L', 'М' => 'M', 'Н' => 'N', 'О' => 'O',
+		'П' => 'P', 'Р' => 'R', 'С' => 'S', 'Т' => 'T', 'Ћ' => 'Ć', 'У' => 'U', 'Ф' => 'F', 'Х' => 'H',
+		'Ц' => 'C', 'Ч' => 'Č', 'Ш' => 'Š',
+		'а' => 'a', 'б' => 'b', 'в' => 'v', 'г' => 'g', 'д' => 'd', 'ђ' => 'đ', 'е' => 'e', 'ж' => 'ž',
+		'з' => 'z', 'и' => 'i', 'ј' => 'j', 'к' => 'k', 'л' => 'l', 'м' => 'm', 'н' => 'n', 'о' => 'o',
+		'п' => 'p', 'р' => 'r', 'с' => 's', 'т' => 't', 'ћ' => 'ć', 'у' => 'u', 'ф' => 'f', 'х' => 'h',
+		'ц' => 'c', 'ч' => 'č', 'ш' => 'š',
+	];
+
+	// Words in capitals stay in capitals: ЉУБАВ → LJUBAV, not LjUBAV
+	return preg_replace_callback('/\p{L}+/u', function ($m) use ($map) {
+		$latin = strtr($m[0], $map);
+		return mb_strlen($m[0]) > 1 && mb_strtoupper($m[0]) === $m[0] ? mb_strtoupper($latin) : $latin;
+	}, $text) ?? $text;
+}
+
+// Site content (info pages) for the current language: ['en' => …, 'sr' => …]
 function tc(array $pair): string
 {
 	return match (lang()) {
 		'sr-latn' => $pair['sr'] ?? $pair['en'],
 		'sr-cyrl' => sr_cyr($pair['sr'] ?? $pair['en']),
 		default => $pair['en'] ?? $pair['sr'],
+	};
+}
+
+// User content (listings, messages) as written, in the visitor's script:
+// Serbian follows the page (Latin ↔ Cyrillic), English stays as is, nothing is translated.
+// $lang is the author's: sr-latn | sr-cyrl | en
+function user_text(string $text, string $lang): string
+{
+	return match (true) {
+		$lang === 'sr-latn' && lang() === 'sr-cyrl' => sr_cyr($text),
+		$lang === 'sr-cyrl' && lang() === 'sr-latn' => sr_lat($text),
+		default => $text,
 	};
 }

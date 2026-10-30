@@ -5,6 +5,7 @@
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
 
+$conversations = conversations();
 $requested = isset($_GET['c']) ? (int) $_GET['c'] : null;
 $activeId = $requested ?? ($conversations[0]['id'] ?? null);
 $quickReplies = [t('m.quick_1'), t('m.quick_2'), t('m.quick_3')];
@@ -47,7 +48,7 @@ require INC_DIR . '/header.php';
 							</span>
 							<span class="conv__listing"><?= e(listing_title($item)) ?></span>
 							<span class="conv__bottom">
-								<span class="conv__last"><?= $last['from'] === CURRENT_USER_ID ? e(t('m.you')) . ': ' : '' ?><?= e(tc($last['text'])) ?></span>
+								<span class="conv__last"><?= $last['from'] === current_user_id() ? e(t('m.you')) . ': ' : '' ?><?= e(user_text($last['text'], $last['lang'])) ?></span>
 								<?php if ($conv['unread']): ?>
 								<span class="count-badge"><span aria-hidden="true"><?= (int) $conv['unread'] ?></span><span class="visually-hidden"><?= e(t('m.unread', ['n' => $conv['unread']])) ?></span></span>
 								<?php endif; ?>
@@ -92,14 +93,14 @@ require INC_DIR . '/header.php';
 			<div class="thread__body" role="log" aria-live="polite" tabindex="0">
 				<?php foreach ($conv['messages'] as $msg):
 					$day = date('Y-m-d', strtotime($msg['at']));
-					$mine = $msg['from'] === CURRENT_USER_ID;
+					$mine = $msg['from'] === current_user_id();
 				?>
 				<?php if ($day !== $prevDay): $prevDay = $day; ?>
 				<p class="day-sep"><?= e(chat_day($msg['at'])) ?></p>
 				<?php endif; ?>
 				<div class="msg <?= $mine ? 'msg--out' : 'msg--in' ?>">
 					<span class="visually-hidden"><?= e($mine ? t('m.you') : person_name($other['name'])) ?>:</span>
-					<?= e(tc($msg['text'])) ?>
+					<?= e(user_text($msg['text'], $msg['lang'])) ?>
 					<time class="msg__time" datetime="<?= e(date('c', strtotime($msg['at']))) ?>"><?= date('H:i', strtotime($msg['at'])) ?></time>
 				</div>
 				<?php endforeach; ?>

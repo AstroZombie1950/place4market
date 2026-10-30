@@ -148,7 +148,7 @@ function schema_listing(array $listing, array $seller, array $category): array
 	$schema = [
 		'@type' => 'Product',
 		'name' => listing_title($listing),
-		'description' => tc($listing['description']),
+		'description' => listing_description($listing),
 		'productID' => (string) $listing['id'],
 		'category' => cat_name($category),
 		// All photos in the largest size; the site image when there are none
@@ -162,7 +162,7 @@ function schema_listing(array $listing, array $seller, array $category): array
 		$schema['subjectOf'] = array_map(fn($video) => [
 			'@type' => 'VideoObject',
 			'name' => listing_title($listing),
-			'description' => tc($listing['description']),
+			'description' => listing_description($listing),
 			'thumbnailUrl' => site_url(photo_url($video['poster'], array_key_first($video['poster']['sizes']))),
 			'contentUrl' => site_url(video_url($video)),
 			'uploadDate' => date('c', strtotime($listing['created'])),
@@ -255,7 +255,7 @@ function schema_profile(array $user): array
 	return [
 		'@type' => 'ProfilePage',
 		'url' => canonical_url(),
-		'dateCreated' => date('c', strtotime($user['since'])),
+		'dateCreated' => date('c', strtotime($user['registered'])),
 		'mainEntity' => [
 			'@type' => 'Person',
 			'name' => person_name($user['name']),

@@ -8,7 +8,7 @@ $me = current_user();
 
 // Subcategories for JS: {"vehicles": [{"slug": "cars", "name": "Cars"}, …]}
 $subcats = [];
-foreach ($categories as $category) {
+foreach (categories() as $category) {
 	$subcats[$category['slug']] = array_map(fn($child) => ['slug' => $child['slug'], 'name' => cat_name($child)], $category['children']);
 }
 
@@ -38,7 +38,7 @@ require INC_DIR . '/header.php';
 						<label class="field__label" for="p-category"><?= e(t('post.category')) ?></label>
 						<select class="select" id="p-category" name="category" required data-category-select data-subcats="<?= attr_json($subcats) ?>">
 							<option value=""><?= e(t('post.choose')) ?></option>
-							<?php foreach ($categories as $category): ?>
+							<?php foreach (categories() as $category): ?>
 							<option value="<?= e($category['slug']) ?>"><?= e(cat_name($category)) ?></option>
 							<?php endforeach; ?>
 						</select>
@@ -156,7 +156,7 @@ require INC_DIR . '/header.php';
 					<div class="card__media preview__media" data-preview="media">
 						<span class="ph tint--neutral">
 							<span data-preview-icon="default"><?= icon('image', 64) ?></span>
-							<?php foreach ($categories as $category): ?>
+							<?php foreach (categories() as $category): ?>
 							<span data-preview-icon="<?= e($category['slug']) ?>" hidden><?= icon($category['icon'], 64) ?></span>
 							<?php endforeach; ?>
 						</span>

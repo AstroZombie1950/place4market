@@ -1,33 +1,15 @@
 <?php
 /* ==========================================================================
-	Site helpers: data lookups, formatting, small render helpers
-	(i18n functions live in i18n.php)
+	Site helpers: category lookups, formatting, small render helpers
+	(data access lives in repo.php, i18n functions in i18n.php)
 	========================================================================== */
-
-// Relative date for mock data: ago('-2 hours') → "2026-10-21 05:10:00"
-function ago(string $relative): string
-{
-	return date('Y-m-d H:i:s', strtotime($relative));
-}
-
-/* ---------- Users ---------- */
-
-function user(int $id): ?array
-{
-	return $GLOBALS['users'][$id] ?? null;
-}
-
-function current_user(): array
-{
-	return user(CURRENT_USER_ID);
-}
 
 /* ---------- Categories ---------- */
 
 // [parent, child|null] for a slug, or [null, null]
 function find_category(string $slug): array
 {
-	foreach ($GLOBALS['categories'] as $parent) {
+	foreach (categories() as $parent) {
 		if ($parent['slug'] === $slug) {
 			return [$parent, null];
 		}
@@ -74,7 +56,7 @@ function city_name(string $latn): string
 		return $latn;
 	}
 
-	foreach ($GLOBALS['cities'] as $city) {
+	foreach (cities() as $city) {
 		if ($city['latn'] === $latn) {
 			return $city['cyrl'];
 		}
@@ -88,7 +70,7 @@ function city_select_options(string $selected = '', bool $withAll = true): strin
 {
 	$html = $withAll ? '<option value="">' . e(t('search.all_cities')) . '</option>' : '';
 
-	foreach ($GLOBALS['cities'] as $city) {
+	foreach (cities() as $city) {
 		$isSelected = $city['latn'] === $selected ? ' selected' : '';
 		$html .= '<option value="' . e($city['latn']) . '"' . $isSelected . '>' . e(city_name($city['latn'])) . '</option>';
 	}
@@ -98,40 +80,20 @@ function city_select_options(string $selected = '', bool $withAll = true): strin
 
 /* ---------- Listings ---------- */
 
-function find_listing(int $id): ?array
-{
-	foreach ($GLOBALS['listings'] as $listing) {
-		if ($listing['id'] === $id) {
-			return $listing;
-		}
-	}
-
-	return null;
-}
-
-function active_listings(): array
-{
-	return array_values(array_filter($GLOBALS['listings'], fn($l) => $l['status'] === 'active'));
-}
-
+// Listing text as written by the author, in the visitor's script (user_text())
 function listing_title(array $listing): string
 {
-	return tc($listing['title']);
+	return user_text($listing['title'], $listing['lang']);
+}
+
+function listing_description(array $listing): string
+{
+	return user_text($listing['description'], $listing['lang']);
 }
 
 function listing_url(array $listing): string
 {
 	return url('listing.php', ['id' => $listing['id']]);
-}
-
-// Price in RSD for comparisons
-function price_rsd(array $listing): ?int
-{
-	if ($listing['price'] === null) {
-		return null;
-	}
-
-	return $listing['currency'] === 'EUR' ? $listing['price'] * EUR_RATE : $listing['price'];
 }
 
 // Number with thin spaces: 145000 → "145 000"
@@ -168,94 +130,16 @@ function attr_value(string $value): string
 	return str_starts_with($value, 'v.') ? t($value) : (lang() === 'sr-cyrl' ? sr_cyr($value) : $value);
 }
 
-// Search and filter listings
-function search_listings(array $f): array
-{
-	$items = active_listings();
-
-	// Category (parent includes children)
-	if (!empty($f['cat'])) {
-		[$parent, $child] = find_category($f['cat']);
-		$slugs = $child ? [$child['slug']] : ($parent ? category_slugs($parent) : []);
-		$items = array_filter($items, fn($l) => in_array($l['category'], $slugs, true));
-	}
-
-	// Text query in any language
-	if (!empty($f['q'])) {
-		$q = mb_strtolower($f['q']);
-		$items = array_filter($items, function ($l) use ($q) {
-			$haystack = mb_strtolower(implode(' ', [$l['title']['en'], $l['title']['sr'], sr_cyr($l['title']['sr']), $l['description']['en'] ?? '', $l['description']['sr'] ?? '']));
-			return str_contains($haystack, $q);
-		});
-	}
-
-	if (!empty($f['city'])) {
-		$items = array_filter($items, fn($l) => $l['city'] === $f['city']);
-	}
-
-	// Price range, compared in RSD
-	$rate = ($f['currency'] ?? 'RSD') === 'EUR' ? EUR_RATE : 1;
-	if (!empty($f['price_from'])) {
-		$min = (int) $f['price_from'] * $rate;
-		$items = array_filter($items, fn($l) => price_rsd($l) !== null && price_rsd($l) >= $min);
-	}
-	if (!empty($f['price_to'])) {
-		$max = (int) $f['price_to'] * $rate;
-		$items = array_filter($items, fn($l) => price_rsd($l) !== null && price_rsd($l) <= $max);
-	}
-
-	if (($f['condition'] ?? '') === 'new') {
-		$items = array_filter($items, fn($l) => $l['condition'] === 'new');
-	} elseif (($f['condition'] ?? '') === 'used') {
-		$items = array_filter($items, fn($l) => in_array($l['condition'], ['used', 'like_new'], true));
-	}
-
-	if (!empty($f['negotiable'])) {
-		$items = array_filter($items, fn($l) => $l['negotiable']);
-	}
-	if (!empty($f['photos'])) {
-		$items = array_filter($items, fn($l) => $l['photos'] > 0);
-	}
-
-	// Sort
-	$items = array_values($items);
-	$sort = $f['sort'] ?? 'new';
-	usort($items, function ($a, $b) use ($sort) {
-		if ($sort === 'cheap' || $sort === 'expensive') {
-			$pa = price_rsd($a) ?? PHP_INT_MAX;
-			$pb = price_rsd($b) ?? PHP_INT_MAX;
-			return $sort === 'cheap' ? $pa <=> $pb : $pb <=> $pa;
-		}
-		return strcmp($b['created'], $a['created']);
-	});
-
-	return $items;
-}
-
 // Count active listings in a category
 function category_count(array $category): int
 {
-	return count(search_listings(['cat' => $category['slug']]));
+	return count_listings(['cat' => $category['slug']]);
 }
 
 // Count active listings in a city
 function city_count(string $city): int
 {
-	return count(search_listings(['city' => $city]));
-}
-
-/* ---------- Favorites ---------- */
-
-function is_favorite(int $id): bool
-{
-	return in_array($id, $GLOBALS['favorites'], true);
-}
-
-/* ---------- Messages ---------- */
-
-function unread_count(): int
-{
-	return array_sum(array_column($GLOBALS['conversations'], 'unread'));
+	return count_listings(['city' => $city]);
 }
 
 /* ---------- Dates ---------- */
@@ -497,8 +381,3 @@ function seller_url(array $user): string
 	return url('seller.php', ['id' => $user['id']]);
 }
 
-// Active listings of a user, newest first
-function seller_listings(int $userId): array
-{
-	return array_values(array_filter(search_listings([]), fn($l) => $l['user_id'] === $userId));
-}

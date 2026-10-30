@@ -7,7 +7,10 @@ require __DIR__ . '/../source/inc/admin/bootstrap.php';
 $pageTitle = 'Dashboard';
 $activeNav = 'dashboard';
 
-// Counters and short lists from mock data
+// Counters and short lists
+$listings = all_listings();
+$reports = reports();
+$users = users();
 $pendingListings = filter_by($listings, 'status', 'pending');
 $openReports = filter_by($reports, 'status', 'open');
 $activeCount = count_by($listings, 'status', 'active');
@@ -94,7 +97,7 @@ require ADMIN_INC . '/header.php';
 			<span class="badge badge--danger"><?= count($openReports) ?></span>
 		</div>
 		<ul class="list">
-			<?php foreach ($openReports as $report): $listing = find_by_id($listings, $report['listing_id']); ?>
+			<?php foreach ($openReports as $report): $listing = find_listing($report['listing_id']); ?>
 			<li class="list__item">
 				<span class="stat__icon stat__icon--danger"><?= icon('flag', 18) ?></span>
 				<div class="list__main">
@@ -141,7 +144,7 @@ require ADMIN_INC . '/header.php';
 		</div>
 		<div class="card__body">
 			<ol class="timeline">
-				<?php foreach ($activity as $item): ?>
+				<?php foreach (recent_activity() as $item): ?>
 				<li class="timeline__item">
 					<span class="timeline__icon timeline__icon--<?= e($item['type']) ?>"><?= icon($item['icon'], 16) ?></span>
 					<div>

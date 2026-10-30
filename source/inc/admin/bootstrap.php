@@ -1,6 +1,6 @@
 <?php
 /* ==========================================================================
-	Admin bootstrap: paths, helpers, mock data
+	Admin bootstrap: paths, helpers, data access
 	Every admin page starts with:
 	require __DIR__ . '/../source/inc/admin/bootstrap.php';
 	========================================================================== */
@@ -21,10 +21,11 @@ define('SITE_URL', '../');
 require SOURCE_DIR . '/inc/helpers.php';
 require SOURCE_DIR . '/inc/icons.php';
 
-// Admin helpers and mock data (replace data.php with DB queries later)
+// Admin helpers and data access (shared with the site)
 require ADMIN_INC . '/helpers.php';
-require ADMIN_INC . '/data.php';
+require SOURCE_DIR . '/inc/db.php';
+require SOURCE_DIR . '/inc/repo.php';
 
 // Logged-in admin (mock)
-$currentAdmin = find_by_id($users, 3);
+$currentAdmin = user(3);
 log_set_user($currentAdmin['id'], 'admin');

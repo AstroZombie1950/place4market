@@ -29,6 +29,8 @@
 *.rar
 *.7z
 *.sql
+# …except database migrations
+!/source/db/migrations/*.sql
 *.sql.gz
 
 # macOS
@@ -42,7 +44,8 @@
 .TemporaryItems
 .DocumentRevisions-V100
 # Icon must end with two \r (macOS folder icon file "Icon\r")
-Icon
+Icon
+
 
 # Windows
 Thumbs.db

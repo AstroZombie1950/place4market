@@ -9,7 +9,7 @@ require __DIR__ . '/source/inc/bootstrap.php';
 // Indexable pages: [path, params, lastmod]
 $entries = [['index.php', [], null], ['category.php', [], null]];
 
-foreach ($categories as $parent) {
+foreach (categories() as $parent) {
 	if (!$parent['active']) {
 		continue;
 	}
@@ -21,15 +21,13 @@ foreach ($categories as $parent) {
 	}
 }
 
-foreach (active_listings() as $listing) {
+foreach (sitemap_listings() as $listing) {
 	$entries[] = ['listing.php', ['id' => $listing['id']], date('c', strtotime($listing['created']))];
 }
 
 // Sellers with active listings
-foreach ($users as $user) {
-	if (seller_listings($user['id'])) {
-		$entries[] = ['seller.php', ['id' => $user['id']], null];
-	}
+foreach (seller_ids() as $sellerId) {
+	$entries[] = ['seller.php', ['id' => $sellerId], null];
 }
 
 foreach (info_pages() as $info) {

@@ -7,6 +7,8 @@ require __DIR__ . '/../source/inc/admin/bootstrap.php';
 $pageTitle = 'Users';
 $activeNav = 'users';
 
+$users = users();
+
 // Tabs: [field, value, label, count]
 $userTabs = [
 	['status', '', 'All', count($users)],
@@ -98,7 +100,7 @@ require ADMIN_INC . '/header.php';
 					</td>
 					<td class="nowrap"><?= e($user['phone']) ?></td>
 					<td class="nowrap"><?= e($user['city']) ?></td>
-					<td class="num"><?= count(filter_by($listings, 'user_id', $user['id'])) ?></td>
+					<td class="num"><?= count(user_listings($user['id'])) ?></td>
 					<td><?= role_badge($user['role']) ?></td>
 					<td><?= status_badge($user['status']) ?></td>
 					<td class="nowrap muted"><?= e(format_date($user['registered'])) ?></td>

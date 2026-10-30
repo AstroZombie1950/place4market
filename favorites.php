@@ -4,7 +4,8 @@
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
 
-$saved = array_values(array_filter(array_map('find_listing', $favorites), fn($l) => $l && $l['status'] === 'active'));
+$saved = favorite_listings();
+$savedSearches = saved_searches();
 
 $page['title'] = t('fav.title');
 $page['robots'] = 'noindex, follow';
@@ -47,7 +48,7 @@ require INC_DIR . '/header.php';
 		<div class="tabs__panel" role="tabpanel" id="panel-searches" aria-labelledby="tab-searches" tabindex="0" hidden>
 			<h2 class="visually-hidden"><?= e(t('fav.searches')) ?></h2>
 			<ul class="saved-list">
-				<?php foreach ($savedSearches as $search): $rowId = 'search-' . $search['id']; $label = tc($search['label']); ?>
+				<?php foreach ($savedSearches as $search): $rowId = 'search-' . $search['id']; $label = user_text($search['label'], $search['lang']); ?>
 				<li class="saved-search" id="<?= e($rowId) ?>">
 					<div class="saved-search__main">
 						<p class="saved-search__title"><a href="<?= e(url('category.php', $search['params'])) ?>"><?= e($label) ?></a></p>

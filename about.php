@@ -10,9 +10,9 @@ $content = page_content($infoKey);
 $crumbs = info_crumbs($infoKey);
 
 $stats = [
-	['value' => format_number(count(active_listings())), 'label' => t('about.stat_listings')],
-	['value' => count($categories), 'label' => t('about.stat_categories')],
-	['value' => count($cities), 'label' => t('about.stat_cities')],
+	['value' => format_number(count_listings([])), 'label' => t('about.stat_listings')],
+	['value' => count(categories()), 'label' => t('about.stat_categories')],
+	['value' => count(cities()), 'label' => t('about.stat_cities')],
 	['value' => format_price(0), 'label' => t('about.stat_free_label')],
 ];
 

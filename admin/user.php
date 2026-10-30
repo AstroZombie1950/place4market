@@ -5,10 +5,10 @@
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
 
 $userId = (int) ($_GET['id'] ?? 1);
-$user = find_by_id($users, $userId) ?? $users[0];
-$userListings = filter_by($listings, 'user_id', $user['id']);
+$user = user($userId) ?? users()[0];
+$userListings = user_listings($user['id']);
 $listingIds = array_column($userListings, 'id');
-$userReports = array_values(array_filter($reports, fn($r) => in_array($r['listing_id'], $listingIds, true)));
+$userReports = array_values(array_filter(reports(), fn($r) => in_array($r['listing_id'], $listingIds, true)));
 
 $pageTitle = $user['name'];
 $activeNav = 'users';
@@ -180,7 +180,7 @@ require ADMIN_INC . '/header.php';
 	<div class="tabs__panel" role="tabpanel" id="panel-reports" aria-labelledby="tab-reports" tabindex="0" hidden>
 		<?php if ($userReports): ?>
 		<ul class="list">
-			<?php foreach ($userReports as $report): $listing = find_by_id($listings, $report['listing_id']); ?>
+			<?php foreach ($userReports as $report): $listing = find_listing($report['listing_id']); ?>
 			<li class="list__item">
 				<span class="stat__icon stat__icon--danger"><?= icon('flag', 18) ?></span>
 				<div class="list__main">

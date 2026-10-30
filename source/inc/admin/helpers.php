@@ -36,16 +36,18 @@ function role_badge(string $role): string
 	return '<span class="badge badge--plain badge--' . $modifier . '">' . e(ucfirst($role)) . '</span>';
 }
 
-// Find an item by id
-function find_by_id(array $items, int $id): ?array
+// Reject reasons (moderation)
+function reject_reasons(): array
 {
-	foreach ($items as $item) {
-		if ((int) $item['id'] === $id) {
-			return $item;
-		}
-	}
-
-	return null;
+	return [
+		'prohibited' => 'Prohibited item',
+		'contacts' => 'Contact details in title or photos',
+		'category' => 'Wrong category',
+		'duplicate' => 'Duplicate listing',
+		'photos' => 'Low quality or stock photos',
+		'price' => 'Misleading price',
+		'other' => 'Other',
+	];
 }
 
 // Count items where $field equals $value
@@ -63,7 +65,7 @@ function filter_by(array $items, string $field, $value): array
 // Parent category for any slug (parent or child)
 function category_parent(string $slug): ?array
 {
-	foreach ($GLOBALS['categories'] as $parent) {
+	foreach (categories() as $parent) {
 		if ($parent['slug'] === $slug) {
 			return $parent;
 		}
@@ -80,7 +82,7 @@ function category_parent(string $slug): ?array
 // Category name (EN) for any slug
 function category_name(string $slug): string
 {
-	foreach ($GLOBALS['categories'] as $parent) {
+	foreach (categories() as $parent) {
 		if ($parent['slug'] === $slug) {
 			return $parent['names']['en'];
 		}
@@ -125,9 +127,9 @@ function thumb(array $listing, string $size = ''): string
 }
 
 // User name by id
-function user_name(int $id): string
+function user_name(?int $id): string
 {
-	$user = find_by_id($GLOBALS['users'], $id);
+	$user = $id ? user($id) : null;
 
 	return $user ? $user['name'] : '—';
 }
@@ -141,13 +143,13 @@ function category_listing_count(array $category): int
 		$slugs[] = $child['slug'];
 	}
 
-	return count(array_filter($GLOBALS['listings'], fn($l) => in_array($l['category'], $slugs, true)));
+	return count(array_filter(all_listings(), fn($l) => in_array($l['category'], $slugs, true)));
 }
 
 // Number of listings by city
 function city_listing_count(string $city): int
 {
-	return count_by($GLOBALS['listings'], 'city', $city);
+	return count_by(all_listings(), 'city', $city);
 }
 
 // Payload for the category edit form (used by JS)
@@ -193,7 +195,7 @@ function category_options(string $selected = ''): string
 {
 	$html = '';
 
-	foreach ($GLOBALS['categories'] as $parent) {
+	foreach (categories() as $parent) {
 		$html .= '<optgroup label="' . e($parent['names']['en']) . '">';
 		foreach ($parent['children'] as $child) {
 			$isSelected = $child['slug'] === $selected ? ' selected' : '';
@@ -210,7 +212,7 @@ function city_options(string $selected = '', bool $withAll = false): string
 {
 	$items = $withAll ? ['' => 'All cities'] : [];
 
-	foreach ($GLOBALS['cities'] as $city) {
+	foreach (cities() as $city) {
 		$items[$city['latn']] = $city['latn'];
 	}
 

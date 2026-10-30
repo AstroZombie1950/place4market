@@ -11,7 +11,7 @@ $footerLink = fn(string $path, string $label, array $params = []) => ['href' => 
 $footerCols = [
 	'categories' => array_map(
 		fn($c) => $footerLink('category.php', cat_name($c), ['cat' => $c['slug']]),
-		array_filter($categories, fn($c) => $c['active'])
+		array_filter(categories(), fn($c) => $c['active'])
 	),
 	'users' => [
 		$footerLink('post.php', t('nav.post_ad')),

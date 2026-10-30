@@ -7,6 +7,8 @@ require __DIR__ . '/../source/inc/admin/bootstrap.php';
 $pageTitle = 'Categories';
 $activeNav = 'categories';
 
+$categories = categories();
+
 // Form starts with the first category
 $current = category_payload($categories[0]);
 
