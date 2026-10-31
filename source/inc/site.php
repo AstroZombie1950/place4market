@@ -124,12 +124,6 @@ function price_text(?int $amount, string $currency = 'RSD'): string
 	return $amount === null ? t('price.agreement') : format_number($amount) . "\u{00A0}" . currency_label($currency);
 }
 
-// Attribute value: 'v.diesel' → translated, other values as is
-function attr_value(string $value): string
-{
-	return str_starts_with($value, 'v.') ? t($value) : (lang() === 'sr-cyrl' ? sr_cyr($value) : $value);
-}
-
 // Count active listings in a category
 function category_count(array $category): int
 {

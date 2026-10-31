@@ -1147,7 +1147,9 @@ button {
 .badge--active,
 .badge--verified { background: var(--color-success-soft); color: var(--color-success); }
 .badge--pending { background: var(--color-warning-soft); color: var(--color-warning); }
-.badge--expired { background: var(--color-neutral-soft); color: var(--color-neutral); }
+.badge--expired,
+.badge--inactive,
+.badge--draft { background: var(--color-neutral-soft); color: var(--color-neutral); }
 .badge--rejected { background: var(--color-danger-soft); color: var(--color-danger); }
 .badge--accent { background: var(--color-accent-soft); color: var(--color-accent-ink); }
 
@@ -2177,6 +2179,11 @@ button {
 .form-card + .form-card,
 .post__form > .notice + .form-card {
 	margin-top: var(--space-5);
+}
+
+/* Details of the chosen subcategory: the legend is for screen readers only */
+.attrs {
+	padding-top: 0;
 }
 
 .form-card__title {

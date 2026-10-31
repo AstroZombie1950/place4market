@@ -1,6 +1,6 @@
 <?php
 /* ==========================================================================
-	Bootstrap for command-line database scripts (migrate.php, seed.php, password.php).
+	Bootstrap for command-line scripts (migrate.php, seed.php, password.php, cron.php).
 	Command line only: closed for the web here and in .htaccess (source/db/).
 	========================================================================== */
 

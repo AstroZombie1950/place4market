@@ -1,12 +1,56 @@
 <?php
 /* ==========================================================================
 	Profile: my listings, account settings, notifications (tabs)
-	POST: action = change_password (+ csrf). Logged-in users only.
+	POST (+ csrf): action = change_password; or id + action = raise | deactivate
+	| activate | renew | delete for an own listing. Logged-in users only.
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
+require INC_DIR . '/media.php';
 
 $me = require_login();
 $passwordError = '';
+
+// Actions on an own listing: success → flash and back to the list; a listing in another
+// status (changed in another tab) or a bump too soon → info message
+$listingAction = (string) ($_POST['action'] ?? '');
+if (isset($_POST['id']) && in_array($listingAction, ['raise', 'deactivate', 'activate', 'renew', 'delete'], true)) {
+	$id = (int) $_POST['id'];
+
+	if (!csrf_valid()) {
+		flash('danger', t('auth.err_csrf'));
+	} elseif ($listingAction === 'delete') {
+		db()->beginTransaction();
+		try {
+			$paths = delete_listing($id, $me['id']);
+			db()->commit();
+		} catch (Throwable $e) {
+			db()->rollBack();
+			throw $e;
+		}
+
+		if ($paths !== null) {
+			array_map('delete_photo_files', $paths);
+			log_action('listing.delete', ['listing_id' => $id, 'photos' => count($paths)]);
+			flash('success', t('p.deleted'));
+		}
+	} else {
+		$done = match ($listingAction) {
+			'raise' => raise_listing($id, $me['id']),
+			'deactivate' => deactivate_listing($id, $me['id']),
+			'activate' => activate_listing($id, $me['id']),
+			'renew' => renew_listing($id, $me['id']),
+		};
+
+		if ($done) {
+			log_action('listing.' . $listingAction, ['listing_id' => $id]);
+			flash('success', t(['raise' => 'p.raised', 'deactivate' => 'p.deactivated', 'activate' => 'p.activated', 'renew' => 'p.renewed'][$listingAction]));
+		} else {
+			flash('info', t($listingAction === 'raise' ? 'p.raise_wait' : 'p.action_failed'));
+		}
+	}
+
+	redirect(url('profile.php') . '#listing-' . $id);
+}
 
 // Change password: the current one is required; other devices are logged out
 if (($_POST['action'] ?? '') === 'change_password') {
@@ -30,14 +74,16 @@ if (($_POST['action'] ?? '') === 'change_password') {
 }
 
 $myListings = user_listings($me['id']);
-$counts = [
-	'' => count($myListings),
-	'active' => count(array_filter($myListings, fn($l) => $l['status'] === 'active')),
-	'pending' => count(array_filter($myListings, fn($l) => $l['status'] === 'pending')),
-	'expired' => count(array_filter($myListings, fn($l) => $l['status'] === 'expired')),
-	'rejected' => count(array_filter($myListings, fn($l) => $l['status'] === 'rejected')),
+$statusKeys = [
+	'active' => 'p.status_active', 'pending' => 'p.status_pending', 'draft' => 'p.status_draft',
+	'inactive' => 'p.status_inactive', 'expired' => 'p.status_expired', 'rejected' => 'p.status_rejected',
 ];
-$statusKeys = ['active' => 'p.status_active', 'pending' => 'p.status_pending', 'expired' => 'p.status_expired', 'rejected' => 'p.status_rejected'];
+$counts = ['' => count($myListings)] + array_fill_keys(array_keys($statusKeys), 0);
+foreach ($myListings as $item) {
+	$counts[$item['status']]++;
+}
+// Bump: once per RAISE_HOURS
+$raiseAfter = date('Y-m-d H:i:s', time() - RAISE_HOURS * 3600);
 
 $page['title'] = t('p.title');
 $page['robots'] = 'noindex, follow';
@@ -81,27 +127,34 @@ require INC_DIR . '/header.php';
 		<div class="tabs__panel" role="tabpanel" id="panel-listings" aria-labelledby="tab-listings" tabindex="0">
 			<div class="pills" role="group" aria-label="<?= e(t('p.status_filter')) ?>" data-pills="my-listings">
 				<button type="button" class="pill" data-value="" aria-pressed="true"><?= e(t('p.status_all')) ?> <span><?= $counts[''] ?></span></button>
-				<?php foreach ($statusKeys as $status => $key): if ($status === 'rejected' && !$counts['rejected']) continue; ?>
+				<?php foreach ($statusKeys as $status => $key): if (!in_array($status, ['active', 'pending'], true) && !$counts[$status]) continue; ?>
 				<button type="button" class="pill" data-value="<?= $status ?>" aria-pressed="false"><?= e(t($key)) ?> <span><?= $counts[$status] ?></span></button>
 				<?php endforeach; ?>
 			</div>
 
 			<ul class="mylist" id="my-listings">
-				<?php foreach ($myListings as $item): $itemTitle = listing_title($item); $rowId = 'my-' . $item['id']; ?>
-				<li class="mylist__item" id="<?= e($rowId) ?>" data-status="<?= e($item['status']) ?>">
-					<a class="mylist__thumb" href="<?= e(listing_url($item)) ?>" tabindex="-1" aria-hidden="true"><?= $item['images'] ? photo($item['images'][0], PHOTO_SIZES['row'], ['max' => PHOTO_MAX['row']]) : placeholder($item['category'], 32) ?></a>
+				<?php foreach ($myListings as $item):
+					$itemTitle = listing_title($item) ?: t('p.untitled');
+					// A draft opens in the form, everything else on its page
+					$itemUrl = $item['status'] === 'draft' ? url('post.php', ['id' => $item['id']]) : listing_url($item);
+					$expires = $item['expires'] ?? date('Y-m-d H:i:s', strtotime($item['created'] . ' +' . LISTING_DAYS . ' days'));
+				?>
+				<li class="mylist__item" id="listing-<?= (int) $item['id'] ?>" data-status="<?= e($item['status']) ?>">
+					<a class="mylist__thumb" href="<?= e($itemUrl) ?>" tabindex="-1" aria-hidden="true"><?= $item['images'] ? photo($item['images'][0], PHOTO_SIZES['row'], ['max' => PHOTO_MAX['row']]) : placeholder($item['category'], 32) ?></a>
 
 					<div class="mylist__main">
-						<h2 class="mylist__title"><a href="<?= e(listing_url($item)) ?>"><?= e($itemTitle) ?></a></h2>
+						<h2 class="mylist__title"><a href="<?= e($itemUrl) ?>"><?= e($itemTitle) ?></a></h2>
 						<p class="mylist__price price"><?= price_html($item['price'], $item['currency']) ?></p>
 						<p class="mylist__meta">
 							<span class="badge badge--<?= e($item['status']) ?>"><?= e(t($statusKeys[$item['status']])) ?></span>
-							<?php if ($item['status'] === 'active'): ?>
-							<span><?= e(t('p.expires', ['date' => date_label(date('Y-m-d', strtotime($item['created'] . ' +60 days')))])) ?></span>
+							<?php if ($item['status'] === 'active' || $item['status'] === 'inactive'): ?>
+							<span><?= e(t('p.expires', ['date' => date_label($expires)])) ?></span>
 							<?php elseif ($item['status'] === 'expired'): ?>
-							<span><?= e(t('p.expired_on', ['date' => date_label(date('Y-m-d', strtotime($item['created'] . ' +60 days')))])) ?></span>
+							<span><?= e(t('p.expired_on', ['date' => date_label($expires)])) ?></span>
 							<?php elseif ($item['status'] === 'rejected'): ?>
 							<span><?= e(t('p.rejected_note', ['reason' => $item['reject_reason'] ?? '—'])) ?></span>
+							<?php elseif ($item['status'] === 'draft'): ?>
+							<span><?= e(t('p.draft_note')) ?></span>
 							<?php else: ?>
 							<span><?= e(t('p.pending_note')) ?></span>
 							<?php endif; ?>
@@ -110,16 +163,22 @@ require INC_DIR . '/header.php';
 						</p>
 					</div>
 
-					<div class="mylist__actions" role="group" aria-label="<?= e(t('p.actions', ['title' => $itemTitle])) ?>">
+					<form class="mylist__actions" method="post" action="<?= e(url('profile.php')) ?>" role="group" aria-label="<?= e(t('p.actions', ['title' => $itemTitle])) ?>">
+						<?= csrf_field() ?>
+						<input type="hidden" name="id" value="<?= (int) $item['id'] ?>">
 						<a class="btn btn--soft btn--sm" href="<?= e(url('post.php', ['id' => $item['id']])) ?>"><?= icon('edit', 16) ?><?= e(t('common.edit')) ?></a>
 						<?php if ($item['status'] === 'active'): ?>
-						<button type="button" class="btn btn--soft btn--sm" data-toast="<?= e(t('p.raised')) ?>"><?= icon('arrow-up', 16) ?><?= e(t('p.raise')) ?></button>
-						<button type="button" class="btn btn--soft btn--sm" data-toast="<?= e(t('p.deactivated')) ?>"><?= icon('power', 16) ?><?= e(t('p.deactivate')) ?></button>
-						<?php elseif ($item['status'] === 'expired'): ?>
-						<button type="button" class="btn btn--soft btn--sm" data-toast="<?= e(t('p.renewed')) ?>"><?= icon('refresh', 16) ?><?= e(t('p.renew')) ?></button>
+						<?php if ($item['sorted'] < $raiseAfter): ?>
+						<button type="submit" class="btn btn--soft btn--sm" name="action" value="raise"><?= icon('arrow-up', 16) ?><?= e(t('p.raise')) ?></button>
 						<?php endif; ?>
-						<button type="button" class="btn btn--danger-ghost btn--sm" data-confirm="<?= e(t('p.delete_confirm')) ?>" data-confirm-label="<?= e(t('common.delete')) ?>" data-done="<?= e(t('p.deleted')) ?>" data-remove-target="#<?= e($rowId) ?>"><?= icon('trash', 16) ?><?= e(t('common.delete')) ?></button>
-					</div>
+						<button type="submit" class="btn btn--soft btn--sm" name="action" value="deactivate"><?= icon('power', 16) ?><?= e(t('p.deactivate')) ?></button>
+						<?php elseif ($item['status'] === 'inactive'): ?>
+						<button type="submit" class="btn btn--soft btn--sm" name="action" value="activate"><?= icon('power', 16) ?><?= e(t('p.activate')) ?></button>
+						<?php elseif ($item['status'] === 'expired'): ?>
+						<button type="submit" class="btn btn--soft btn--sm" name="action" value="renew"><?= icon('refresh', 16) ?><?= e(t('p.renew')) ?></button>
+						<?php endif; ?>
+						<button type="submit" class="btn btn--danger-ghost btn--sm" name="action" value="delete" data-confirm="<?= e(t('p.delete_confirm')) ?>" data-confirm-label="<?= e(t('common.delete')) ?>"><?= icon('trash', 16) ?><?= e(t('common.delete')) ?></button>
+					</form>
 				</li>
 				<?php endforeach; ?>
 				<li class="mylist__empty" data-pills-empty hidden><?= e(t('p.empty')) ?></li>

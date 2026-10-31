@@ -75,14 +75,14 @@ foreach ($demo['listings'] as $l) {
 
 	db_exec(
 		'INSERT INTO listings (id, user_id, category_id, city_id, status, title, description, lang, search_text, price, currency, negotiable, item_condition, attrs,
-			views, favorites_count, messages_count, reject_reason, created_at, published_at, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+			views, favorites_count, messages_count, reject_reason, created_at, sorted_at, published_at, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
 		[
 			$l['id'], $l['user_id'], $categoryIds[$l['category']], $cityIds[$l['city']], $l['status'],
 			$title, $description, $lang, sr_lat($title . "\n" . $description),
 			$l['price'], $l['currency'], (int) $l['negotiable'], $l['condition'], $l['attrs'] ? $json($l['attrs']) : null,
 			$l['views'], $l['favorites'], $l['messages'], $l['reject_reason'] ?? null,
-			$created, $published ? $created : null, $published ? db_utc($l['created'] . ' +60 days') : null,
+			$created, $created, $published ? $created : null, $published ? db_utc($l['created'] . ' +' . LISTING_DAYS . ' days') : null,
 		]
 	);
 

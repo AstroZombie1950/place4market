@@ -296,7 +296,8 @@
 		data-confirm-label: OK button text
 		data-done: toast after OK
 		data-remove-target: CSS selector(s) of elements to remove after OK
-		Otherwise follows the link or submits the form.
+		Otherwise follows the link or submits the form (a submit button is sent
+		as the submitter, with its name and value).
 		---------------------------------------------------------------------- */
 	const initConfirm = () => {
 		const dialog = $('#confirm-dialog');
@@ -330,7 +331,7 @@
 			} else if (pending.tagName === 'A' && pending.getAttribute('href')) {
 				window.location.href = pending.href;
 			} else if (pending.form) {
-				pending.form.requestSubmit();
+				pending.form.requestSubmit(pending.type === 'submit' ? pending : undefined);
 			}
 			pending = null;
 		});
@@ -583,9 +584,33 @@
 				$$('[data-preview-icon]', ph).forEach((icon) => { icon.hidden = icon.dataset.previewIcon !== (catSelect.value || 'default'); });
 			}
 		};
+		// Subcategory → its details set; condition is hidden where it does not apply.
+		// Hidden sets are disabled, so the form sends only the chosen one
+		const conditionField = $('[data-condition-field]', form);
+		let noCondition = [];
+		try { noCondition = JSON.parse(subSelect.dataset.noCondition || '[]'); } catch (err) { noCondition = []; }
+
+		const toggleAttrs = () => {
+			$$('[data-attrs]', form).forEach((set) => {
+				const on = set.dataset.attrs === subSelect.value;
+				set.hidden = !on;
+				set.disabled = !on;
+			});
+			if (conditionField) {
+				const off = noCondition.includes(subSelect.value);
+				conditionField.hidden = off;
+				conditionField.disabled = off;
+			}
+		};
+
 		if (catSelect && subSelect) {
-			catSelect.addEventListener('change', fillSubcats);
+			catSelect.addEventListener('change', () => {
+				fillSubcats();
+				toggleAttrs();
+			});
+			subSelect.addEventListener('change', toggleAttrs);
 			fillSubcats();
+			toggleAttrs();
 		}
 
 		// Live preview

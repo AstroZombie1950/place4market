@@ -16,6 +16,9 @@ $statusTabs = [
 	'active' => 'Active',
 	'rejected' => 'Rejected',
 	'expired' => 'Expired',
+	'inactive' => 'Inactive',
+	'draft' => 'Draft',
+	'deleted' => 'Deleted',
 ];
 
 require ADMIN_INC . '/header.php';

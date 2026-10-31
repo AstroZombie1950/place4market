@@ -8,7 +8,7 @@ $listingId = (int) ($_GET['id'] ?? 1048);
 $listing = find_listing($listingId) ?? all_listings()[0];
 $seller = user($listing['user_id']);
 $sellerListings = user_listings($seller['id']);
-$expires = date('d.m.Y', strtotime($listing['created'] . ' +60 days'));
+$expires = $listing['expires'] ? date('d.m.Y', strtotime($listing['expires'])) : '—';
 
 $pageTitle = 'Edit listing #' . $listing['id'];
 $activeNav = 'listings';

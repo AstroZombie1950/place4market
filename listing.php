@@ -4,14 +4,17 @@
 	GET: id
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
+require INC_DIR . '/attrs.php';
 
 $listing = find_listing((int) ($_GET['id'] ?? 0));
 
 $seller = $listing ? user($listing['user_id']) : null;
 
-// Unknown listing → 404. Not published (moderation, rejected, expired) or a blocked
-// seller: only the author and staff see it, for everyone else it does not exist
-if (!$listing || !(($listing['status'] === 'active' && $seller['status'] === 'active') || $listing['user_id'] === current_user_id() || is_staff())) {
+// Unknown listing → 404. Not published (draft, moderation, inactive, rejected, expired) or a
+// blocked seller: only the author and staff see it, for everyone else it does not exist.
+// Deleted: staff only
+if (!$listing || !(($listing['status'] === 'active' && $seller['status'] === 'active') || is_staff()
+	|| ($listing['user_id'] === current_user_id() && $listing['status'] !== 'deleted'))) {
 	require ROOT_DIR . '/404.php';
 	exit;
 }
@@ -19,8 +22,9 @@ if (!$listing || !(($listing['status'] === 'active' && $seller['status'] === 'ac
 // Phone of this ad (the seller's by default); none when the author hid it
 $phone = $listing['show_phone'] ? ($listing['phone'] ?? $seller['phone']) : null;
 [$parentCat, $childCat] = find_category($listing['category']);
-$title = listing_title($listing);
+$title = listing_title($listing) ?: t('p.untitled');
 $isOwn = $listing['user_id'] === current_user_id();
+$details = listing_details($listing);
 $photos = $listing['images'];
 // Gallery slides: photos with videos right after the cover; placeholders when there are no photos
 $media = array_map(fn($photo) => ['photo' => $photo], $photos);
@@ -206,12 +210,12 @@ require INC_DIR . '/header.php';
 
 		<!-- Details, description, location -->
 		<div class="listing__content">
-			<?php if (!empty($listing['attrs'])): ?>
+			<?php if ($details): ?>
 			<section class="listing__section" aria-labelledby="details-title">
 				<h2 class="listing__section-title" id="details-title"><?= e(t('l.details')) ?></h2>
 				<dl class="params">
-					<?php foreach ($listing['attrs'] as $key => $value): ?>
-					<div class="params__row"><dt><?= e(t('a.' . $key)) ?></dt><dd><?= e(attr_value($value)) ?></dd></div>
+					<?php foreach ($details as [$label, $value]): ?>
+					<div class="params__row"><dt><?= e($label) ?></dt><dd><?= e($value) ?></dd></div>
 					<?php endforeach; ?>
 					<div class="params__row"><dt><?= e(t('l.id')) ?></dt><dd>#<?= (int) $listing['id'] ?></dd></div>
 				</dl>

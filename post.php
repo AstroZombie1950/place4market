@@ -2,22 +2,28 @@
 /* ==========================================================================
 	Post an ad or edit one: category, details, photos, price, contacts + live preview
 	GET: id = edit an own ad. POST: the form + csrf; photos come as photo_ids[]
-	in display order (uploaded beforehand by photo-upload.php).
+	in display order (uploaded beforehand by photo-upload.php), details as attrs[].
 	New ads and edited ones go to moderation (status pending).
+	action=draft: saved as a draft with lighter checks (a new ad or a draft only),
+	then the form opens again for that draft.
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
 require INC_DIR . '/media.php';
+require INC_DIR . '/attrs.php';
 
 $me = require_login();
 
-// Editing: the author's own ad only
+// Editing: the author's own ad only (not a deleted one)
 $editId = isset($_GET['id']) ? (int) $_GET['id'] : null;
 $editing = $editId !== null ? find_listing($editId) : null;
 
-if ($editId !== null && (!$editing || $editing['user_id'] !== $me['id'])) {
+if ($editId !== null && (!$editing || $editing['user_id'] !== $me['id'] || $editing['status'] === 'deleted')) {
 	require ROOT_DIR . '/404.php';
 	exit;
 }
+
+// Not sent to moderation yet: a new ad or a draft (texts of the form, draft button)
+$isNew = !$editing || $editing['status'] === 'draft';
 
 // Form values: the ad being edited (or defaults), replaced by the sent form
 $v = [
@@ -26,6 +32,7 @@ $v = [
 	'title' => $editing['title'] ?? '',
 	'description' => $editing['description'] ?? '',
 	'condition' => $editing['condition'] ?? 'used',
+	'attrs' => array_map('attr_input_value', $editing['attrs'] ?? []),
 	'price' => isset($editing['price']) ? (string) $editing['price'] : '',
 	'currency' => $editing['currency'] ?? 'RSD',
 	'negotiable' => $editing['negotiable'] ?? false,
@@ -44,6 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		'title' => trim(preg_replace('/\s+/u', ' ', (string) ($_POST['title'] ?? ''))),
 		'description' => trim(str_replace("\r\n", "\n", (string) ($_POST['description'] ?? ''))),
 		'condition' => (string) ($_POST['condition'] ?? ''),
+		'attrs' => array_map('strval', array_filter((array) ($_POST['attrs'] ?? []), 'is_scalar')),
 		'price' => preg_replace('/\D/', '', (string) ($_POST['price'] ?? '')),
 		'currency' => ($_POST['currency'] ?? '') === 'EUR' ? 'EUR' : 'RSD',
 		'negotiable' => !empty($_POST['negotiable']),
@@ -55,17 +63,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	];
 	[$parent, $child] = find_category($v['subcategory']);
 	$price = (int) $v['price'];
+	$isDraft = ($_POST['action'] ?? '') === 'draft' && $isNew;
+	$hasCondition = $child && category_has_condition($child['slug']);
+	[$attrs, $attrError] = $child ? clean_attrs($child['slug'], $v['attrs'], !$isDraft) : [[], ''];
 
 	if (!csrf_valid()) {
 		$error = t('auth.err_csrf');
+	} elseif ($isDraft) {
+		// Draft: only the category is required (the listing row needs it); the rest is kept as far as valid
+		if (!$child || $parent['slug'] !== $v['category']) {
+			$error = t('post.err_draft_category');
+		} else {
+			$id = post_save($me, $v, $editId, [
+				'status' => 'draft', 'title' => mb_substr($v['title'], 0, 80), 'description' => mb_substr($v['description'], 0, 3000),
+				'price' => !$v['agreement'] && $price >= 1 && $price <= 2_000_000_000 ? $price : null,
+				'condition' => $hasCondition && in_array($v['condition'], ['new', 'like_new', 'used'], true) ? $v['condition'] : null,
+				'attrs' => $attrs,
+				'city' => in_array($v['city'], array_column(cities(), 'latn'), true) ? $v['city'] : $me['city'],
+				'phone' => preg_match('/^\+?[0-9 ()\-]{6,20}$/', $v['phone']) ? $v['phone'] : null,
+				'photos' => array_slice($v['photos'], 0, 12),
+			]);
+			log_action('listing.draft', ['listing_id' => $id, 'photos' => min(12, count($v['photos']))]);
+			flash('success', t('post.draft_saved'));
+			redirect(url('post.php', ['id' => $id]));
+		}
 	} elseif (!$child || $parent['slug'] !== $v['category']) {
 		$error = t('post.err_category');
 	} elseif (mb_strlen($v['title']) < 3 || mb_strlen($v['title']) > 80) {
 		$error = t('post.err_title');
 	} elseif (mb_strlen($v['description']) < 10 || mb_strlen($v['description']) > 3000) {
 		$error = t('post.err_description');
-	} elseif (!in_array($v['condition'], ['new', 'like_new', 'used'], true)) {
+	} elseif ($hasCondition && !in_array($v['condition'], ['new', 'like_new', 'used'], true)) {
 		$error = t('post.err_condition');
+	} elseif ($attrError !== '') {
+		$error = $attrError;
 	} elseif (!$v['agreement'] && ($price < 1 || $price > 2_000_000_000)) {
 		$error = t('post.err_price');
 	} elseif (!in_array($v['city'], array_column(cities(), 'latn'), true)) {
@@ -77,26 +108,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	} elseif (empty($_POST['terms'])) {
 		$error = t('auth.err_terms');
 	} else {
-		db()->beginTransaction();
-		try {
-			$id = save_listing([
-				'user_id' => $me['id'], 'category' => $v['subcategory'], 'city' => $v['city'],
-				'title' => $v['title'], 'description' => $v['description'], 'lang' => detect_text_lang($v['title'] . ' ' . $v['description']),
-				'price' => $v['agreement'] ? null : $price, 'currency' => $v['currency'], 'negotiable' => $v['negotiable'] && !$v['agreement'],
-				'condition' => $v['condition'], 'phone' => $v['phone'] ?: null, 'show_phone' => $v['show_phone'],
-			], $editId);
-			$removed = set_listing_photos($id, $me['id'], $v['photos']);
-			db()->commit();
-		} catch (Throwable $e) {
-			db()->rollBack();
-			throw $e;
-		}
-
-		array_map('delete_photo_files', $removed);
-		log_action($editId ? 'listing.update' : 'listing.create', ['listing_id' => $id, 'photos' => count($v['photos'])]);
-		flash('success', t($editId ? 'post.updated' : 'post.submitted'));
+		$id = post_save($me, $v, $editId, [
+			'status' => 'pending', 'title' => $v['title'], 'description' => $v['description'],
+			'price' => $v['agreement'] ? null : $price, 'condition' => $hasCondition ? $v['condition'] : null,
+			'attrs' => $attrs, 'city' => $v['city'], 'phone' => $v['phone'] ?: null, 'photos' => $v['photos'],
+		]);
+		log_action($isNew ? 'listing.create' : 'listing.update', ['listing_id' => $id, 'photos' => count($v['photos'])]);
+		flash('success', t($isNew ? 'post.submitted' : 'post.updated'));
 		redirect(url('profile.php'));
 	}
+}
+
+// Saves the ad and its photos in one transaction, then removes the files of photos taken out.
+// $v: the sent form, $f: checked values (status, title, description, price, condition, attrs, city, phone, photos)
+function post_save(array $me, array $v, ?int $editId, array $f): int
+{
+	db()->beginTransaction();
+	try {
+		$id = save_listing([
+			'user_id' => $me['id'], 'status' => $f['status'], 'category' => $v['subcategory'], 'city' => $f['city'],
+			'title' => $f['title'], 'description' => $f['description'], 'lang' => detect_text_lang($f['title'] . ' ' . $f['description']),
+			'price' => $f['price'], 'currency' => $v['currency'], 'negotiable' => $v['negotiable'] && $f['price'] !== null,
+			'condition' => $f['condition'], 'attrs' => $f['attrs'], 'phone' => $f['phone'], 'show_phone' => $v['show_phone'],
+		], $editId);
+		$removed = set_listing_photos($id, $me['id'], $f['photos']);
+		db()->commit();
+	} catch (Throwable $e) {
+		db()->rollBack();
+		throw $e;
+	}
+
+	array_map('delete_photo_files', $removed);
+
+	return $id;
 }
 
 // Photos already uploaded, for the photo list (the cover first)
@@ -111,7 +155,7 @@ foreach (categories() as $category) {
 	$subcats[$category['slug']] = array_map(fn($child) => ['slug' => $child['slug'], 'name' => cat_name($child)], $category['children']);
 }
 
-$page['title'] = t($editing ? 'post.edit_title' : 'post.title');
+$page['title'] = t($editing && !$isNew ? 'post.edit_title' : 'post.title');
 $page['robots'] = 'noindex, follow';
 $page['nav'] = 'post';
 $page['search'] = false;
@@ -122,7 +166,7 @@ require INC_DIR . '/header.php';
 <div class="container page">
 	<div class="page-head">
 		<div>
-			<h1 class="page-title"><?= e(t($editing ? 'post.edit_title' : 'post.title')) ?></h1>
+			<h1 class="page-title"><?= e($page['title']) ?></h1>
 			<p class="page-sub"><?= e(t('post.sub')) ?></p>
 		</div>
 	</div>
@@ -149,7 +193,7 @@ require INC_DIR . '/header.php';
 					</div>
 					<div class="field">
 						<label class="field__label" for="p-subcategory"><?= e(t('post.subcategory')) ?></label>
-						<select class="select" id="p-subcategory" name="subcategory" required disabled data-subcategory-select data-selected="<?= e($v['subcategory']) ?>">
+						<select class="select" id="p-subcategory" name="subcategory" required disabled data-subcategory-select data-selected="<?= e($v['subcategory']) ?>" data-no-condition="<?= attr_json(array_keys(array_filter(CATEGORY_ATTRS, fn($set) => ($set['condition'] ?? true) === false))) ?>">
 							<option value="" data-choose="<?= e(t('post.choose')) ?>" data-empty="<?= e(t('post.choose_category_first')) ?>"><?= e(t('post.choose_category_first')) ?></option>
 						</select>
 					</div>
@@ -178,7 +222,7 @@ require INC_DIR . '/header.php';
 						</div>
 					</div>
 
-					<fieldset class="field field--full filters__fieldset">
+					<fieldset class="field field--full filters__fieldset" data-condition-field<?= $v['subcategory'] !== '' && !category_has_condition($v['subcategory']) ? ' disabled hidden' : '' ?>>
 						<legend class="field__label"><?= e(t('post.f_condition')) ?></legend>
 						<div class="seg seg--spaced">
 							<label class="seg__item"><input type="radio" name="condition" value="new"<?= $v['condition'] === 'new' ? ' checked' : '' ?>><span class="seg__label"><?= e(t('v.new')) ?></span></label>
@@ -186,6 +230,37 @@ require INC_DIR . '/header.php';
 							<label class="seg__item"><input type="radio" name="condition" value="used"<?= $v['condition'] === 'used' ? ' checked' : '' ?>><span class="seg__label"><?= e(t('v.used')) ?></span></label>
 						</div>
 					</fieldset>
+
+					<!-- Details of the chosen subcategory (main.js shows one set, the others are disabled) -->
+					<?php foreach (CATEGORY_ATTRS as $slug => $set): if (!$set['fields']) continue; $on = $slug === $v['subcategory']; ?>
+					<fieldset class="field--full filters__fieldset attrs" data-attrs="<?= e($slug) ?>"<?= $on ? '' : ' disabled hidden' ?>>
+						<legend class="visually-hidden"><?= e(t('post.f_attrs')) ?></legend>
+						<div class="form-grid">
+							<?php foreach (category_attr_fields($slug) as $key => $field):
+								$fieldId = 'a-' . $slug . '-' . $key;
+								$value = $on ? (string) ($v['attrs'][$key] ?? '') : '';
+								$unit = $field['unit'] ?? '';
+								$label = t('a.' . $key) . ($unit !== '' ? ', ' . (str_starts_with($unit, 'u.') ? t($unit) : $unit) : '');
+							?>
+							<div class="field">
+								<label class="field__label" for="<?= e($fieldId) ?>"><?= e($label) ?></label>
+								<?php if ($field['type'] === 'select'): ?>
+								<select class="select" id="<?= e($fieldId) ?>" name="attrs[<?= e($key) ?>]">
+									<option value="">—</option>
+									<?php foreach ($field['options'] as $option): ?>
+									<option value="<?= e($option) ?>"<?= $option === $value ? ' selected' : '' ?>><?= e(empty($field['raw']) ? t('v.' . $option) : $option) ?></option>
+									<?php endforeach; ?>
+								</select>
+								<?php elseif ($field['type'] === 'number'): ?>
+								<input class="input" id="<?= e($fieldId) ?>" name="attrs[<?= e($key) ?>]" type="text" inputmode="<?= isset($field['step']) ? 'decimal' : 'numeric' ?>" maxlength="12" value="<?= e($value) ?>">
+								<?php else: ?>
+								<input class="input" id="<?= e($fieldId) ?>" name="attrs[<?= e($key) ?>]" type="text" maxlength="<?= (int) $field['max'] ?>" value="<?= e($value) ?>">
+								<?php endif; ?>
+							</div>
+							<?php endforeach; ?>
+						</div>
+					</fieldset>
+					<?php endforeach; ?>
 				</div>
 			</section>
 
@@ -245,8 +320,10 @@ require INC_DIR . '/header.php';
 			<div class="form-card">
 				<label class="check"><input type="checkbox" name="terms" required><span><?= terms_label('post.terms') ?></span></label>
 				<div class="form-actions">
-					<button type="button" class="btn btn--outline" data-toast="<?= e(t('post.draft_saved')) ?>"><?= e(t('post.draft')) ?></button>
-					<button type="submit" class="btn btn--primary btn--lg"><?= icon('check', 20) ?><?= e(t($editing ? 'post.edit_submit' : 'post.submit')) ?></button>
+					<?php if ($isNew): ?>
+					<button type="submit" class="btn btn--outline" name="action" value="draft" formnovalidate><?= e(t('post.draft')) ?></button>
+					<?php endif; ?>
+					<button type="submit" class="btn btn--primary btn--lg"><?= icon('check', 20) ?><?= e(t($isNew ? 'post.submit' : 'post.edit_submit')) ?></button>
 				</div>
 			</div>
 		</form>

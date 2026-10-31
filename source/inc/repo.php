@@ -9,12 +9,21 @@
 	Shapes stay as in the mock: a listing is ['id', 'category' (slug),
 	'user_id', 'status', 'title', 'description', 'lang', 'price', 'currency',
 	'negotiable', 'city' (Latin name), 'created' (site time), 'views',
-	'favorites', 'messages', 'condition', 'attrs', 'reject_reason', 'images',
-	'videos', 'photos' (count)]; lists come newest first.
+	'favorites', 'messages', 'condition', 'attrs', 'reject_reason', 'expires',
+	'images', 'videos', 'photos' (count)]; lists come newest first.
+	Statuses: draft, pending, active, inactive, rejected, expired, deleted;
+	an active listing past its expiry date reads as expired.
 	========================================================================== */
 
 // EUR → RSD rate for price filters and sorting (moves to settings with the backend)
 const EUR_RATE = 117;
+
+// Days a listing stays published; "bump to top" once per RAISE_HOURS (both move to settings)
+const LISTING_DAYS = 60;
+const RAISE_HOURS = 24;
+
+// Published: active and not past its expiry date (cron.php also marks such listings expired)
+const LISTING_LIVE = "l.status = 'active' AND (l.expires_at IS NULL OR l.expires_at > UTC_TIMESTAMP())";
 
 // Price in RSD inside SQL (filters and sorting across currencies)
 const LISTING_PRICE_RSD = "(CASE WHEN l.currency = 'EUR' THEN l.price * " . EUR_RATE . ' ELSE l.price END)';
@@ -116,15 +125,18 @@ function users(): array
 
 function listing_from_row(array $r): array
 {
+	$expires = db_local($r['expires_at']);
+	$status = $r['status'] === 'active' && $expires !== null && $expires <= date('Y-m-d H:i:s') ? 'expired' : $r['status'];
+
 	return [
-		'id' => $r['id'], 'category' => $r['category'], 'user_id' => $r['user_id'], 'status' => $r['status'],
+		'id' => $r['id'], 'category' => $r['category'], 'user_id' => $r['user_id'], 'status' => $status,
 		'title' => $r['title'], 'description' => $r['description'], 'lang' => $r['lang'],
 		'price' => $r['price'], 'currency' => $r['currency'], 'negotiable' => (bool) $r['negotiable'], 'city' => $r['city'],
 		'created' => db_local($r['created_at']),
 		'views' => $r['views'], 'favorites' => $r['favorites_count'], 'messages' => $r['messages_count'],
 		'condition' => $r['item_condition'],
 		'attrs' => $r['attrs'] !== null ? json_decode($r['attrs'], true) : [],
-		'reject_reason' => $r['reject_reason'],
+		'reject_reason' => $r['reject_reason'], 'expires' => $expires, 'sorted' => db_local($r['sorted_at']),
 		'phone' => $r['phone'], 'show_phone' => (bool) $r['show_phone'],
 		'images' => [], 'videos' => [], 'photos' => 0,
 	];
@@ -172,10 +184,10 @@ function all_listings(): array
 	return listings_query(LISTING_SELECT . ' ORDER BY l.created_at DESC, l.id DESC');
 }
 
-// Listings of a user in any status ("My listings", admin user page)
+// Listings of a user in any status but deleted ("My listings", admin user page)
 function user_listings(int $userId): array
 {
-	return listings_query(LISTING_SELECT . ' WHERE l.user_id = ? ORDER BY l.created_at DESC, l.id DESC', [$userId]);
+	return listings_query(LISTING_SELECT . " WHERE l.user_id = ? AND l.status <> 'deleted' ORDER BY l.created_at DESC, l.id DESC", [$userId]);
 }
 
 // Active listings of a user (seller page)
@@ -194,7 +206,7 @@ function listing_status_counts(): array
 // $f: cat, q, city, price_from, price_to, currency, condition, negotiable, photos, user, exclude (ids)
 function listing_search_where(array $f): array
 {
-	$where = ["l.status = 'active'", "u.status = 'active'"];
+	$where = [LISTING_LIVE, "u.status = 'active'"];
 	$params = [];
 
 	// Category (parent includes children)
@@ -252,7 +264,8 @@ function listing_search_where(array $f): array
 	return [implode(' AND ', $where), $params];
 }
 
-// Search and filter active listings (sort: new | cheap | expensive; "by agreement" goes last)
+// Search and filter published listings (sort: new | cheap | expensive; "by agreement" goes last).
+// "New" is the feed order: publication time or the last bump
 function search_listings(array $f, ?int $limit = null, int $offset = 0): array
 {
 	[$where, $params] = listing_search_where($f);
@@ -260,7 +273,7 @@ function search_listings(array $f, ?int $limit = null, int $offset = 0): array
 	$order = match ($f['sort'] ?? 'new') {
 		'cheap' => 'l.price IS NULL, ' . LISTING_PRICE_RSD . ' ASC, l.created_at DESC',
 		'expensive' => 'l.price IS NULL, ' . LISTING_PRICE_RSD . ' DESC, l.created_at DESC',
-		default => 'l.created_at DESC, l.id DESC',
+		default => 'l.sorted_at DESC, l.id DESC',
 	};
 	$page = $limit !== null ? ' LIMIT ' . max(0, $limit) . ' OFFSET ' . max(0, $offset) : '';
 
@@ -284,16 +297,16 @@ function sitemap_listings(): array
 {
 	return array_map(
 		fn($r) => ['id' => $r['id'], 'created' => db_local($r['created_at'])],
-		db_all("SELECT l.id, l.created_at FROM listings l JOIN users u ON u.id = l.user_id
-			WHERE l.status = 'active' AND u.status = 'active' ORDER BY l.created_at DESC, l.id DESC")
+		db_all('SELECT l.id, l.created_at FROM listings l JOIN users u ON u.id = l.user_id
+			WHERE ' . LISTING_LIVE . " AND u.status = 'active' ORDER BY l.created_at DESC, l.id DESC")
 	);
 }
 
 // Sitemap: users with published listings
 function seller_ids(): array
 {
-	return db_column("SELECT DISTINCT l.user_id FROM listings l JOIN users u ON u.id = l.user_id
-		WHERE l.status = 'active' AND u.status = 'active' ORDER BY l.user_id");
+	return db_column('SELECT DISTINCT l.user_id FROM listings l JOIN users u ON u.id = l.user_id
+		WHERE ' . LISTING_LIVE . " AND u.status = 'active' ORDER BY l.user_id");
 }
 
 /* ---------- Posting and editing (owner) ---------- */
@@ -317,26 +330,27 @@ function postable_photos(int $userId, array $ids, ?int $listingId): array
 	return array_values(array_filter($ids, fn($id) => in_array($id, $allowed, true)));
 }
 
-// New listing or changes to one; both go to moderation. $f: user_id, category (slug), city (Latin
-// name), title, description, lang, price (null = by agreement), currency, negotiable, condition,
-// phone, show_phone. Returns the listing id
+// New listing or changes to one. $f: user_id, status (pending = to moderation, draft), category
+// (slug), city (Latin name), title, description, lang, price (null = by agreement), currency,
+// negotiable, condition (null when the category has none), attrs, phone, show_phone.
+// Returns the listing id
 function save_listing(array $f, ?int $id = null): int
 {
 	$values = [
-		$f['title'], $f['description'], $f['lang'], sr_lat($f['title'] . "\n" . $f['description']),
-		$f['price'], $f['currency'], (int) $f['negotiable'], $f['condition'], $f['phone'], (int) $f['show_phone'],
-		$f['category'], $f['city'],
+		$f['status'], $f['title'], $f['description'], $f['lang'], sr_lat($f['title'] . "\n" . $f['description']),
+		$f['price'], $f['currency'], (int) $f['negotiable'], $f['condition'], $f['attrs'] ? json_encode($f['attrs'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+		$f['phone'], (int) $f['show_phone'], $f['category'], $f['city'],
 	];
-	$set = 'title = ?, description = ?, lang = ?, search_text = ?, price = ?, currency = ?, negotiable = ?, item_condition = ?, phone = ?, show_phone = ?,
-		category_id = (SELECT id FROM categories WHERE slug = ?), city_id = (SELECT id FROM cities WHERE latn = ?)';
+	$set = 'status = ?, title = ?, description = ?, lang = ?, search_text = ?, price = ?, currency = ?, negotiable = ?, item_condition = ?, attrs = ?,
+		phone = ?, show_phone = ?, category_id = (SELECT id FROM categories WHERE slug = ?), city_id = (SELECT id FROM cities WHERE latn = ?)';
 
 	if ($id === null) {
-		db_exec('INSERT INTO listings SET user_id = ?, status = \'pending\', ' . $set, [$f['user_id'], ...$values]);
+		db_exec('INSERT INTO listings SET user_id = ?, ' . $set, [$f['user_id'], ...$values]);
 
 		return (int) db()->lastInsertId();
 	}
 
-	db_exec('UPDATE listings SET ' . $set . ', status = \'pending\', reject_reason = NULL WHERE id = ? AND user_id = ?', [...$values, $id, $f['user_id']]);
+	db_exec('UPDATE listings SET ' . $set . ', reject_reason = NULL WHERE id = ? AND user_id = ?', [...$values, $id, $f['user_id']]);
 
 	return $id;
 }
@@ -366,6 +380,59 @@ function photos_by_ids(array $ids): array
 	$byId = array_column(array_map(fn($p) => ['id' => $p['id'], 'path' => $p['path'], 'color' => $p['color'], 'sizes' => json_decode($p['sizes'], true)], $rows), null, 'id');
 
 	return array_values(array_filter(array_map(fn($id) => $byId[$id] ?? null, $ids)));
+}
+
+/* ---------- Author's actions in "My listings" ---------- */
+// Each changes only the author's own listing in the right status; false = nothing changed
+
+// Back to the top of the feed, at most once per RAISE_HOURS
+function raise_listing(int $id, int $userId): bool
+{
+	return db_exec('UPDATE listings l SET l.sorted_at = UTC_TIMESTAMP() WHERE l.id = ? AND l.user_id = ? AND ' . LISTING_LIVE . '
+		AND l.sorted_at < UTC_TIMESTAMP() - INTERVAL ' . RAISE_HOURS . ' HOUR', [$id, $userId]) > 0;
+}
+
+// Taken off by the author; stays inactive until activated again
+function deactivate_listing(int $id, int $userId): bool
+{
+	return db_exec("UPDATE listings SET status = 'inactive' WHERE id = ? AND user_id = ? AND status = 'active'", [$id, $userId]) > 0;
+}
+
+// Inactive → active again (it was moderated before); the expiry date stays
+function activate_listing(int $id, int $userId): bool
+{
+	return db_exec("UPDATE listings SET status = 'active' WHERE id = ? AND user_id = ? AND status = 'inactive'", [$id, $userId]) > 0;
+}
+
+// Expired → published for LISTING_DAYS more, at the top of the feed
+function renew_listing(int $id, int $userId): bool
+{
+	return db_exec('UPDATE listings SET status = \'active\', expires_at = UTC_TIMESTAMP() + INTERVAL ' . LISTING_DAYS . ' DAY, sorted_at = UTC_TIMESTAMP()
+		WHERE id = ? AND user_id = ? AND published_at IS NOT NULL
+		AND (status = \'expired\' OR (status = \'active\' AND expires_at <= UTC_TIMESTAMP()))', [$id, $userId]) > 0;
+}
+
+// Deleted by the author: the row stays (conversations, admin), photos go.
+// Returns photo paths (the caller removes the files after the transaction), null when not found
+function delete_listing(int $id, int $userId): ?array
+{
+	if (!db_exec("UPDATE listings SET status = 'deleted' WHERE id = ? AND user_id = ? AND status <> 'deleted'", [$id, $userId])) {
+		return null;
+	}
+
+	$paths = db_column('SELECT path FROM listing_photos WHERE listing_id = ?', [$id]);
+	db_exec('DELETE FROM listing_photos WHERE listing_id = ?', [$id]);
+	db_exec('DELETE FROM favorites WHERE listing_id = ?', [$id]);
+
+	return $paths;
+}
+
+/* ---------- Maintenance (cron.php) ---------- */
+
+// Active listings past their expiry date become expired; returns how many
+function expire_listings(): int
+{
+	return db_exec("UPDATE listings SET status = 'expired' WHERE status = 'active' AND expires_at <= UTC_TIMESTAMP()");
 }
 
 // Photos uploaded more than a day ago and never put into a listing: rows deleted, paths returned
@@ -401,7 +468,7 @@ function is_favorite(int $id): bool
 function favorite_listings(): array
 {
 	return listings_query(
-		LISTING_SELECT . " JOIN favorites f ON f.listing_id = l.id AND f.user_id = ? WHERE l.status = 'active' ORDER BY f.created_at DESC",
+		LISTING_SELECT . ' JOIN favorites f ON f.listing_id = l.id AND f.user_id = ? WHERE ' . LISTING_LIVE . ' ORDER BY f.created_at DESC',
 		[current_user_id()]
 	);
 }
