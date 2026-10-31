@@ -2,14 +2,14 @@
 /* ==========================================================================
 	Data access: the only place that knows where data lives (site + admin).
 	Pages and helpers get data through these functions and never query the
-	database themselves. Storage: MariaDB (db.php); admin activity and
-	language settings still come from mock-data.php until the audit log and
-	settings move to the database.
+	database themselves. Storage: MariaDB (db.php); the journal is written by
+	log.php and read here. Language settings still come from mock-data.php
+	until settings move to the database.
 
 	Shapes stay as in the mock: a listing is ['id', 'category' (slug),
 	'user_id', 'status', 'title', 'description', 'lang', 'price', 'currency',
 	'negotiable', 'city' (Latin name), 'created' (site time), 'views',
-	'favorites', 'messages', 'condition', 'attrs', 'reject_reason', 'expires',
+	'favorites', 'messages', 'condition', 'attrs', 'reject_reason' (key), 'reject_comment', 'expires',
 	'images', 'videos', 'photos' (count)]; lists come newest first.
 	Statuses: draft, pending, active, inactive, rejected, expired, deleted;
 	an active listing past its expiry date reads as expired.
@@ -136,7 +136,7 @@ function listing_from_row(array $r): array
 		'views' => $r['views'], 'favorites' => $r['favorites_count'], 'messages' => $r['messages_count'],
 		'condition' => $r['item_condition'],
 		'attrs' => $r['attrs'] !== null ? json_decode($r['attrs'], true) : [],
-		'reject_reason' => $r['reject_reason'], 'expires' => $expires, 'sorted' => db_local($r['sorted_at']),
+		'reject_reason' => $r['reject_reason'], 'reject_comment' => $r['reject_comment'], 'expires' => $expires, 'sorted' => db_local($r['sorted_at']),
 		'phone' => $r['phone'], 'show_phone' => (bool) $r['show_phone'],
 		'images' => [], 'videos' => [], 'photos' => 0,
 	];
@@ -350,7 +350,7 @@ function save_listing(array $f, ?int $id = null): int
 		return (int) db()->lastInsertId();
 	}
 
-	db_exec('UPDATE listings SET ' . $set . ', reject_reason = NULL WHERE id = ? AND user_id = ?', [...$values, $id, $f['user_id']]);
+	db_exec('UPDATE listings SET ' . $set . ', reject_reason = NULL, reject_comment = NULL WHERE id = ? AND user_id = ?', [...$values, $id, $f['user_id']]);
 
 	return $id;
 }
@@ -669,14 +669,70 @@ function rate_add(string $action, string $keyHash): void
 }
 
 /* ---------- Moderation (admin) ---------- */
+// Staff actions; each returns false (or null) when the listing is not in a status it applies to
 
-// ['id', 'listing_id', 'reason', 'reporter_id', 'comment', 'created', 'status'], newest first
-function reports(): array
+// Pending → published. First approval: published now for LISTING_DAYS, at the top of the feed.
+// Approval after an edit: place and date stay, the term is renewed only if it has run out
+function approve_listing(int $id): bool
 {
-	return array_map(fn($r) => [
+	return db_exec("UPDATE listings SET status = 'active', reject_reason = NULL, reject_comment = NULL,
+		sorted_at = IF(published_at IS NULL, UTC_TIMESTAMP(), sorted_at),
+		expires_at = IF(expires_at IS NULL OR expires_at <= UTC_TIMESTAMP(), UTC_TIMESTAMP() + INTERVAL " . LISTING_DAYS . " DAY, expires_at),
+		published_at = COALESCE(published_at, UTC_TIMESTAMP())
+		WHERE id = ? AND status IN ('pending', 'rejected')", [$id]) > 0;
+}
+
+// Pending or published → rejected with a reason key (rj.<key> for the seller) and a message
+function reject_listing(int $id, string $reason, string $comment): bool
+{
+	return db_exec("UPDATE listings SET status = 'rejected', reject_reason = ?, reject_comment = ?
+		WHERE id = ? AND status IN ('pending', 'active', 'inactive', 'expired')", [$reason, $comment !== '' ? $comment : null, $id]) > 0;
+}
+
+// Removed by staff: like the author's delete (photo paths returned for the files)
+function staff_delete_listing(int $id): ?array
+{
+	$userId = db_value("SELECT user_id FROM listings WHERE id = ? AND status <> 'deleted'", [$id]);
+
+	return $userId === false ? null : delete_listing($id, (int) $userId);
+}
+
+// Blocked user: logged out on the next request (auth_init), listings hidden from everyone
+function block_user(int $id): bool
+{
+	db_exec('DELETE FROM remember_tokens WHERE user_id = ?', [$id]);
+
+	return db_exec("UPDATE users SET status = 'blocked' WHERE id = ? AND status = 'active' AND role = 'user'", [$id]) > 0;
+}
+
+function unblock_user(int $id): bool
+{
+	return db_exec("UPDATE users SET status = 'active' WHERE id = ? AND status = 'blocked'", [$id]) > 0;
+}
+
+/* ---------- Reports ---------- */
+
+function report_from_row(array $r): array
+{
+	return [
 		'id' => $r['id'], 'listing_id' => $r['listing_id'], 'reason' => $r['reason'], 'reporter_id' => $r['reporter_id'],
 		'comment' => $r['comment'], 'created' => db_local($r['created_at']), 'status' => $r['status'],
-	], db_all('SELECT * FROM reports ORDER BY id DESC'));
+		'resolution' => $r['resolution'], 'note' => $r['note'], 'resolved_by' => $r['resolved_by'], 'resolved' => db_local($r['resolved_at']),
+	];
+}
+
+// ['id', 'listing_id', 'reason' (key r.<reason>), 'reporter_id', 'comment', 'created', 'status',
+// 'resolution', 'note', 'resolved_by', 'resolved'], newest first
+function reports(): array
+{
+	return array_map('report_from_row', db_all('SELECT * FROM reports ORDER BY id DESC'));
+}
+
+function find_report(int $id): ?array
+{
+	$row = db_one('SELECT * FROM reports WHERE id = ?', [$id]);
+
+	return $row ? report_from_row($row) : null;
 }
 
 // Number of reports per status: ['open' => 3, 'review' => 2, …]
@@ -685,8 +741,129 @@ function report_status_counts(): array
 	return array_column(db_all('SELECT status, COUNT(*) AS n FROM reports GROUP BY status'), 'n', 'status');
 }
 
-// Recent events for the dashboard (from the audit log later)
-function recent_activity(): array
+// From the site; returns the new id. One open report per user and listing: a repeat returns null
+function create_report(int $listingId, int $reporterId, string $reason, string $comment): ?int
 {
-	return mock('activity');
+	if (db_value("SELECT 1 FROM reports WHERE listing_id = ? AND reporter_id = ? AND status <> 'resolved'", [$listingId, $reporterId])) {
+		return null;
+	}
+
+	db_exec('INSERT INTO reports (listing_id, reporter_id, reason, comment) VALUES (?, ?, ?, ?)', [$listingId, $reporterId, $reason, $comment]);
+
+	return (int) db()->lastInsertId();
+}
+
+// Open → in review (someone is on it)
+function review_report(int $id): bool
+{
+	return db_exec("UPDATE reports SET status = 'review' WHERE id = ? AND status = 'open'", [$id]) > 0;
+}
+
+// Closed with a resolution (dismiss | edit | remove | remove_block) and a staff note
+function resolve_report(int $id, string $resolution, string $note, int $staffId): bool
+{
+	return db_exec("UPDATE reports SET status = 'resolved', resolution = ?, note = ?, resolved_by = ?, resolved_at = UTC_TIMESTAMP()
+		WHERE id = ? AND status <> 'resolved'", [$resolution, $note !== '' ? $note : null, $staffId, $id]) > 0;
+}
+
+/* ---------- Journal (admin; written by log.php) ---------- */
+
+// WHERE for the journal. $f: level (this and above), channel, user (id or email), from, to
+// (site dates Y-m-d), q (request id or text in the message / address)
+function log_where(array $f): array
+{
+	$where = ['1'];
+	$params = [];
+
+	if (!empty($f['level']) && in_array($f['level'], LOG_LEVELS, true)) {
+		$where[] = 'level IN (' . db_in($levels = array_slice(LOG_LEVELS, array_search($f['level'], LOG_LEVELS, true))) . ')';
+		array_push($params, ...$levels);
+	}
+	if (!empty($f['channel'])) {
+		$where[] = 'channel = ?';
+		$params[] = $f['channel'];
+	}
+	if (!empty($f['user'])) {
+		$where[] = ctype_digit((string) $f['user']) ? 'user_id = ?' : 'user_id = (SELECT id FROM users WHERE email = ?)';
+		$params[] = $f['user'];
+	}
+	if (!empty($f['from'])) {
+		$where[] = 'created_at >= ?';
+		$params[] = db_utc($f['from'] . ' 00:00:00');
+	}
+	if (!empty($f['to'])) {
+		$where[] = 'created_at < ?';
+		$params[] = db_utc($f['to'] . ' 00:00:00 +1 day');
+	}
+	if (!empty($f['q'])) {
+		if (preg_match('/^[0-9a-f]{12}$/', $f['q'])) {
+			$where[] = 'request_id = ?';
+			$params[] = $f['q'];
+		} else {
+			$where[] = '(message LIKE ? OR url LIKE ?)';
+			$like = '%' . addcslashes($f['q'], '%_\\') . '%';
+			array_push($params, $like, $like);
+		}
+	}
+
+	return [implode(' AND ', $where), $params];
+}
+
+// Records, newest first: ['id', 'time' (site time), 'level', 'channel', 'message', 'request',
+// 'method', 'url', 'ip', 'user_id', 'role', 'ua', 'context' (array)]
+function log_entries(array $f, int $limit, int $offset = 0): array
+{
+	[$where, $params] = log_where($f);
+
+	return array_map(fn($r) => [
+		'id' => $r['id'], 'time' => db_local($r['created_at']), 'level' => $r['level'], 'channel' => $r['channel'],
+		'message' => $r['message'], 'request' => $r['request_id'], 'method' => $r['method'], 'url' => $r['url'], 'ip' => $r['ip'],
+		'user_id' => $r['user_id'], 'role' => $r['user_role'], 'ua' => $r['ua'],
+		'context' => $r['context'] !== null ? (json_decode($r['context'], true) ?? []) : [],
+	], db_all('SELECT * FROM log_entries WHERE ' . $where . ' ORDER BY id DESC LIMIT ' . max(1, $limit) . ' OFFSET ' . max(0, $offset), $params));
+}
+
+function count_log_entries(array $f): int
+{
+	[$where, $params] = log_where($f);
+
+	return (int) db_value('SELECT COUNT(*) FROM log_entries WHERE ' . $where, $params);
+}
+
+// Channels seen in the journal (for the filter)
+function log_channels(): array
+{
+	return db_column('SELECT DISTINCT channel FROM log_entries ORDER BY channel');
+}
+
+// Errors and critical records since a moment (dashboard tile)
+function count_log_problems(string $since): int
+{
+	return (int) db_value("SELECT COUNT(*) FROM log_entries WHERE level IN ('error', 'critical') AND created_at >= ?", [db_utc($since)]);
+}
+
+// Audit records (who did what): latest first, optionally about one listing.
+// ['time', 'action', 'user_id', 'role', 'context']
+function audit_entries(int $limit, ?int $listingId = null): array
+{
+	$sql = "SELECT created_at, message, user_id, user_role, context FROM log_entries WHERE channel = 'audit'";
+	$params = [];
+
+	if ($listingId !== null) {
+		$sql .= " AND JSON_VALUE(context, '$.listing_id') = ?";
+		$params[] = $listingId;
+	} else {
+		$sql .= " AND (message LIKE 'listing.%' OR message LIKE 'admin.user_%' OR message LIKE 'report.%' OR message = 'auth.register')";
+	}
+
+	return array_map(fn($r) => [
+		'time' => db_local($r['created_at']), 'action' => $r['message'], 'user_id' => $r['user_id'], 'role' => $r['user_role'],
+		'context' => $r['context'] !== null ? (json_decode($r['context'], true) ?? []) : [],
+	], db_all($sql . ' ORDER BY id DESC LIMIT ' . max(1, $limit), $params));
+}
+
+// Older than the retention period: deleted (cron.php); returns how many
+function delete_old_log_entries(int $days): int
+{
+	return db_exec('DELETE FROM log_entries WHERE created_at < UTC_TIMESTAMP() - INTERVAL ' . max(1, $days) . ' DAY');
 }

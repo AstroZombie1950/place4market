@@ -1,11 +1,18 @@
 <?php
 /* ==========================================================================
 	Admin: User profile (tabs: Profile, Listings, Reports, Activity)
+	Block / unblock → moderate.php; the profile form and other buttons are a demo.
 	========================================================================== */
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
 
-$userId = (int) ($_GET['id'] ?? 1);
-$user = user($userId) ?? users()[0];
+$userId = (int) ($_GET['id'] ?? 0);
+$user = user($userId);
+
+if (!$user) {
+	flash('danger', 'User #' . $userId . ' not found.');
+	redirect('users.php');
+}
+
 $userListings = user_listings($user['id']);
 $listingIds = array_column($userListings, 'id');
 $userReports = array_values(array_filter(reports(), fn($r) => in_array($r['listing_id'], $listingIds, true)));
@@ -45,10 +52,17 @@ require ADMIN_INC . '/header.php';
 		</div>
 		<div class="profile__actions">
 			<a class="btn btn--secondary" href="mailto:<?= e($user['email']) ?>"><?= icon('mail', 18) ?>Email</a>
-			<?php if ($user['status'] === 'blocked'): ?>
-			<button type="button" class="btn btn--secondary" data-toast="User unblocked"><?= icon('check', 18) ?>Unblock</button>
-			<?php else: ?>
-			<button type="button" class="btn btn--danger-ghost" data-confirm="Block <?= e($user['name']) ?>? All their listings will be hidden." data-confirm-label="Block" data-toast="User blocked"><?= icon('ban', 18) ?>Block</button>
+			<?php if ($user['role'] === 'user'): ?>
+			<form method="post" action="moderate.php">
+				<?= csrf_field() ?>
+				<input type="hidden" name="user_id" value="<?= (int) $user['id'] ?>">
+				<input type="hidden" name="back" value="user.php?id=<?= (int) $user['id'] ?>">
+				<?php if ($user['status'] === 'blocked'): ?>
+				<button type="submit" class="btn btn--secondary" name="action" value="unblock"><?= icon('check', 18) ?>Unblock</button>
+				<?php else: ?>
+				<button type="submit" class="btn btn--danger-ghost" name="action" value="block" data-confirm="Block <?= e($user['name']) ?>? They are logged out and all their listings are hidden." data-confirm-label="Block"><?= icon('ban', 18) ?>Block</button>
+				<?php endif; ?>
+			</form>
 			<?php endif; ?>
 		</div>
 	</div>
@@ -184,7 +198,7 @@ require ADMIN_INC . '/header.php';
 			<li class="list__item">
 				<span class="stat__icon stat__icon--danger"><?= icon('flag', 18) ?></span>
 				<div class="list__main">
-					<span class="list__title"><?= e($report['reason']) ?> · “<?= e($listing['title']) ?>”</span>
+					<span class="list__title"><?= e(report_reasons()[$report['reason']] ?? $report['reason']) ?> · “<?= e($listing['title']) ?>”</span>
 					<div class="list__meta">Reported by <?= e(user_name($report['reporter_id'])) ?> · <?= e(format_date($report['created'], true)) ?></div>
 				</div>
 				<div class="list__aside"><?= status_badge($report['status']) ?></div>
@@ -214,6 +228,9 @@ require ADMIN_INC . '/header.php';
 				<div><div>Account created</div><time class="timeline__time" datetime="<?= e($user['registered']) ?>"><?= e(format_date($user['registered'])) ?></time></div>
 			</li>
 		</ol>
+		<?php if (is_admin()): ?>
+		<p class="mt-4"><a href="logs.php?user=<?= (int) $user['id'] ?>"><?= icon('list', 16) ?> All records of this user in the journal</a></p>
+		<?php endif; ?>
 	</div>
 </section>
 

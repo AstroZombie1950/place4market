@@ -163,12 +163,22 @@ return [
 	'l.report_comment_hint' => 'What’s wrong with the listing?',
 	'l.report_send' => 'Send report',
 	'l.report_sent' => 'Thank you. Our moderators will check the listing.',
+	'l.report_login' => 'Log in to report this listing',
+	'l.report_limit' => 'You have sent too many reports. Please try again later.',
+	'l.report_invalid' => 'The report was not sent: choose a reason (your own ads cannot be reported).',
 	'r.fraud' => 'Suspected fraud',
 	'r.sold' => 'Item already sold',
 	'r.duplicate' => 'Duplicate listing',
 	'r.wrong_category' => 'Wrong category',
 	'r.inappropriate' => 'Inappropriate content',
 	'r.other' => 'Other',
+	'rj.prohibited' => 'Prohibited item',
+	'rj.contacts' => 'Contact details in the title, text or photos',
+	'rj.category' => 'Wrong category',
+	'rj.duplicate' => 'Duplicate ad',
+	'rj.photos' => 'Photos are not of the real item or of poor quality',
+	'rj.price' => 'Misleading price',
+	'rj.other' => 'Does not follow the rules',
 
 	// Attributes
 	'a.condition' => 'Condition',
@@ -414,6 +424,7 @@ return [
 	'p.status_draft' => 'Drafts',
 	'p.status_inactive' => 'Inactive',
 	'p.rejected_note' => 'Reason: {reason}',
+	'p.reject_comment' => 'Moderator: “{comment}”',
 	'p.raise' => 'Bump to top',
 	'p.raised' => 'Ad bumped to the top',
 	'p.renew' => 'Renew',
@@ -591,6 +602,25 @@ to set a new password, open this link:
 {link}
 
 The link is valid for 1 hour and works once. If you did not ask for a new password, ignore this email: your password stays the same.
+
+Place4Market',
+	'mail.listing_approved_subject' => 'Your ad is published: {title}',
+	'mail.listing_approved_body' => 'Hello {name},
+
+your ad “{title}” has been checked and is now published:
+{link}
+
+It stays online for {days} days. You can edit, bump or deactivate it in your profile.
+
+Place4Market',
+	'mail.listing_rejected_subject' => 'Your ad needs changes: {title}',
+	'mail.listing_rejected_body' => 'Hello {name},
+
+your ad “{title}” was not published.
+Reason: {reason}
+{comment}
+Fix the ad and send it again, it will be checked once more:
+{link}
 
 Place4Market',
 ];

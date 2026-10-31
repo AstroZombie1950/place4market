@@ -1,6 +1,8 @@
 <?php
 /* ==========================================================================
 	Admin: Listings (filter tabs, search, bulk moderation)
+	Actions go to moderate.php: row menu (approve, reject, delete) and the bulk
+	bar (checked rows → ids[]).
 	========================================================================== */
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
 
@@ -65,14 +67,16 @@ require ADMIN_INC . '/header.php';
 		<button type="button" class="btn btn--ghost" data-table-reset="listings-table"><?= icon('refresh', 18) ?>Reset</button>
 	</div>
 
-	<!-- Bulk actions (visible when rows are selected) -->
-	<div class="bulkbar" data-bulk="listings-table" hidden>
+	<!-- Bulk actions (visible when rows are selected; checked rows go as ids[]) -->
+	<form class="bulkbar" data-bulk="listings-table" data-bulk-form="listings-table" method="post" action="moderate.php" hidden>
+		<?= csrf_field() ?>
+		<input type="hidden" name="back" value="listings.php">
 		<span class="bulkbar__count"><span data-bulk-count>0</span> selected</span>
-		<button type="button" class="btn btn--success btn--sm" data-toast="Selected listings approved"><?= icon('check', 16) ?>Approve</button>
-		<button type="button" class="btn btn--secondary btn--sm" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => 'Selected listings']) ?>"><?= icon('ban', 16) ?>Reject</button>
-		<button type="button" class="btn btn--danger-ghost btn--sm" data-confirm="Delete the selected listings? This cannot be undone." data-confirm-label="Delete" data-toast="Selected listings deleted"><?= icon('trash', 16) ?>Delete</button>
+		<button type="submit" class="btn btn--success btn--sm" name="action" value="approve"><?= icon('check', 16) ?>Approve</button>
+		<button type="button" class="btn btn--secondary btn--sm" data-modal-open="reject-dialog" data-bulk-ids="listings-table" data-payload="<?= attr_json(['title' => 'Selected listings']) ?>"><?= icon('ban', 16) ?>Reject</button>
+		<button type="submit" class="btn btn--danger-ghost btn--sm" name="action" value="delete" data-confirm="Delete the selected listings? Their photos are removed, this cannot be undone." data-confirm-label="Delete"><?= icon('trash', 16) ?>Delete</button>
 		<button type="button" class="btn btn--ghost btn--sm" data-bulk-clear="listings-table">Clear</button>
-	</div>
+	</form>
 
 	<!-- Table -->
 	<div class="table-wrap">
@@ -92,7 +96,7 @@ require ADMIN_INC . '/header.php';
 			</thead>
 			<tbody>
 				<?php foreach ($listings as $listing): ?>
-				<tr data-row data-status="<?= e($listing['status']) ?>" data-category="<?= e($listing['category']) ?>" data-city="<?= e($listing['city']) ?>">
+				<tr data-row data-id="<?= (int) $listing['id'] ?>" data-status="<?= e($listing['status']) ?>" data-category="<?= e($listing['category']) ?>" data-city="<?= e($listing['city']) ?>">
 					<td class="col-check"><input type="checkbox" data-row-check aria-label="Select “<?= e($listing['title']) ?>”"></td>
 					<td>
 						<div class="cell-main">
@@ -121,18 +125,23 @@ require ADMIN_INC . '/header.php';
 					<td class="col-actions">
 						<div class="dropdown" data-dropdown>
 							<button type="button" class="btn btn--ghost btn--icon btn--sm" data-dropdown-toggle aria-expanded="false" aria-label="Actions for “<?= e($listing['title']) ?>”"><?= icon('more', 18) ?></button>
-							<div class="dropdown__menu">
+							<form class="dropdown__menu" method="post" action="moderate.php">
+								<?= csrf_field() ?>
+								<input type="hidden" name="id" value="<?= (int) $listing['id'] ?>">
+								<input type="hidden" name="back" value="listings.php">
 								<a class="dropdown__item" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= icon('edit', 18) ?>Edit</a>
 								<a class="dropdown__item" href="<?= SITE_URL ?>listing.php?id=<?= (int) $listing['id'] ?>" target="_blank" rel="noopener"><?= icon('external', 18) ?>View on site</a>
-								<?php if ($listing['status'] !== 'active'): ?>
-								<button type="button" class="dropdown__item" data-toast="Listing approved"><?= icon('check', 18) ?>Approve</button>
+								<?php if (in_array($listing['status'], ['pending', 'rejected'], true)): ?>
+								<button type="submit" class="dropdown__item" name="action" value="approve"><?= icon('check', 18) ?>Approve</button>
 								<?php endif; ?>
-								<?php if ($listing['status'] !== 'rejected'): ?>
-								<button type="button" class="dropdown__item" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => $listing['title']]) ?>"><?= icon('ban', 18) ?>Reject</button>
+								<?php if (in_array($listing['status'], ['pending', 'active', 'inactive', 'expired'], true)): ?>
+								<button type="button" class="dropdown__item" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => $listing['title'], 'id_list' => (string) $listing['id']]) ?>"><?= icon('ban', 18) ?>Reject</button>
 								<?php endif; ?>
+								<?php if ($listing['status'] !== 'deleted'): ?>
 								<div class="dropdown__sep"></div>
-								<button type="button" class="dropdown__item dropdown__item--danger" data-confirm="Delete “<?= e($listing['title']) ?>”? This cannot be undone." data-confirm-label="Delete" data-toast="Listing deleted"><?= icon('trash', 18) ?>Delete</button>
-							</div>
+								<button type="submit" class="dropdown__item dropdown__item--danger" name="action" value="delete" data-confirm="Delete “<?= e($listing['title']) ?>”? Its photos are removed, this cannot be undone." data-confirm-label="Delete"><?= icon('trash', 18) ?>Delete</button>
+								<?php endif; ?>
+							</form>
 						</div>
 					</td>
 				</tr>
@@ -157,5 +166,5 @@ require ADMIN_INC . '/header.php';
 	</nav>
 </section>
 
-<?php require ADMIN_INC . '/reject-dialog.php'; ?>
+<?php $rejectBack = 'listings.php'; require ADMIN_INC . '/reject-dialog.php'; ?>
 <?php require ADMIN_INC . '/footer.php'; ?>

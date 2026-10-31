@@ -141,19 +141,26 @@ require ADMIN_INC . '/header.php';
 	<section class="card" aria-labelledby="activity-title">
 		<div class="card__head">
 			<h2 class="card__title" id="activity-title">Recent activity</h2>
+			<?php if (is_admin()): $problems = count_log_problems(date('Y-m-d H:i:s', strtotime('-1 day'))); ?>
+			<a class="badge badge--<?= $problems ? 'danger' : 'success' ?>" href="logs.php?level=error"><?= plural($problems, 'error', 'errors') ?> in 24 h</a>
+			<?php endif; ?>
 		</div>
 		<div class="card__body">
+			<?php if ($activity = audit_entries(8)): ?>
 			<ol class="timeline">
-				<?php foreach (recent_activity() as $item): ?>
+				<?php foreach ($activity as $entry): [$type, $iconName, $text] = audit_line($entry); ?>
 				<li class="timeline__item">
-					<span class="timeline__icon timeline__icon--<?= e($item['type']) ?>"><?= icon($item['icon'], 16) ?></span>
+					<span class="timeline__icon timeline__icon--<?= e($type) ?>"><?= icon($iconName, 16) ?></span>
 					<div>
-						<div><?= e($item['text']) ?></div>
-						<time class="timeline__time" datetime="<?= e($item['time']) ?>"><?= e(format_date($item['time'], true)) ?></time>
+						<div><?= e($text) ?></div>
+						<time class="timeline__time" datetime="<?= e($entry['time']) ?>"><?= e(format_date($entry['time'], true)) ?></time>
 					</div>
 				</li>
 				<?php endforeach; ?>
 			</ol>
+			<?php else: ?>
+			<p class="muted">No actions recorded yet.</p>
+			<?php endif; ?>
 		</div>
 	</section>
 </div>

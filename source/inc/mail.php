@@ -28,7 +28,9 @@ function send_mail(string $to, string $subject, string $body, array $context = [
 
 	if ($transport === 'log') {
 		$dir = LOG_DIR . '/mail';
-		$file = $dir . '/' . date('Y-m-d_His') . '_' . request_id() . '.txt';
+		// Several letters of one request (bulk moderation) each get their own file
+		static $n = 0;
+		$file = $dir . '/' . date('Y-m-d_His') . '_' . request_id() . '_' . ++$n . '.txt';
 		$letter = 'To: ' . $to . "\nSubject: " . $subject . "\n\n" . $body . "\n";
 		$sent = (is_dir($dir) || @mkdir($dir, 0750, true)) && @file_put_contents($file, $letter) !== false;
 	} else {

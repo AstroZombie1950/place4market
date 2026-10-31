@@ -19,6 +19,12 @@ $navGroups = [
 		['key' => 'settings', 'href' => 'settings.php', 'icon' => 'settings', 'label' => 'Settings'],
 	],
 ];
+
+// Journal: admins only, with errors of the last 24 hours
+if (is_admin()) {
+	$navGroups['System'][] = ['key' => 'logs', 'href' => 'logs.php?level=warning', 'icon' => 'list', 'label' => 'Journal',
+		'count' => count_log_problems(date('Y-m-d H:i:s', strtotime('-1 day'))), 'alert' => true];
+}
 ?>
 <aside class="sidebar" id="sidebar" aria-label="Admin navigation">
 	<!-- Logo + close (mobile) -->

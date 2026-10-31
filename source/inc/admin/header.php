@@ -73,3 +73,6 @@ $openReportsCount = report_status_counts()['open'] ?? 0;
 
 		<!-- Page content -->
 		<main class="content" id="content" tabindex="-1">
+			<?php if ($flash = take_flash()): ?>
+			<p class="notice notice--flash notice--<?= e(['success' => 'success', 'danger' => 'danger'][$flash['type']] ?? 'info') ?>" role="status"><?= icon($flash['type'] === 'success' ? 'check' : 'alert', 20) ?><span class="notice__text"><?= e($flash['text']) ?></span></p>
+			<?php endif; ?>

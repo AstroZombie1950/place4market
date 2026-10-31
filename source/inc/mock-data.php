@@ -2,7 +2,7 @@
 /* ==========================================================================
 	Demo data: the source for the database seed (source/db/seed.php), plus
 	what is not in the database yet and is read through repo.php (mock()):
-	admin activity (→ audit log) and language settings (→ settings).
+	language settings (→ settings).
 	Dates are relative to the moment of seeding.
 	User text is given in 'en' and 'sr' (Latin); the seed keeps one language
 	per listing, as a real author writes (see SEED_ENGLISH in seed.php).
@@ -295,7 +295,7 @@ $listings = [
 		'created' => ago('-13 days -2 hours'), 'views' => 58, 'favorites' => 2, 'messages' => 3, 'photos' => 1, 'condition' => 'new',
 		'attrs' => ['condition' => 'v.new', 'memory' => '825 GB'],
 		'description' => ['en' => 'New, sealed. Advance payment required, shipping only.', 'sr' => 'Nov, zapakovan. Obavezna uplata unapred, samo slanje.'],
-		'reject_reason' => 'Stock photos only, no real photos of the item.',
+		'reject_reason' => 'photos', 'reject_comment' => 'Stock photos only, no real photos of the item.',
 	],
 	[
 		'id' => 1030, 'category' => 'services', 'user_id' => 12, 'status' => 'rejected',
@@ -304,7 +304,7 @@ $listings = [
 		'created' => ago('-14 days'), 'views' => 34, 'favorites' => 0, 'messages' => 0, 'photos' => 0, 'condition' => null,
 		'attrs' => [],
 		'description' => ['en' => 'Call any time: 061 000 1212.', 'sr' => 'Pozovite bilo kada: 061 000 1212.'],
-		'reject_reason' => 'Contact details in the title.',
+		'reject_reason' => 'contacts', 'reject_comment' => 'Contact details in the title.',
 	],
 ];
 
@@ -366,25 +366,15 @@ $conversations = [1 => [
 	],
 ]];
 
-// Reports (complaints about listings). status: open | review | resolved
+// Reports (complaints about listings). reason: key r.<reason>; status: open | review | resolved
 $reports = [
-	['id' => 307, 'listing_id' => 1031, 'reason' => 'Suspected fraud', 'reporter_id' => 2, 'comment' => 'Price is well below market and the seller asks for an advance payment.', 'created' => ago('-13 days'), 'status' => 'open'],
-	['id' => 306, 'listing_id' => 1043, 'reason' => 'Item already sold', 'reporter_id' => 4, 'comment' => 'Called the seller, the sofa was sold last week.', 'created' => ago('-2 hours'), 'status' => 'open'],
-	['id' => 305, 'listing_id' => 1046, 'reason' => 'Duplicate listing', 'reporter_id' => 6, 'comment' => 'Same phone posted twice under different titles.', 'created' => ago('-50 minutes'), 'status' => 'open'],
-	['id' => 304, 'listing_id' => 1030, 'reason' => 'Inappropriate content', 'reporter_id' => 5, 'comment' => 'Phone number written in the title.', 'created' => ago('-13 days -5 hours'), 'status' => 'review'],
-	['id' => 303, 'listing_id' => 1045, 'reason' => 'Wrong price', 'reporter_id' => 8, 'comment' => 'Price in the title differs from the description.', 'created' => ago('-1 hour'), 'status' => 'review'],
-	['id' => 302, 'listing_id' => 1037, 'reason' => 'Item already sold', 'reporter_id' => 10, 'comment' => '', 'created' => ago('-6 days'), 'status' => 'resolved'],
-	['id' => 301, 'listing_id' => 1048, 'reason' => 'Suspected fraud', 'reporter_id' => 7, 'comment' => 'Mileage looks edited on one of the photos.', 'created' => ago('-10 minutes'), 'status' => 'resolved'],
-];
-
-// Recent activity for the admin dashboard (becomes the audit log, log_action())
-$activity = [
-	['type' => 'listing', 'icon' => 'tag', 'time' => ago('-12 minutes'), 'text' => 'Marko Petrović posted “VW Golf 7 1.6 TDI, 2016”'],
-	['type' => 'listing', 'icon' => 'tag', 'time' => ago('-25 minutes'), 'text' => 'Tijana Lukić posted “Samsung Galaxy S21, 128 GB”, waiting for moderation'],
-	['type' => 'report', 'icon' => 'flag', 'time' => ago('-50 minutes'), 'text' => 'New report on “iPhone 13, 128 GB”: Duplicate listing'],
-	['type' => 'user', 'icon' => 'user', 'time' => '2026-10-18 10:02', 'text' => 'New user registered: Tijana Lukić'],
-	['type' => 'moderation', 'icon' => 'ban', 'time' => ago('-12 days -20 hours'), 'text' => 'Nikola Nikolić rejected “PlayStation 5, sealed”'],
-	['type' => 'moderation', 'icon' => 'lock', 'time' => ago('-12 days -19 hours'), 'text' => 'Nenad Ristić was blocked by Nikola Nikolić'],
+	['id' => 307, 'listing_id' => 1031, 'reason' => 'fraud', 'reporter_id' => 2, 'comment' => 'Price is well below market and the seller asks for an advance payment.', 'created' => ago('-13 days'), 'status' => 'open'],
+	['id' => 306, 'listing_id' => 1043, 'reason' => 'sold', 'reporter_id' => 4, 'comment' => 'Called the seller, the sofa was sold last week.', 'created' => ago('-2 hours'), 'status' => 'open'],
+	['id' => 305, 'listing_id' => 1046, 'reason' => 'duplicate', 'reporter_id' => 6, 'comment' => 'Same phone posted twice under different titles.', 'created' => ago('-50 minutes'), 'status' => 'open'],
+	['id' => 304, 'listing_id' => 1030, 'reason' => 'inappropriate', 'reporter_id' => 5, 'comment' => 'Phone number written in the title.', 'created' => ago('-13 days -5 hours'), 'status' => 'review'],
+	['id' => 303, 'listing_id' => 1045, 'reason' => 'other', 'reporter_id' => 8, 'comment' => 'Price in the title differs from the description.', 'created' => ago('-1 hour'), 'status' => 'review'],
+	['id' => 302, 'listing_id' => 1037, 'reason' => 'sold', 'reporter_id' => 10, 'comment' => '', 'created' => ago('-6 days'), 'status' => 'resolved'],
+	['id' => 301, 'listing_id' => 1048, 'reason' => 'fraud', 'reporter_id' => 7, 'comment' => 'Mileage looks edited on one of the photos.', 'created' => ago('-10 minutes'), 'status' => 'resolved'],
 ];
 
 return [
@@ -397,5 +387,4 @@ return [
 	'saved_searches' => $savedSearches,
 	'conversations' => $conversations,
 	'reports' => $reports,
-	'activity' => $activity,
 ];

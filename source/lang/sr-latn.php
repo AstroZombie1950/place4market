@@ -164,12 +164,22 @@ return [
 	'l.report_comment_hint' => 'Šta nije u redu sa oglasom?',
 	'l.report_send' => 'Pošalji prijavu',
 	'l.report_sent' => 'Hvala. Moderatori će proveriti oglas.',
+	'l.report_login' => 'Prijavite se da biste prijavili oglas',
+	'l.report_limit' => 'Poslali ste previše prijava. Pokušajte ponovo kasnije.',
+	'l.report_invalid' => 'Prijava nije poslata: izaberite razlog (sopstveni oglas ne može da se prijavi).',
 	'r.fraud' => 'Sumnja na prevaru',
 	'r.sold' => 'Stvar je već prodata',
 	'r.duplicate' => 'Duplikat oglasa',
 	'r.wrong_category' => 'Pogrešna kategorija',
 	'r.inappropriate' => 'Neprikladan sadržaj',
 	'r.other' => 'Drugo',
+	'rj.prohibited' => 'Zabranjen predmet',
+	'rj.contacts' => 'Kontakt podaci u naslovu, tekstu ili na fotografijama',
+	'rj.category' => 'Pogrešna kategorija',
+	'rj.duplicate' => 'Dupli oglas',
+	'rj.photos' => 'Fotografije nisu stvarnog predmeta ili su lošeg kvaliteta',
+	'rj.price' => 'Nerealna ili obmanjujuća cena',
+	'rj.other' => 'Oglas nije u skladu sa pravilima',
 
 	// Attributes
 	'a.condition' => 'Stanje',
@@ -415,6 +425,7 @@ return [
 	'p.status_draft' => 'Nacrti',
 	'p.status_inactive' => 'Neaktivni',
 	'p.rejected_note' => 'Razlog: {reason}',
+	'p.reject_comment' => 'Moderator: „{comment}“',
 	'p.raise' => 'Podigni na vrh',
 	'p.raised' => 'Oglas je podignut na vrh',
 	'p.renew' => 'Obnovi',
@@ -592,6 +603,25 @@ da biste postavili novu lozinku, otvorite ovaj link:
 {link}
 
 Link važi 1 sat i može se iskoristiti jednom. Ako niste tražili novu lozinku, zanemarite ovu poruku: vaša lozinka ostaje ista.
+
+Place4Market',
+	'mail.listing_approved_subject' => 'Vaš oglas je objavljen: {title}',
+	'mail.listing_approved_body' => 'Zdravo, {name},
+
+vaš oglas „{title}“ je proveren i objavljen:
+{link}
+
+Oglas je aktivan {days} dana. U profilu ga možete izmeniti, podići ili deaktivirati.
+
+Place4Market',
+	'mail.listing_rejected_subject' => 'Oglas treba izmeniti: {title}',
+	'mail.listing_rejected_body' => 'Zdravo, {name},
+
+vaš oglas „{title}“ nije objavljen.
+Razlog: {reason}
+{comment}
+Ispravite oglas i pošaljite ga ponovo, proverićemo ga još jednom:
+{link}
 
 Place4Market',
 ];

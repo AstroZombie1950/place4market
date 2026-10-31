@@ -227,3 +227,89 @@ function plural(int $count, string $one, string $many): string
 {
 	return $count . ' ' . ($count === 1 ? $one : $many);
 }
+
+/* ---------- Moderation ---------- */
+
+// Report reasons (keys as in the form on the site: r.<key>)
+function report_reasons(): array
+{
+	return [
+		'fraud' => 'Suspected fraud',
+		'sold' => 'Item already sold',
+		'duplicate' => 'Duplicate listing',
+		'wrong_category' => 'Wrong category',
+		'inappropriate' => 'Inappropriate content',
+		'other' => 'Other',
+	];
+}
+
+// Report resolutions
+function report_resolutions(): array
+{
+	return [
+		'dismiss' => 'Dismiss: no violation',
+		'edit' => 'Ask the seller to edit the listing',
+		'remove' => 'Remove the listing',
+		'remove_block' => 'Remove the listing and block the seller',
+	];
+}
+
+// Letter to the seller about a decision (approved | rejected), in the language the ad
+// is written in. A failure is logged by send_mail() and does not stop the moderation
+function notify_seller(array $listing, string $decision): void
+{
+	$seller = user($listing['user_id']);
+
+	if (!$seller) {
+		return;
+	}
+
+	in_lang($listing['lang'], function () use ($listing, $seller, $decision) {
+		$params = ['name' => person_name($seller['name']), 'title' => listing_title($listing) ?: '#' . $listing['id'], 'days' => LISTING_DAYS];
+
+		if ($decision === 'approved') {
+			$params['link'] = site_url(listing_url($listing));
+		} else {
+			$params['reason'] = t('rj.' . $listing['reject_reason']);
+			$params['comment'] = $listing['reject_comment'] ? t('p.reject_comment', ['comment' => $listing['reject_comment']]) . "\n" : '';
+			$params['link'] = site_url(url('post.php', ['id' => $listing['id']]));
+		}
+
+		send_template_mail($seller['email'], 'listing_' . $decision, $params, ['user_id' => $seller['id'], 'listing_id' => $listing['id']]);
+	});
+}
+
+// Back to the page the action came from (only an admin page)
+function safe_back(string $back, string $fallback = 'listings.php'): string
+{
+	return preg_match('/^[a-z-]+\.php(\?[\w=&%.\-]*)?(#[\w-]+)?$/', $back) ? $back : $fallback;
+}
+
+// Audit record → dashboard / history line: ['type', 'icon', 'text']
+function audit_line(array $entry): array
+{
+	$c = $entry['context'];
+	$who = $entry['user_id'] ? user_name($entry['user_id']) : 'System';
+	$listing = isset($c['listing_id']) ? '#' . $c['listing_id'] : '';
+
+	return match ($entry['action']) {
+		'listing.create' => ['listing', 'tag', $who . ' posted listing ' . $listing . ', waiting for moderation'],
+		'listing.update' => ['listing', 'edit', $who . ' edited listing ' . $listing . ', back to moderation'],
+		'listing.draft' => ['listing', 'edit', $who . ' saved draft ' . $listing],
+		'listing.approve' => ['user', 'check', $who . ' approved listing ' . $listing],
+		'listing.reject' => ['moderation', 'ban', $who . ' rejected listing ' . $listing . (isset($c['reason']) ? ': ' . (reject_reasons()[$c['reason']] ?? $c['reason']) : '')],
+		'listing.remove' => ['moderation', 'trash', $who . ' removed listing ' . $listing],
+		'listing.delete' => ['listing', 'trash', $who . ' deleted their listing ' . $listing],
+		'listing.raise' => ['listing', 'arrow-up', $who . ' bumped listing ' . $listing],
+		'listing.deactivate' => ['listing', 'power', $who . ' deactivated listing ' . $listing],
+		'listing.activate' => ['listing', 'power', $who . ' activated listing ' . $listing],
+		'listing.renew' => ['listing', 'refresh', $who . ' renewed listing ' . $listing],
+		'report.create' => ['report', 'flag', $who . ' reported listing ' . $listing . (isset($c['reason']) ? ': ' . (report_reasons()[$c['reason']] ?? $c['reason']) : '')],
+		'report.review' => ['report', 'flag', $who . ' took report #' . ($c['report_id'] ?? '') . ' into review'],
+		'report.resolve' => ['report', 'check', $who . ' resolved report #' . ($c['report_id'] ?? '') . ' (' . (report_resolutions()[$c['resolution'] ?? ''] ?? '—') . ')'],
+		'admin.user_block' => ['moderation', 'lock', $who . ' blocked ' . user_name($c['user_id'] ?? null)],
+		'admin.user_unblock' => ['user', 'lock', $who . ' unblocked ' . user_name($c['user_id'] ?? null)],
+		'auth.register' => ['user', 'user', 'New user registered: ' . user_name($c['user_id'] ?? null)],
+		default => ['listing', 'info', $who . ': ' . $entry['action'] . ($listing ? ' ' . $listing : '')],
+	};
+}

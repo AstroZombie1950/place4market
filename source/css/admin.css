@@ -1488,6 +1488,16 @@ a.cell-main__title:hover {
 	color: var(--color-info);
 }
 
+.notice--success {
+	background: var(--color-success-soft);
+	color: var(--color-success);
+}
+
+/* Result of the last action (flash), above the page head */
+.notice--flash {
+	margin-bottom: var(--space-5);
+}
+
 .notice__text {
 	color: var(--color-text);
 }
@@ -2022,6 +2032,39 @@ a.list__title:hover {
 		width: 24px;
 		height: 24px;
 	}
+}
+
+/* ---------- Journal (logs.php) ---------- */
+.log-record {
+	min-width: 320px;
+	max-width: 760px;
+}
+
+.log-record__message {
+	overflow-wrap: anywhere;
+}
+
+.log-record .cell-main__sub {
+	overflow-wrap: anywhere;
+}
+
+.log-details summary {
+	cursor: pointer;
+	color: var(--color-text-muted);
+	font-size: var(--fs-sm);
+}
+
+.log-details pre {
+	max-height: 360px;
+	overflow: auto;
+	margin: var(--space-2) 0 0;
+	padding: var(--space-3);
+	border-radius: var(--radius-sm);
+	background: var(--color-neutral-soft);
+	font-family: var(--font-mono);
+	font-size: var(--fs-sm);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 }
 
 /* Inline code */

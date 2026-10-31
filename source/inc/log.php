@@ -7,12 +7,18 @@
 	log_exception($e);                               // caught exception + trace
 	log_action('listing.delete', ['id' => 1048]);   // audit: who did what
 
-	One JSON object per line, one file per day: LOG_DIR/2026-10-29.log.
+	Storage: the log_entries table, through its own connection (a page's rolled
+	back transaction never takes log records with it). When the database is
+	unavailable, records go to daily files LOG_DIR/2026-10-29.log, one JSON
+	object per line; cron.php imports them into the table later.
 	LOG_DIR is outside the web root: <site root>/../app-logs (on php -S: ./logs),
 	next to the hosting's own logs/ folder, not inside it.
 	On another server (VPS) set the P4M_LOG_DIR environment variable instead.
 	Passwords, tokens and similar fields are masked before writing.
+	Critical records also go out as alerts (log_alert(): email, Telegram).
 	========================================================================== */
+
+require __DIR__ . '/config.php';
 
 // php -S on a developer machine: errors on screen, logs inside the project
 define('IS_DEV', PHP_SAPI === 'cli-server');
@@ -20,8 +26,10 @@ define('LOG_DIR', rtrim(getenv('P4M_LOG_DIR') ?: (IS_DEV ? ROOT_DIR . '/logs' : 
 
 const LOG_LEVELS = ['debug', 'info', 'warning', 'error', 'critical'];
 const LOG_RETENTION_DAYS = 90;
-// Disk protection: after this much in a day only 'critical' is written
+// Disk protection for the fallback files: after this much in a day only 'critical' is written
 const LOG_DAILY_LIMIT = 100 * 1024 * 1024;
+// The same critical error is alerted at most once per this many seconds
+const LOG_ALERT_PAUSE = 900;
 // Context keys whose values never reach the log
 const LOG_SECRET_KEYS = '/pass|token|secret|csrf|auth|cookie|session|card|cvv|iban/i';
 
@@ -95,6 +103,10 @@ function log_event(string $level, string $message, array $context = [], string $
 		}
 
 		log_write($record);
+
+		if ($level === 'critical') {
+			log_alert($record);
+		}
 	} finally {
 		$busy = false;
 	}
@@ -162,8 +174,58 @@ register_shutdown_function(function (): void {
 	Internals
 	-------------------------------------------------------------------------- */
 
-// Append one line; if LOG_DIR is not writable, fall back to the server's PHP error log
+// Into the database; when it is unavailable, into the day's file
 function log_write(array $record): void
+{
+	if (!log_write_db($record)) {
+		log_write_file($record);
+	}
+}
+
+// Own connection of the journal, opened on the first record; null when the database is
+// unavailable (then not retried in this request)
+function log_db(): ?PDO
+{
+	static $pdo = false;
+
+	if ($pdo === false) {
+		try {
+			$pdo = db_connect(2);
+		} catch (Throwable $e) {
+			$pdo = null;
+		}
+	}
+
+	return $pdo;
+}
+
+function log_write_db(array $record): bool
+{
+	static $insert = null;
+
+	if (!$pdo = log_db()) {
+		return false;
+	}
+
+	try {
+		$insert ??= $pdo->prepare('INSERT INTO log_entries (created_at, level, channel, message, request_id, method, url, ip, user_id, user_role, ua, context)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+
+		return $insert->execute([
+			(new DateTimeImmutable($record['ts']))->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.v'),
+			$record['level'], mb_substr($record['channel'], 0, 20), $record['message'], $record['request'],
+			mb_substr($record['method'], 0, 8), $record['url'] !== null ? mb_substr($record['url'], 0, 1000) : null,
+			$record['ip'], $record['user']['id'] ?? null, $record['user']['role'] ?? null, $record['ua'],
+			isset($record['context']) ? json_encode($record['context'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR) : null,
+		]);
+	} catch (Throwable $e) {
+		// No table yet (before the migration), a lost connection…: the file takes it
+		return false;
+	}
+}
+
+// Append one line; if LOG_DIR is not writable, fall back to the server's PHP error log
+function log_write_file(array $record): void
 {
 	static $dirReady = null;
 
@@ -189,6 +251,148 @@ function log_write(array $record): void
 	}
 
 	error_log('place4market ' . rtrim($line));
+}
+
+// Fallback files waiting for import: [path => size in bytes]
+function log_pending_files(): array
+{
+	$files = [];
+
+	foreach (glob(LOG_DIR . '/????-??-??.log*') ?: [] as $file) {
+		if (preg_match('/\d{4}-\d{2}-\d{2}\.log(\.importing)?$/', $file)) {
+			$files[$file] = (int) @filesize($file);
+		}
+	}
+
+	return $files;
+}
+
+// cron.php: fallback files → database. A file is renamed first (new records start a new
+// file), imported, then deleted; on a failure the rest stays for the next run.
+// Returns the number of imported records
+function log_import_files(): int
+{
+	$count = 0;
+
+	foreach (array_keys(log_pending_files()) as $file) {
+		$work = str_ends_with($file, '.importing') ? $file : $file . '.importing';
+
+		if ($work !== $file && !@rename($file, $work)) {
+			continue;
+		}
+
+		$fh = @fopen($work, 'r+');
+		if (!$fh) {
+			continue;
+		}
+
+		// Wait for a writer that opened the file before the rename
+		flock($fh, LOCK_EX);
+		$rest = [];
+
+		while (($line = fgets($fh)) !== false) {
+			$record = json_decode($line, true);
+
+			if (!is_array($record) || !isset($record['ts'], $record['level'], $record['message'])) {
+				continue;
+			}
+
+			$record += ['channel' => 'app', 'request' => '', 'method' => 'CLI', 'url' => null, 'ip' => null, 'user' => null, 'ua' => null];
+
+			if ($rest || !log_write_db($record)) {
+				$rest[] = $line;
+			} else {
+				$count++;
+			}
+		}
+
+		if ($rest) {
+			ftruncate($fh, 0);
+			rewind($fh);
+			fwrite($fh, implode('', $rest));
+			fclose($fh);
+		} else {
+			fclose($fh);
+			@unlink($work);
+		}
+	}
+
+	return $count;
+}
+
+// Critical record → alert by email and/or Telegram, settings config('alerts'):
+// ['email' => 'dev@example.com', 'telegram' => ['token' => '…', 'chat_id' => '…']].
+// The same error (message + place) at most once per LOG_ALERT_PAUSE; the state is a
+// file in LOG_DIR, so alerts work with the database down. Developer machine: letters
+// go to LOG_DIR/mail/ instead
+function log_alert(array $record): void
+{
+	try {
+		$settings = (array) config('alerts');
+	} catch (Throwable $e) {
+		return;
+	}
+
+	if (empty($settings['email']) && empty($settings['telegram']['token'])) {
+		return;
+	}
+
+	$place = $record['context']['file'] ?? '';
+	$key = md5($record['message'] . $place);
+	$now = time();
+	$fh = @fopen(LOG_DIR . '/alerts.json', 'c+');
+
+	if (!$fh) {
+		return;
+	}
+
+	flock($fh, LOCK_EX);
+	$sent = array_filter(json_decode(stream_get_contents($fh) ?: '[]', true) ?: [], fn($time) => $time > $now - LOG_ALERT_PAUSE);
+	$repeat = isset($sent[$key]);
+
+	if (!$repeat) {
+		$sent[$key] = $now;
+		ftruncate($fh, 0);
+		rewind($fh);
+		fwrite($fh, json_encode($sent));
+	}
+
+	flock($fh, LOCK_UN);
+	fclose($fh);
+
+	if ($repeat) {
+		return;
+	}
+
+	$host = $_SERVER['HTTP_HOST'] ?? 'place4market.com';
+	$text = 'Place4Market: critical error' . "\n\n" . $record['message']
+		. ($place !== '' ? "\n\nWhere: " . $place : '')
+		. "\nRequest: " . $record['method'] . ' ' . ($record['url'] ?? '')
+		. "\nCode: " . $record['request'] . "\nTime: " . $record['ts']
+		. "\n\nJournal: https://" . $host . '/admin/logs.php?q=' . $record['request'];
+
+	if (!empty($settings['email'])) {
+		$subject = 'Place4Market: ' . log_trim($record['message'], 80);
+
+		if (IS_DEV) {
+			$dir = LOG_DIR . '/mail';
+			(is_dir($dir) || @mkdir($dir, 0750, true)) && @file_put_contents($dir . '/' . date('Y-m-d_His') . '_alert_' . $record['request'] . '.txt', 'To: ' . $settings['email'] . "\nSubject: " . $subject . "\n\n" . $text . "\n");
+		} elseif (!@mail($settings['email'], mb_encode_mimeheader($subject, 'UTF-8'), $text, ['From' => 'noreply@place4market.com', 'Content-Type' => 'text/plain; charset=UTF-8'])) {
+			error_log('place4market alert email not sent: ' . $record['request']);
+		}
+	}
+
+	if (!empty($settings['telegram']['token']) && !IS_DEV) {
+		$context = stream_context_create(['http' => [
+			'method' => 'POST', 'timeout' => 3, 'ignore_errors' => true,
+			'header' => 'Content-Type: application/x-www-form-urlencoded',
+			'content' => http_build_query(['chat_id' => $settings['telegram']['chat_id'] ?? '', 'text' => mb_substr($text, 0, 4000), 'disable_web_page_preview' => 1]),
+		]]);
+
+		if (@file_get_contents('https://api.telegram.org/bot' . $settings['telegram']['token'] . '/sendMessage', false, $context) === false) {
+			error_log('place4market alert telegram not sent: ' . $record['request']);
+		}
+	}
 }
 
 // Delete daily files older than LOG_RETENTION_DAYS

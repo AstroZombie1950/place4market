@@ -1,12 +1,7 @@
 <?php
 /* ==========================================================================
-	Database (MariaDB 10.11): settings file, PDO connection, query helpers.
-
-	Settings (DB password…) are never in git and never in the web root:
-	  P4M_CONFIG environment variable (VPS)
-	  → <site root>/config/local.php (developer machine, in .gitignore)
-	  → <site root>/../app-config.php (hosting, next to public_html)
-	The file returns ['db' => ['host', 'port', 'name', 'user', 'pass'] + optional 'socket'].
+	Database (MariaDB 10.11): the shared connection and query helpers.
+	Settings and db_connect() are in config.php (loaded by log.php).
 
 	Dates are stored in UTC (the connection runs at +00:00) and handed to pages
 	in the site time zone: db_local() on the way out, db_utc() on the way in.
@@ -14,44 +9,12 @@
 	the 500 page with a code.
 	========================================================================== */
 
-// Value from the settings file: config('db')
-function config(string $key): mixed
-{
-	static $config = null;
-
-	if ($config === null) {
-		$local = ROOT_DIR . '/config/local.php';
-		$file = getenv('P4M_CONFIG') ?: (is_file($local) ? $local : dirname(ROOT_DIR) . '/app-config.php');
-
-		if (!is_file($file)) {
-			throw new RuntimeException('Settings file not found: ' . $file);
-		}
-
-		$config = require $file;
-	}
-
-	return $config[$key] ?? null;
-}
-
 // Shared connection, opened on first use
 function db(): PDO
 {
 	static $pdo = null;
 
-	if ($pdo === null) {
-		$c = config('db');
-		$dsn = 'mysql:dbname=' . $c['name'] . ';charset=utf8mb4;'
-			. (!empty($c['socket']) ? 'unix_socket=' . $c['socket'] : 'host=' . $c['host'] . ';port=' . ($c['port'] ?? 3306));
-
-		$pdo = new PDO($dsn, $c['user'], $c['pass'], [
-			PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-			PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-			PDO::ATTR_EMULATE_PREPARES => false,
-		]);
-		$pdo->exec("SET time_zone = '+00:00'");
-	}
-
-	return $pdo;
+	return $pdo ??= db_connect();
 }
 
 function db_query(string $sql, array $params = []): PDOStatement

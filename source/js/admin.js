@@ -199,8 +199,16 @@
 		- reset: [data-table-reset="x"]
 		- empty row: tr[data-empty]
 		- selection: [data-check-all], [data-row-check]; bulk bar: [data-bulk="x"]
+		- bulk actions: form[data-bulk-form="x"] sends ids[] of the checked visible
+		  rows (tr[data-id]); [data-bulk-ids="x"] on a dialog opener puts them,
+		  comma-separated, into the dialog's [name="id_list"]
 		---------------------------------------------------------------------- */
 	const tableState = new WeakMap();
+
+	const checkedIds = (tableId) => {
+		const table = document.getElementById(tableId);
+		return table ? $$('tbody tr[data-row]:not([hidden])', table).filter((row) => $('[data-row-check]', row)?.checked).map((row) => row.dataset.id) : [];
+	};
 
 	const updateBulk = (table) => {
 		const visibleChecks = $$('tbody tr[data-row]:not([hidden]) [data-row-check]', table);
@@ -345,6 +353,20 @@
 			});
 		});
 
+		// Bulk forms: checked rows as ids[]
+		$$('form[data-bulk-form]').forEach((form) => {
+			form.addEventListener('submit', () => {
+				$$('input[name="ids[]"]', form).forEach((el) => el.remove());
+				checkedIds(form.dataset.bulkForm).forEach((id) => {
+					const input = document.createElement('input');
+					input.type = 'hidden';
+					input.name = 'ids[]';
+					input.value = id;
+					form.appendChild(input);
+				});
+			});
+		});
+
 		// Final pass for tables without filters
 		$$('table[data-table]').forEach(applyFilters);
 	};
@@ -431,6 +453,7 @@
 				if (dialog && typeof dialog.showModal === 'function') {
 					closeDropdowns();
 					if (opener.dataset.payload) fillFields(dialog, readPayload(opener));
+					if (opener.dataset.bulkIds) fillFields(dialog, { id_list: checkedIds(opener.dataset.bulkIds).join(',') });
 					dialog.showModal();
 				}
 				return;

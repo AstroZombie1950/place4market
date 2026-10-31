@@ -152,7 +152,7 @@ require INC_DIR . '/header.php';
 							<?php elseif ($item['status'] === 'expired'): ?>
 							<span><?= e(t('p.expired_on', ['date' => date_label($expires)])) ?></span>
 							<?php elseif ($item['status'] === 'rejected'): ?>
-							<span><?= e(t('p.rejected_note', ['reason' => $item['reject_reason'] ?? '—'])) ?></span>
+							<span><?= e(t('p.rejected_note', ['reason' => $item['reject_reason'] ? t('rj.' . $item['reject_reason']) : '—'])) ?><?= $item['reject_comment'] ? ' · ' . e(t('p.reject_comment', ['comment' => $item['reject_comment']])) : '' ?></span>
 							<?php elseif ($item['status'] === 'draft'): ?>
 							<span><?= e(t('p.draft_note')) ?></span>
 							<?php else: ?>

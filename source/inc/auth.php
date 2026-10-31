@@ -87,6 +87,12 @@ function is_staff(): bool
 	return in_array(current_user()['role'] ?? '', ['moderator', 'admin'], true);
 }
 
+// Admins only: the journal, settings
+function is_admin(): bool
+{
+	return (current_user()['role'] ?? '') === 'admin';
+}
+
 // After a correct password: new session id (no fixation), optional "remember me"
 function login_user(int $userId, bool $remember = false): void
 {
@@ -201,6 +207,7 @@ const RATE_LIMITS = [
 	'reset_ip' => [10, 3600],
 	'verify_resend' => [3, 3600],
 	'photo_upload' => [120, 3600],
+	'report' => [10, 3600],
 ];
 
 function rate_key(string $value): string

@@ -1,6 +1,9 @@
 <?php
 /* ==========================================================================
-	Admin: Reports (complaints about listings)
+	Admin: Reports (complaints about listings from the site, report.php)
+	Review dialog → moderate.php: "Mark in review" or resolve; the resolution
+	also acts on the listing (edit request = rejected with a message, remove,
+	remove and block the seller).
 	========================================================================== */
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
 
@@ -49,8 +52,8 @@ require ADMIN_INC . '/header.php';
 		<label class="visually-hidden" for="reports-reason">Reason</label>
 		<select class="select" id="reports-reason" data-table-filter="reports-table" data-field="reason">
 			<option value="">All reasons</option>
-			<?php foreach (array_unique(array_column($reports, 'reason')) as $reason): ?>
-			<option value="<?= e(slugify($reason)) ?>"><?= e($reason) ?></option>
+			<?php foreach (report_reasons() as $reason => $label): ?>
+			<option value="<?= e($reason) ?>"><?= e($label) ?></option>
 			<?php endforeach; ?>
 		</select>
 		<button type="button" class="btn btn--ghost" data-table-reset="reports-table"><?= icon('refresh', 18) ?>Reset</button>
@@ -73,9 +76,11 @@ require ADMIN_INC . '/header.php';
 			<tbody>
 				<?php foreach ($reports as $report):
 					$listing = find_listing($report['listing_id']);
+					$reasonLabel = report_reasons()[$report['reason']] ?? $report['reason'];
 					$payload = [
+						'report_id' => (string) $report['id'],
 						'r_id' => '#' . $report['id'],
-						'r_reason' => $report['reason'],
+						'r_reason' => $reasonLabel,
 						'r_listing' => $listing['title'] ?? '—',
 						'r_seller' => user_name($listing['user_id'] ?? 0),
 						'r_reporter' => user_name($report['reporter_id']),
@@ -83,10 +88,10 @@ require ADMIN_INC . '/header.php';
 						'r_comment' => $report['comment'] !== '' ? $report['comment'] : 'No comment.',
 					];
 				?>
-				<tr data-row data-status="<?= e($report['status']) ?>" data-reason="<?= e(slugify($report['reason'])) ?>">
+				<tr data-row data-status="<?= e($report['status']) ?>" data-reason="<?= e($report['reason']) ?>">
 					<td class="nowrap">
 						<strong>#<?= (int) $report['id'] ?></strong>
-						<div class="cell-main__sub"><?= e($report['reason']) ?></div>
+						<div class="cell-main__sub"><?= e($reasonLabel) ?></div>
 					</td>
 					<td>
 						<div class="cell-main">
@@ -100,9 +105,17 @@ require ADMIN_INC . '/header.php';
 					<td class="nowrap"><a href="user.php?id=<?= (int) $report['reporter_id'] ?>"><?= e(user_name($report['reporter_id'])) ?></a></td>
 					<td><span class="cell-clamp"><?= e($report['comment'] !== '' ? $report['comment'] : '—') ?></span></td>
 					<td class="nowrap muted"><?= e(format_date($report['created'], true)) ?></td>
-					<td><?= status_badge($report['status']) ?></td>
+					<td>
+						<?= status_badge($report['status']) ?>
+						<?php if ($report['status'] === 'resolved'): ?>
+						<div class="cell-main__sub"><?= e(report_resolutions()[$report['resolution'] ?? ''] ?? 'Resolved') ?><?= $report['resolved_by'] ? ' · ' . e(user_name($report['resolved_by'])) : '' ?></div>
+						<?php if ($report['note']): ?><div class="cell-main__sub"><?= e($report['note']) ?></div><?php endif; ?>
+						<?php endif; ?>
+					</td>
 					<td class="col-actions">
+						<?php if ($report['status'] !== 'resolved'): ?>
 						<button type="button" class="btn btn--secondary btn--sm" data-modal-open="report-dialog" data-payload="<?= attr_json($payload) ?>">Review</button>
+						<?php endif; ?>
 					</td>
 				</tr>
 				<?php endforeach; ?>
@@ -116,7 +129,10 @@ require ADMIN_INC . '/header.php';
 
 <!-- Review dialog -->
 <dialog class="modal" id="report-dialog" aria-labelledby="report-title">
-	<form class="modal__inner" method="post" data-demo-submit="Report resolved">
+	<form class="modal__inner" method="post" action="moderate.php">
+		<?= csrf_field() ?>
+		<input type="hidden" name="report_id" value="" data-fill="report_id">
+		<input type="hidden" name="back" value="reports.php">
 		<div class="modal__head">
 			<h2 class="modal__title" id="report-title">Report <span data-fill="r_id"></span></h2>
 			<button type="button" class="btn btn--ghost btn--icon" data-modal-close aria-label="Close"><?= icon('x') ?></button>
@@ -138,13 +154,13 @@ require ADMIN_INC . '/header.php';
 			<div class="field">
 				<label class="field__label" for="report-resolution">Resolution</label>
 				<select class="select" id="report-resolution" name="resolution">
-					<?= options([
-						'dismiss' => 'Dismiss: no violation',
-						'edit' => 'Ask the seller to edit the listing',
-						'remove' => 'Remove the listing',
-						'remove_block' => 'Remove the listing and block the seller',
-					]) ?>
+					<?= options(report_resolutions()) ?>
 				</select>
+			</div>
+
+			<div class="field">
+				<label class="field__label" for="report-message">Message to the seller</label>
+				<textarea class="textarea" id="report-message" name="message" rows="3" maxlength="1000" placeholder="For “Ask the seller to edit”: what to fix. The listing is taken off until fixed."></textarea>
 			</div>
 
 			<div class="field">
@@ -153,8 +169,8 @@ require ADMIN_INC . '/header.php';
 			</div>
 		</div>
 		<div class="modal__foot">
-			<button type="button" class="btn btn--secondary" data-modal-close data-toast="Marked as in review" data-toast-type="info">Mark in review</button>
-			<button type="submit" class="btn btn--primary" data-modal-close>Resolve</button>
+			<button type="submit" class="btn btn--secondary" name="action" value="report_review">Mark in review</button>
+			<button type="submit" class="btn btn--primary" name="action" value="report_resolve">Resolve</button>
 		</div>
 	</form>
 </dialog>

@@ -1,12 +1,23 @@
 <?php
 /* ==========================================================================
 	Admin: Edit listing (tabs: Details, Photos, Seller, History)
+	Moderation (approve, reject, delete) and blocking the seller go to
+	moderate.php; History is the audit log of this listing. Saving the details
+	and photos by staff is still a demo.
 	========================================================================== */
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
 
-$listingId = (int) ($_GET['id'] ?? 1048);
-$listing = find_listing($listingId) ?? all_listings()[0];
+$listingId = (int) ($_GET['id'] ?? 0);
+$listing = find_listing($listingId);
+
+if (!$listing) {
+	flash('danger', 'Listing #' . $listingId . ' not found.');
+	redirect('listings.php');
+}
+
 $seller = user($listing['user_id']);
+$history = audit_entries(50, $listing['id']);
+$back = 'listing-edit.php?id=' . $listing['id'];
 $sellerListings = user_listings($seller['id']);
 $expires = $listing['expires'] ? date('d.m.Y', strtotime($listing['expires'])) : '—';
 
@@ -147,8 +158,17 @@ require ADMIN_INC . '/header.php';
 				</div>
 				<div class="profile__actions">
 					<a class="btn btn--secondary" href="user.php?id=<?= (int) $seller['id'] ?>"><?= icon('user', 18) ?>Open profile</a>
-					<?php if ($seller['status'] !== 'blocked'): ?>
-					<button type="button" class="btn btn--danger-ghost" data-confirm="Block <?= e($seller['name']) ?>? All their listings will be hidden." data-confirm-label="Block" data-toast="User blocked"><?= icon('ban', 18) ?>Block</button>
+					<?php if ($seller['role'] === 'user'): ?>
+					<form method="post" action="moderate.php">
+						<?= csrf_field() ?>
+						<input type="hidden" name="user_id" value="<?= (int) $seller['id'] ?>">
+						<input type="hidden" name="back" value="<?= e($back) ?>#seller">
+						<?php if ($seller['status'] === 'blocked'): ?>
+						<button type="submit" class="btn btn--secondary" name="action" value="unblock"><?= icon('check', 18) ?>Unblock</button>
+						<?php else: ?>
+						<button type="submit" class="btn btn--danger-ghost" name="action" value="block" data-confirm="Block <?= e($seller['name']) ?>? They are logged out and all their listings are hidden." data-confirm-label="Block"><?= icon('ban', 18) ?>Block</button>
+						<?php endif; ?>
+					</form>
 					<?php endif; ?>
 				</div>
 			</div>
@@ -163,27 +183,18 @@ require ADMIN_INC . '/header.php';
 
 		<!-- History -->
 		<div class="tabs__panel card__body" role="tabpanel" id="panel-history" aria-labelledby="tab-history" tabindex="0" hidden>
+			<?php if ($history): ?>
 			<ol class="timeline">
-				<?php if ($listing['status'] === 'rejected'): ?>
+				<?php foreach ($history as $entry): [$type, $iconName, $text] = audit_line($entry); ?>
 				<li class="timeline__item">
-					<span class="timeline__icon timeline__icon--moderation"><?= icon('ban', 16) ?></span>
-					<div><div>Rejected by Nikola Nikolić: <?= e($listing['reject_reason'] ?? '') ?></div><span class="timeline__time">after review</span></div>
+					<span class="timeline__icon timeline__icon--<?= e($type) ?>"><?= icon($iconName, 16) ?></span>
+					<div><div><?= e($text) ?></div><time class="timeline__time" datetime="<?= e($entry['time']) ?>"><?= e(format_date($entry['time'], true)) ?></time></div>
 				</li>
-				<?php elseif ($listing['status'] === 'active' || $listing['status'] === 'expired'): ?>
-				<li class="timeline__item">
-					<span class="timeline__icon timeline__icon--user"><?= icon('check', 16) ?></span>
-					<div><div>Approved by Ivana Stojanović</div><span class="timeline__time">after review</span></div>
-				</li>
-				<?php endif; ?>
-				<li class="timeline__item">
-					<span class="timeline__icon timeline__icon--listing"><?= icon('send', 16) ?></span>
-					<div><div>Submitted for moderation</div><time class="timeline__time" datetime="<?= e($listing['created']) ?>"><?= e(format_date($listing['created'], true)) ?></time></div>
-				</li>
-				<li class="timeline__item">
-					<span class="timeline__icon"><?= icon('plus', 16) ?></span>
-					<div><div>Created by <?= e($seller['name']) ?></div><time class="timeline__time" datetime="<?= e($listing['created']) ?>"><?= e(format_date($listing['created'], true)) ?></time></div>
-				</li>
+				<?php endforeach; ?>
 			</ol>
+			<?php else: ?>
+			<p class="muted">No recorded actions yet (the journal keeps <?= LOG_RETENTION_DAYS ?> days). Created <?= e(format_date($listing['created'], true)) ?>.</p>
+			<?php endif; ?>
 		</div>
 	</section>
 
@@ -199,25 +210,33 @@ require ADMIN_INC . '/header.php';
 				<?php if ($listing['status'] === 'rejected' && !empty($listing['reject_reason'])): ?>
 				<div class="notice notice--danger">
 					<?= icon('alert', 20) ?>
-					<span class="notice__text"><?= e($listing['reject_reason']) ?></span>
+					<span class="notice__text"><?= e(reject_reasons()[$listing['reject_reason']] ?? $listing['reject_reason']) ?><?= $listing['reject_comment'] ? ': ' . e($listing['reject_comment']) : '' ?></span>
 				</div>
 				<?php endif; ?>
 
-				<div class="field">
-					<label class="field__label" for="m-note">Note to the seller</label>
-					<textarea class="textarea" id="m-note" rows="3" placeholder="Optional"></textarea>
-				</div>
-
-				<div class="row">
-					<?php if ($listing['status'] !== 'active'): ?>
-					<button type="button" class="btn btn--success" data-toast="Listing approved"><?= icon('check', 18) ?>Approve</button>
+				<form class="row" method="post" action="moderate.php">
+					<?= csrf_field() ?>
+					<input type="hidden" name="id" value="<?= (int) $listing['id'] ?>">
+					<input type="hidden" name="back" value="<?= e($back) ?>">
+					<?php if (in_array($listing['status'], ['pending', 'rejected'], true)): ?>
+					<button type="submit" class="btn btn--success" name="action" value="approve"><?= icon('check', 18) ?>Approve</button>
 					<?php endif; ?>
-					<button type="button" class="btn btn--secondary" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => $listing['title']]) ?>"><?= icon('ban', 18) ?>Reject</button>
-				</div>
+					<?php if (in_array($listing['status'], ['pending', 'active', 'inactive', 'expired'], true)): ?>
+					<button type="button" class="btn btn--secondary" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => $listing['title'], 'id_list' => (string) $listing['id']]) ?>"><?= icon('ban', 18) ?>Reject</button>
+					<?php endif; ?>
+					<?php if ($listing['status'] === 'deleted'): ?>
+					<p class="muted">Deleted, visible to staff only.</p>
+					<?php endif; ?>
+				</form>
 			</div>
-			<div class="card__foot">
-				<button type="button" class="btn btn--danger-ghost btn--sm" data-confirm="Delete this listing? This cannot be undone." data-confirm-label="Delete" data-toast="Listing deleted"><?= icon('trash', 16) ?>Delete listing</button>
-			</div>
+			<?php if ($listing['status'] !== 'deleted'): ?>
+			<form class="card__foot" method="post" action="moderate.php">
+				<?= csrf_field() ?>
+				<input type="hidden" name="id" value="<?= (int) $listing['id'] ?>">
+				<input type="hidden" name="back" value="<?= e($back) ?>">
+				<button type="submit" class="btn btn--danger-ghost btn--sm" name="action" value="delete" data-confirm="Delete this listing? Its photos are removed, this cannot be undone." data-confirm-label="Delete"><?= icon('trash', 16) ?>Delete listing</button>
+			</form>
+			<?php endif; ?>
 		</section>
 
 		<!-- Stats -->
@@ -239,5 +258,5 @@ require ADMIN_INC . '/header.php';
 	</div>
 </div>
 
-<?php require ADMIN_INC . '/reject-dialog.php'; ?>
+<?php $rejectBack = $back; require ADMIN_INC . '/reject-dialog.php'; ?>
 <?php require ADMIN_INC . '/footer.php'; ?>

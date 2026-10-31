@@ -25,6 +25,8 @@ $phone = $listing['show_phone'] ? ($listing['phone'] ?? $seller['phone']) : null
 $title = listing_title($listing) ?: t('p.untitled');
 $isOwn = $listing['user_id'] === current_user_id();
 $details = listing_details($listing);
+// Others can report a published listing (guests are asked to log in first)
+$canReport = $listing['status'] === 'active' && !$isOwn;
 $photos = $listing['images'];
 // Gallery slides: photos with videos right after the cover; placeholders when there are no photos
 $media = array_map(fn($photo) => ['photo' => $photo], $photos);
@@ -202,7 +204,11 @@ require INC_DIR . '/header.php';
 					</ul>
 					<div class="safety__links">
 						<a class="text-link" href="<?= e(url('safety.php')) ?>"><?= icon('shield', 16) ?><?= e(t('l.safety_more')) ?></a>
+						<?php if ($canReport && current_user()): ?>
 						<button type="button" class="text-link" data-dialog-open="report-dialog"><?= icon('flag', 16) ?><?= e(t('l.report')) ?></button>
+						<?php elseif ($canReport): ?>
+						<a class="text-link" href="<?= e(url('auth.php', ['next' => listing_url($listing)])) ?>" title="<?= e(t('l.report_login')) ?>"><?= icon('flag', 16) ?><?= e(t('l.report')) ?></a>
+						<?php endif; ?>
 					</div>
 				</div>
 			</section>
@@ -258,9 +264,12 @@ require INC_DIR . '/header.php';
 </div>
 <?php endif; ?>
 
-<!-- Report dialog -->
+<?php if ($canReport && current_user()): ?>
+<!-- Report dialog (report.php) -->
 <dialog class="modal" id="report-dialog" aria-labelledby="report-title">
-	<form class="modal__inner" method="post" data-demo="<?= e(t('l.report_sent')) ?>" data-demo-reset>
+	<form class="modal__inner" method="post" action="<?= e(url('report.php')) ?>">
+		<?= csrf_field() ?>
+		<input type="hidden" name="id" value="<?= (int) $listing['id'] ?>">
 		<div class="modal__head">
 			<h2 class="modal__title" id="report-title"><?= e(t('l.report_title')) ?></h2>
 			<button type="button" class="btn btn--ghost btn--icon" data-dialog-close aria-label="<?= e(t('common.close')) ?>"><?= icon('x') ?></button>
@@ -276,7 +285,7 @@ require INC_DIR . '/header.php';
 			</fieldset>
 			<div class="field">
 				<label class="field__label" for="report-comment"><?= e(t('l.report_comment')) ?> <small>(<?= e(t('common.optional')) ?>)</small></label>
-				<textarea class="textarea" id="report-comment" name="comment" rows="3" placeholder="<?= e(t('l.report_comment_hint')) ?>"></textarea>
+				<textarea class="textarea" id="report-comment" name="comment" rows="3" maxlength="1000" placeholder="<?= e(t('l.report_comment_hint')) ?>"></textarea>
 			</div>
 		</div>
 		<div class="modal__foot">
@@ -285,5 +294,6 @@ require INC_DIR . '/header.php';
 		</div>
 	</form>
 </dialog>
+<?php endif; ?>
 
 <?php require INC_DIR . '/footer.php'; ?>
