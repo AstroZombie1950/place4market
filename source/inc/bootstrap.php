@@ -12,7 +12,8 @@ define('INC_DIR', __DIR__);
 // Logging and error handlers first: failures in everything below are caught
 require INC_DIR . '/log.php';
 
-// Asset URLs (pages live in the site root)
+// URLs: site root (uploads, demo photos) and assets; pages live in the site root
+define('ROOT_URL', '');
 define('ASSETS_URL', 'source');
 
 // Helpers, icons, i18n

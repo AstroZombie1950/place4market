@@ -22,7 +22,7 @@ function asset(string $path): string
 // $photo: ['path' => under source/, 'color' => '#rrggbb', 'sizes' => [long side => [w, h]]]
 function photo_url(array $photo, int $size): string
 {
-	return ASSETS_URL . '/' . $photo['path'] . '/' . $size . '.webp';
+	return ROOT_URL . $photo['path'] . '/' . $size . '.webp';
 }
 
 // Listing photo <img>: every stored size in srcset (the browser picks one for the box
@@ -57,7 +57,7 @@ function photo(array $photo, string $sizes, array $opts = []): string
 // Listing video file URL; $video: ['path', 'file', 'width', 'height', 'duration', 'bytes', 'poster' => photo]
 function video_url(array $video): string
 {
-	return ASSETS_URL . '/' . $video['path'] . '/' . $video['file'];
+	return ROOT_URL . $video['path'] . '/' . $video['file'];
 }
 
 // Video length as players show it (whole seconds, rounded down): 10.7 → "0:10", 75 → "1:15"

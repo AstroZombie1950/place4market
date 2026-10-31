@@ -542,7 +542,11 @@
 		  [data-subcategory-select]
 		- photos: [data-photo-input], [data-dropzone], [data-photo-list],
 		  <template id="photo-item-tpl">; first photo is the cover. Each photo is
-		  prepared in the browser before upload (see preparePhoto below)
+		  prepared in the browser (see preparePhoto below), then uploaded right
+		  away to [data-upload-url]; the form sends only photo_ids[] in order.
+		  Photos already uploaded (editing, a form with an error) come in
+		  [data-photo-list] data-photos='[{"id", "url"}]'
+		- [data-subcategory-select] data-selected: subcategory chosen on load
 		- live preview: inputs [data-bind="…"] → [data-preview="…"]
 		---------------------------------------------------------------------- */
 	const initPostForm = () => {
@@ -567,6 +571,10 @@
 			list.forEach((item) => subSelect.add(new Option(item.name, item.slug)));
 			subSelect.disabled = list.length === 0;
 			placeholder.textContent = list.length ? placeholder.dataset.choose : placeholder.dataset.empty;
+			if (subSelect.dataset.selected) {
+				subSelect.value = subSelect.dataset.selected;
+				subSelect.dataset.selected = '';
+			}
 
 			// Preview tint + icon
 			const ph = p('media') ? $('.ph', p('media')) : null;
@@ -626,9 +634,14 @@
 		const list = $('[data-photo-list]', form);
 		const tpl = $('#photo-item-tpl');
 		const max = Number(input ? input.dataset.max : 12) || 12;
-		// { file, url, name, busy }: busy while being prepared, file is what gets uploaded
+		// { id, url, name, busy }: busy while being prepared and uploaded, id from the server
 		let photos = [];
 		let queue = Promise.resolve();
+		const uploadUrl = form.dataset.uploadUrl;
+		const csrf = form.elements.csrf ? form.elements.csrf.value : '';
+		try {
+			photos = JSON.parse(list.dataset.photos || '[]').map((photo) => ({ id: photo.id, url: photo.url, name: '', busy: false }));
+		} catch (err) { photos = []; }
 
 		// Decoded image with EXIF rotation applied; error.unreadable for formats the
 		// browser cannot open (e.g. HEIC outside Safari)
@@ -679,6 +692,28 @@
 			if (!blob) throw new Error('canvas.toBlob returned nothing');
 
 			return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg', lastModified: file.lastModified });
+		};
+
+		// One photo to the server; the error carries the text to show (from the server when it has one)
+		const uploadPhoto = async (file) => {
+			const body = new FormData();
+			body.append('photo', file, file.name);
+			body.append('csrf', csrf);
+
+			let response;
+			let data = {};
+			try {
+				response = await fetch(uploadUrl, { method: 'POST', body, credentials: 'same-origin', headers: { Accept: 'application/json' } });
+				data = await response.json();
+			} catch (err) { /* network or not JSON: the generic message below */ }
+
+			if (!response || !response.ok || !data.id) {
+				const error = new Error(data.error || i18n.photoUploadFailed);
+				error.shown = true;
+				throw error;
+			}
+
+			return data;
 		};
 
 		const renderPhotos = () => {
@@ -745,18 +780,20 @@
 					return;
 				}
 
-				const photo = { file: null, url: '', name: file.name, busy: true };
+				const photo = { id: 0, url: '', name: file.name, busy: true };
 				photos.push(photo);
 				queue = queue.then(async () => {
 					try {
-						photo.file = await preparePhoto(file);
-						photo.url = URL.createObjectURL(photo.file);
+						const prepared = await preparePhoto(file);
+						photo.id = (await uploadPhoto(prepared)).id;
+						photo.url = URL.createObjectURL(prepared);
 						photo.busy = false;
 					} catch (err) {
 						photos.splice(photos.indexOf(photo), 1);
-						toast(i18n.photoUnreadable, 'info');
-						// A format the browser cannot open is the user's case; anything else is ours
-						if (!err.unreadable) reportError(err.message, 'post form: preparePhoto', err.stack);
+						toast(err.shown ? err.message : i18n.photoUnreadable, 'info');
+						// A format the browser cannot open is the user's case, upload errors are logged
+						// by the server; anything else is ours
+						if (!err.unreadable && !err.shown) reportError(err.message, 'post form: preparePhoto', err.stack);
 					}
 					renderPhotos();
 				});
@@ -779,7 +816,25 @@
 				dropzone.classList.remove('is-dragover');
 			}));
 			dropzone.addEventListener('drop', (e) => addFiles(e.dataTransfer.files));
+			renderPhotos();
 		}
+
+		// Photo ids in display order go with the form; not while uploads are running
+		form.addEventListener('submit', (e) => {
+			if (photos.some((photo) => photo.busy)) {
+				e.preventDefault();
+				toast(i18n.photosBusy, 'info');
+				return;
+			}
+			$$('input[name="photo_ids[]"]', form).forEach((el) => el.remove());
+			photos.forEach((photo) => {
+				const el = document.createElement('input');
+				el.type = 'hidden';
+				el.name = 'photo_ids[]';
+				el.value = photo.id;
+				form.appendChild(el);
+			});
+		});
 	};
 
 	/* ----------------------------------------------------------------------

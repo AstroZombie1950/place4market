@@ -39,6 +39,7 @@ RewriteRule ^source/.*\.php$ - [F,L]
 RewriteRule ^logs/ - [F,L]
 RewriteRule ^source/db/ - [F,L]
 RewriteRule ^config/ - [F,L]
+RewriteRule ^uploads/.*\.(php|phtml|phar)$ - [F,L]
 
 # Файл состояния деплоя (список файлов и хэшей) наружу не отдаём
 RewriteRule ^\.ftp-deploy-sync-state\.json$ - [F,L]

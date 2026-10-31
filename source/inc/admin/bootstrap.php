@@ -14,6 +14,7 @@ define('ADMIN_INC', __DIR__);
 require SOURCE_DIR . '/inc/log.php';
 
 // URLs relative to /admin/*.php
+define('ROOT_URL', '../');
 define('ASSETS_URL', '../source');
 define('SITE_URL', '../');
 

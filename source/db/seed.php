@@ -87,13 +87,13 @@ foreach ($demo['listings'] as $l) {
 	);
 
 	foreach ($l['images'] as $i => $photo) {
-		db_exec('INSERT INTO listing_photos (listing_id, sort, path, color, sizes, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-			[$l['id'], $i, $photo['path'], $photo['color'], $json($photo['sizes']), $created]);
+		db_exec('INSERT INTO listing_photos (listing_id, user_id, sort, path, color, sizes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+			[$l['id'], $l['user_id'], $i, 'source/' . $photo['path'], $photo['color'], $json($photo['sizes']), $created]);
 	}
 
 	foreach ($l['videos'] as $i => $video) {
 		db_exec('INSERT INTO listing_videos (listing_id, sort, path, file, width, height, duration, bytes, poster_color, poster_sizes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-			[$l['id'], $i, $video['path'], $video['file'], $video['width'], $video['height'], $video['duration'], $video['bytes'], $video['poster']['color'], $json($video['poster']['sizes']), $created]);
+			[$l['id'], $i, 'source/' . $video['path'], $video['file'], $video['width'], $video['height'], $video['duration'], $video['bytes'], $video['poster']['color'], $json($video['poster']['sizes']), $created]);
 	}
 }
 

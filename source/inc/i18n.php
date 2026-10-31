@@ -217,6 +217,23 @@ function tc(array $pair): string
 	};
 }
 
+// Language of a text a user wrote: mostly Cyrillic → sr-cyrl; Serbian Latin letters
+// (č ć ž š đ) → sr-latn; otherwise the page decides (English page → en, Serbian → sr-latn)
+function detect_text_lang(string $text): string
+{
+	$cyrillic = preg_match_all('/\p{Cyrillic}/u', $text);
+	$latin = preg_match_all('/\p{Latin}/u', $text);
+
+	if ($cyrillic > $latin) {
+		return 'sr-cyrl';
+	}
+	if (preg_match('/[čćžšđ]/iu', $text)) {
+		return 'sr-latn';
+	}
+
+	return lang() === 'en' ? 'en' : 'sr-latn';
+}
+
 // User content (listings, messages) as written, in the visitor's script:
 // Serbian follows the page (Latin ↔ Cyrillic), English stays as is, nothing is translated.
 // $lang is the author's: sr-latn | sr-cyrl | en

@@ -1,10 +1,109 @@
 <?php
 /* ==========================================================================
-	Post an ad: category, details, photos, price, contacts + live preview
+	Post an ad or edit one: category, details, photos, price, contacts + live preview
+	GET: id = edit an own ad. POST: the form + csrf; photos come as photo_ids[]
+	in display order (uploaded beforehand by photo-upload.php).
+	New ads and edited ones go to moderation (status pending).
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
+require INC_DIR . '/media.php';
 
 $me = require_login();
+
+// Editing: the author's own ad only
+$editId = isset($_GET['id']) ? (int) $_GET['id'] : null;
+$editing = $editId !== null ? find_listing($editId) : null;
+
+if ($editId !== null && (!$editing || $editing['user_id'] !== $me['id'])) {
+	require ROOT_DIR . '/404.php';
+	exit;
+}
+
+// Form values: the ad being edited (or defaults), replaced by the sent form
+$v = [
+	'category' => $editing ? parent_category($editing['category'])['slug'] : '',
+	'subcategory' => $editing['category'] ?? '',
+	'title' => $editing['title'] ?? '',
+	'description' => $editing['description'] ?? '',
+	'condition' => $editing['condition'] ?? 'used',
+	'price' => isset($editing['price']) ? (string) $editing['price'] : '',
+	'currency' => $editing['currency'] ?? 'RSD',
+	'negotiable' => $editing['negotiable'] ?? false,
+	'agreement' => $editing !== null && $editing['price'] === null,
+	'city' => $editing['city'] ?? $me['city'],
+	'phone' => $editing['phone'] ?? $me['phone'] ?? '',
+	'show_phone' => $editing['show_phone'] ?? true,
+	'photos' => array_column($editing['images'] ?? [], 'id'),
+];
+$error = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+	$v = [
+		'category' => (string) ($_POST['category'] ?? ''),
+		'subcategory' => (string) ($_POST['subcategory'] ?? ''),
+		'title' => trim(preg_replace('/\s+/u', ' ', (string) ($_POST['title'] ?? ''))),
+		'description' => trim(str_replace("\r\n", "\n", (string) ($_POST['description'] ?? ''))),
+		'condition' => (string) ($_POST['condition'] ?? ''),
+		'price' => preg_replace('/\D/', '', (string) ($_POST['price'] ?? '')),
+		'currency' => ($_POST['currency'] ?? '') === 'EUR' ? 'EUR' : 'RSD',
+		'negotiable' => !empty($_POST['negotiable']),
+		'agreement' => !empty($_POST['agreement']),
+		'city' => (string) ($_POST['city'] ?? ''),
+		'phone' => trim((string) ($_POST['phone'] ?? '')),
+		'show_phone' => !empty($_POST['show_phone']),
+		'photos' => postable_photos($me['id'], (array) ($_POST['photo_ids'] ?? []), $editId),
+	];
+	[$parent, $child] = find_category($v['subcategory']);
+	$price = (int) $v['price'];
+
+	if (!csrf_valid()) {
+		$error = t('auth.err_csrf');
+	} elseif (!$child || $parent['slug'] !== $v['category']) {
+		$error = t('post.err_category');
+	} elseif (mb_strlen($v['title']) < 3 || mb_strlen($v['title']) > 80) {
+		$error = t('post.err_title');
+	} elseif (mb_strlen($v['description']) < 10 || mb_strlen($v['description']) > 3000) {
+		$error = t('post.err_description');
+	} elseif (!in_array($v['condition'], ['new', 'like_new', 'used'], true)) {
+		$error = t('post.err_condition');
+	} elseif (!$v['agreement'] && ($price < 1 || $price > 2_000_000_000)) {
+		$error = t('post.err_price');
+	} elseif (!in_array($v['city'], array_column(cities(), 'latn'), true)) {
+		$error = t('auth.err_city');
+	} elseif ($v['phone'] !== '' && !preg_match('/^\+?[0-9 ()\-]{6,20}$/', $v['phone'])) {
+		$error = t('auth.err_phone');
+	} elseif (count($v['photos']) > 12) {
+		$error = t('post.err_photos');
+	} elseif (empty($_POST['terms'])) {
+		$error = t('auth.err_terms');
+	} else {
+		db()->beginTransaction();
+		try {
+			$id = save_listing([
+				'user_id' => $me['id'], 'category' => $v['subcategory'], 'city' => $v['city'],
+				'title' => $v['title'], 'description' => $v['description'], 'lang' => detect_text_lang($v['title'] . ' ' . $v['description']),
+				'price' => $v['agreement'] ? null : $price, 'currency' => $v['currency'], 'negotiable' => $v['negotiable'] && !$v['agreement'],
+				'condition' => $v['condition'], 'phone' => $v['phone'] ?: null, 'show_phone' => $v['show_phone'],
+			], $editId);
+			$removed = set_listing_photos($id, $me['id'], $v['photos']);
+			db()->commit();
+		} catch (Throwable $e) {
+			db()->rollBack();
+			throw $e;
+		}
+
+		array_map('delete_photo_files', $removed);
+		log_action($editId ? 'listing.update' : 'listing.create', ['listing_id' => $id, 'photos' => count($v['photos'])]);
+		flash('success', t($editId ? 'post.updated' : 'post.submitted'));
+		redirect(url('profile.php'));
+	}
+}
+
+// Photos already uploaded, for the photo list (the cover first)
+$formPhotos = array_map(fn($photo) => [
+	'id' => $photo['id'],
+	'url' => photo_url($photo, isset($photo['sizes'][320]) ? 320 : array_key_last($photo['sizes'])),
+], photos_by_ids($v['photos']));
 
 // Subcategories for JS: {"vehicles": [{"slug": "cars", "name": "Cars"}, …]}
 $subcats = [];
@@ -12,7 +111,7 @@ foreach (categories() as $category) {
 	$subcats[$category['slug']] = array_map(fn($child) => ['slug' => $child['slug'], 'name' => cat_name($child)], $category['children']);
 }
 
-$page['title'] = t('post.title');
+$page['title'] = t($editing ? 'post.edit_title' : 'post.title');
 $page['robots'] = 'noindex, follow';
 $page['nav'] = 'post';
 $page['search'] = false;
@@ -23,13 +122,18 @@ require INC_DIR . '/header.php';
 <div class="container page">
 	<div class="page-head">
 		<div>
-			<h1 class="page-title"><?= e(t('post.title')) ?></h1>
+			<h1 class="page-title"><?= e(t($editing ? 'post.edit_title' : 'post.title')) ?></h1>
 			<p class="page-sub"><?= e(t('post.sub')) ?></p>
 		</div>
 	</div>
 
 	<div class="post">
-		<form class="post__form" id="post-form" method="post" enctype="multipart/form-data" data-post-form data-demo="<?= e(t('post.submitted')) ?>">
+		<form class="post__form" id="post-form" method="post" action="<?= e(url('post.php', ['id' => $editId])) ?>" data-post-form data-upload-url="photo-upload.php">
+			<?= csrf_field() ?>
+			<?php if ($error !== ''): ?>
+			<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($error) ?></p>
+			<?php endif; ?>
+
 			<!-- 1. Category -->
 			<section class="form-card" aria-labelledby="s-category">
 				<h2 class="form-card__title" id="s-category"><span class="step">1</span><?= e(t('post.s_category')) ?></h2>
@@ -39,13 +143,13 @@ require INC_DIR . '/header.php';
 						<select class="select" id="p-category" name="category" required data-category-select data-subcats="<?= attr_json($subcats) ?>">
 							<option value=""><?= e(t('post.choose')) ?></option>
 							<?php foreach (categories() as $category): ?>
-							<option value="<?= e($category['slug']) ?>"><?= e(cat_name($category)) ?></option>
+							<option value="<?= e($category['slug']) ?>"<?= $category['slug'] === $v['category'] ? ' selected' : '' ?>><?= e(cat_name($category)) ?></option>
 							<?php endforeach; ?>
 						</select>
 					</div>
 					<div class="field">
 						<label class="field__label" for="p-subcategory"><?= e(t('post.subcategory')) ?></label>
-						<select class="select" id="p-subcategory" name="subcategory" required disabled data-subcategory-select>
+						<select class="select" id="p-subcategory" name="subcategory" required disabled data-subcategory-select data-selected="<?= e($v['subcategory']) ?>">
 							<option value="" data-choose="<?= e(t('post.choose')) ?>" data-empty="<?= e(t('post.choose_category_first')) ?>"><?= e(t('post.choose_category_first')) ?></option>
 						</select>
 					</div>
@@ -58,7 +162,7 @@ require INC_DIR . '/header.php';
 				<div class="form-grid">
 					<div class="field field--full">
 						<label class="field__label" for="p-title"><?= e(t('post.f_title')) ?></label>
-						<input class="input" id="p-title" name="title" type="text" maxlength="80" required data-bind="title" data-counter="p-title-count" aria-describedby="p-title-hint">
+						<input class="input" id="p-title" name="title" type="text" maxlength="80" required data-bind="title" data-counter="p-title-count" aria-describedby="p-title-hint" value="<?= e($v['title']) ?>">
 						<div class="row row--between">
 							<span class="field__hint" id="p-title-hint"><?= e(t('post.f_title_hint')) ?></span>
 							<span class="field__counter" id="p-title-count" aria-live="polite"></span>
@@ -67,7 +171,7 @@ require INC_DIR . '/header.php';
 
 					<div class="field field--full">
 						<label class="field__label" for="p-description"><?= e(t('post.f_description')) ?></label>
-						<textarea class="textarea" id="p-description" name="description" rows="6" maxlength="3000" required data-counter="p-description-count" aria-describedby="p-description-hint"></textarea>
+						<textarea class="textarea" id="p-description" name="description" rows="6" maxlength="3000" required data-counter="p-description-count" aria-describedby="p-description-hint"><?= e($v['description']) ?></textarea>
 						<div class="row row--between">
 							<span class="field__hint" id="p-description-hint"><?= e(t('post.f_description_hint')) ?></span>
 							<span class="field__counter" id="p-description-count" aria-live="polite"></span>
@@ -77,9 +181,9 @@ require INC_DIR . '/header.php';
 					<fieldset class="field field--full filters__fieldset">
 						<legend class="field__label"><?= e(t('post.f_condition')) ?></legend>
 						<div class="seg seg--spaced">
-							<label class="seg__item"><input type="radio" name="condition" value="new"><span class="seg__label"><?= e(t('v.new')) ?></span></label>
-							<label class="seg__item"><input type="radio" name="condition" value="like_new"><span class="seg__label"><?= e(t('v.like_new')) ?></span></label>
-							<label class="seg__item"><input type="radio" name="condition" value="used" checked><span class="seg__label"><?= e(t('v.used')) ?></span></label>
+							<label class="seg__item"><input type="radio" name="condition" value="new"<?= $v['condition'] === 'new' ? ' checked' : '' ?>><span class="seg__label"><?= e(t('v.new')) ?></span></label>
+							<label class="seg__item"><input type="radio" name="condition" value="like_new"<?= $v['condition'] === 'like_new' ? ' checked' : '' ?>><span class="seg__label"><?= e(t('v.like_new')) ?></span></label>
+							<label class="seg__item"><input type="radio" name="condition" value="used"<?= $v['condition'] === 'used' ? ' checked' : '' ?>><span class="seg__label"><?= e(t('v.used')) ?></span></label>
 						</div>
 					</fieldset>
 				</div>
@@ -92,9 +196,9 @@ require INC_DIR . '/header.php';
 					<?= icon('camera', 32) ?>
 					<span class="dropzone__title"><?= e(t('post.photos_drop')) ?></span>
 					<span><?= e(t('post.photos_hint')) ?></span>
-					<input type="file" name="photos[]" accept="image/jpeg,image/png,image/webp" multiple data-photo-input data-max="12">
+					<input type="file" accept="image/jpeg,image/png,image/webp" multiple data-photo-input data-max="12">
 				</label>
-				<ul class="photo-grid" data-photo-list aria-live="polite"></ul>
+				<ul class="photo-grid" data-photo-list data-photos="<?= attr_json($formPhotos) ?>" aria-live="polite"></ul>
 			</section>
 
 			<!-- 4. Price -->
@@ -104,17 +208,17 @@ require INC_DIR . '/header.php';
 					<div class="field">
 						<label class="field__label" for="p-price"><?= e(t('post.f_price')) ?></label>
 						<div class="field__row">
-							<input class="input" id="p-price" name="price" type="text" inputmode="numeric" placeholder="0" data-bind="price">
+							<input class="input" id="p-price" name="price" type="text" inputmode="numeric" placeholder="0" data-bind="price" value="<?= e($v['price']) ?>">
 							<label class="visually-hidden" for="p-currency"><?= e(t('post.f_currency')) ?></label>
 							<select class="select select--currency" id="p-currency" name="currency" data-bind="currency">
 								<option value="RSD">RSD</option>
-								<option value="EUR">€ EUR</option>
+								<option value="EUR"<?= $v['currency'] === 'EUR' ? ' selected' : '' ?>>€ EUR</option>
 							</select>
 						</div>
 					</div>
 					<div class="field field--end">
-						<label class="check"><input type="checkbox" name="negotiable" value="1" data-bind="negotiable"><span><?= e(t('post.negotiable')) ?></span></label>
-						<label class="check"><input type="checkbox" name="agreement" value="1" data-bind="agreement"><span><?= e(t('post.agreement')) ?></span></label>
+						<label class="check"><input type="checkbox" name="negotiable" value="1" data-bind="negotiable"<?= $v['negotiable'] ? ' checked' : '' ?>><span><?= e(t('post.negotiable')) ?></span></label>
+						<label class="check"><input type="checkbox" name="agreement" value="1" data-bind="agreement"<?= $v['agreement'] ? ' checked' : '' ?>><span><?= e(t('post.agreement')) ?></span></label>
 					</div>
 				</div>
 			</section>
@@ -125,14 +229,14 @@ require INC_DIR . '/header.php';
 				<div class="form-grid">
 					<div class="field">
 						<label class="field__label" for="p-city"><?= e(t('post.f_city')) ?></label>
-						<select class="select" id="p-city" name="city" required data-bind="city"><?= city_select_options($me['city'], false) ?></select>
+						<select class="select" id="p-city" name="city" required data-bind="city"><?= city_select_options($v['city'], false) ?></select>
 					</div>
 					<div class="field">
 						<label class="field__label" for="p-phone"><?= e(t('post.f_phone')) ?></label>
-						<input class="input" id="p-phone" name="phone" type="tel" autocomplete="tel" value="<?= e($me['phone']) ?>">
+						<input class="input" id="p-phone" name="phone" type="tel" autocomplete="tel" value="<?= e($v['phone']) ?>">
 					</div>
 					<div class="field field--full">
-						<label class="switch"><input type="checkbox" role="switch" name="show_phone" checked><span><?= e(t('post.show_phone')) ?></span></label>
+						<label class="switch"><input type="checkbox" role="switch" name="show_phone" value="1"<?= $v['show_phone'] ? ' checked' : '' ?>><span><?= e(t('post.show_phone')) ?></span></label>
 					</div>
 				</div>
 			</section>
@@ -142,7 +246,7 @@ require INC_DIR . '/header.php';
 				<label class="check"><input type="checkbox" name="terms" required><span><?= terms_label('post.terms') ?></span></label>
 				<div class="form-actions">
 					<button type="button" class="btn btn--outline" data-toast="<?= e(t('post.draft_saved')) ?>"><?= e(t('post.draft')) ?></button>
-					<button type="submit" class="btn btn--primary btn--lg"><?= icon('check', 20) ?><?= e(t('post.submit')) ?></button>
+					<button type="submit" class="btn btn--primary btn--lg"><?= icon('check', 20) ?><?= e(t($editing ? 'post.edit_submit' : 'post.submit')) ?></button>
 				</div>
 			</div>
 		</form>

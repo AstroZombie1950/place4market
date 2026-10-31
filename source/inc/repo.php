@@ -125,6 +125,7 @@ function listing_from_row(array $r): array
 		'condition' => $r['item_condition'],
 		'attrs' => $r['attrs'] !== null ? json_decode($r['attrs'], true) : [],
 		'reject_reason' => $r['reject_reason'],
+		'phone' => $r['phone'], 'show_phone' => (bool) $r['show_phone'],
 		'images' => [], 'videos' => [], 'photos' => 0,
 	];
 }
@@ -141,8 +142,8 @@ function listings_query(string $sql, array $params = []): array
 	$ids = array_column($listings, 'id');
 	$index = array_flip($ids);
 
-	foreach (db_all('SELECT listing_id, path, color, sizes FROM listing_photos WHERE listing_id IN (' . db_in($ids) . ') ORDER BY listing_id, sort', $ids) as $p) {
-		$listings[$index[$p['listing_id']]]['images'][] = ['path' => $p['path'], 'color' => $p['color'], 'sizes' => json_decode($p['sizes'], true)];
+	foreach (db_all('SELECT id, listing_id, path, color, sizes FROM listing_photos WHERE listing_id IN (' . db_in($ids) . ') ORDER BY listing_id, sort', $ids) as $p) {
+		$listings[$index[$p['listing_id']]]['images'][] = ['id' => $p['id'], 'path' => $p['path'], 'color' => $p['color'], 'sizes' => json_decode($p['sizes'], true)];
 	}
 
 	foreach (db_all('SELECT * FROM listing_videos WHERE listing_id IN (' . db_in($ids) . ') ORDER BY listing_id, sort', $ids) as $v) {
@@ -293,6 +294,89 @@ function seller_ids(): array
 {
 	return db_column("SELECT DISTINCT l.user_id FROM listings l JOIN users u ON u.id = l.user_id
 		WHERE l.status = 'active' AND u.status = 'active' ORDER BY l.user_id");
+}
+
+/* ---------- Posting and editing (owner) ---------- */
+
+// Photo uploaded before the form is sent (not in a listing yet); returns its id
+function create_photo(int $userId, array $photo): int
+{
+	db_exec('INSERT INTO listing_photos (user_id, path, color, sizes) VALUES (?, ?, ?, ?)',
+		[$userId, $photo['path'], $photo['color'], json_encode($photo['sizes'])]);
+
+	return (int) db()->lastInsertId();
+}
+
+// Photos by id that the user may put into this listing (own, not used elsewhere), in the given order
+function postable_photos(int $userId, array $ids, ?int $listingId): array
+{
+	$ids = array_values(array_unique(array_map('intval', $ids)));
+	$allowed = db_column('SELECT id FROM listing_photos WHERE id IN (' . db_in($ids) . ') AND user_id = ? AND (listing_id IS NULL OR listing_id = ?)',
+		[...$ids, $userId, $listingId ?? 0]);
+
+	return array_values(array_filter($ids, fn($id) => in_array($id, $allowed, true)));
+}
+
+// New listing or changes to one; both go to moderation. $f: user_id, category (slug), city (Latin
+// name), title, description, lang, price (null = by agreement), currency, negotiable, condition,
+// phone, show_phone. Returns the listing id
+function save_listing(array $f, ?int $id = null): int
+{
+	$values = [
+		$f['title'], $f['description'], $f['lang'], sr_lat($f['title'] . "\n" . $f['description']),
+		$f['price'], $f['currency'], (int) $f['negotiable'], $f['condition'], $f['phone'], (int) $f['show_phone'],
+		$f['category'], $f['city'],
+	];
+	$set = 'title = ?, description = ?, lang = ?, search_text = ?, price = ?, currency = ?, negotiable = ?, item_condition = ?, phone = ?, show_phone = ?,
+		category_id = (SELECT id FROM categories WHERE slug = ?), city_id = (SELECT id FROM cities WHERE latn = ?)';
+
+	if ($id === null) {
+		db_exec('INSERT INTO listings SET user_id = ?, status = \'pending\', ' . $set, [$f['user_id'], ...$values]);
+
+		return (int) db()->lastInsertId();
+	}
+
+	db_exec('UPDATE listings SET ' . $set . ', status = \'pending\', reject_reason = NULL WHERE id = ? AND user_id = ?', [...$values, $id, $f['user_id']]);
+
+	return $id;
+}
+
+// The listing's photos become exactly $ids in this order; photos taken out are deleted.
+// Returns their paths (the caller removes the files after the transaction)
+function set_listing_photos(int $listingId, int $userId, array $ids): array
+{
+	$old = db_all('SELECT id, path FROM listing_photos WHERE listing_id = ?', [$listingId]);
+
+	foreach (array_values($ids) as $sort => $photoId) {
+		db_exec('UPDATE listing_photos SET listing_id = ?, sort = ? WHERE id = ? AND user_id = ?', [$listingId, $sort, $photoId, $userId]);
+	}
+
+	$removed = array_filter($old, fn($p) => !in_array($p['id'], $ids, true));
+	if ($removed) {
+		db_exec('DELETE FROM listing_photos WHERE id IN (' . db_in(array_column($removed, 'id')) . ')', array_column($removed, 'id'));
+	}
+
+	return array_column($removed, 'path');
+}
+
+// Photos by id, in the given order: [['id', 'path', 'color', 'sizes'], …]
+function photos_by_ids(array $ids): array
+{
+	$rows = db_all('SELECT id, path, color, sizes FROM listing_photos WHERE id IN (' . db_in($ids) . ')', $ids);
+	$byId = array_column(array_map(fn($p) => ['id' => $p['id'], 'path' => $p['path'], 'color' => $p['color'], 'sizes' => json_decode($p['sizes'], true)], $rows), null, 'id');
+
+	return array_values(array_filter(array_map(fn($id) => $byId[$id] ?? null, $ids)));
+}
+
+// Photos uploaded more than a day ago and never put into a listing: rows deleted, paths returned
+function take_stale_photos(): array
+{
+	$rows = db_all('SELECT id, path FROM listing_photos WHERE listing_id IS NULL AND created_at < UTC_TIMESTAMP() - INTERVAL 1 DAY LIMIT 200');
+	if ($rows) {
+		db_exec('DELETE FROM listing_photos WHERE id IN (' . db_in(array_column($rows, 'id')) . ')', array_column($rows, 'id'));
+	}
+
+	return array_column($rows, 'path');
 }
 
 /* ---------- Favorites and saved searches (current user) ---------- */

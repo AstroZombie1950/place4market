@@ -12,6 +12,7 @@ if (PHP_SAPI !== 'cli') {
 define('ROOT_DIR', dirname(__DIR__, 2));
 define('SOURCE_DIR', ROOT_DIR . '/source');
 define('INC_DIR', SOURCE_DIR . '/inc');
+define('ROOT_URL', '');
 
 // On a developer machine the journal goes to ./logs, like with php -S
 if (!getenv('P4M_LOG_DIR') && is_file(ROOT_DIR . '/config/local.php')) {

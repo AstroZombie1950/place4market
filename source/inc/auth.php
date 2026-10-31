@@ -200,6 +200,7 @@ const RATE_LIMITS = [
 	'reset_email' => [3, 3600],
 	'reset_ip' => [10, 3600],
 	'verify_resend' => [3, 3600],
+	'photo_upload' => [120, 3600],
 ];
 
 function rate_key(string $value): string

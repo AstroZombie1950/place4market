@@ -7,13 +7,17 @@ require __DIR__ . '/source/inc/bootstrap.php';
 
 $listing = find_listing((int) ($_GET['id'] ?? 0));
 
-// Unknown listing → 404
-if (!$listing) {
+$seller = $listing ? user($listing['user_id']) : null;
+
+// Unknown listing → 404. Not published (moderation, rejected, expired) or a blocked
+// seller: only the author and staff see it, for everyone else it does not exist
+if (!$listing || !(($listing['status'] === 'active' && $seller['status'] === 'active') || $listing['user_id'] === current_user_id() || is_staff())) {
 	require ROOT_DIR . '/404.php';
 	exit;
 }
 
-$seller = user($listing['user_id']);
+// Phone of this ad (the seller's by default); none when the author hid it
+$phone = $listing['show_phone'] ? ($listing['phone'] ?? $seller['phone']) : null;
 [$parentCat, $childCat] = find_category($listing['category']);
 $title = listing_title($listing);
 $isOwn = $listing['user_id'] === current_user_id();
@@ -55,6 +59,10 @@ $page['description'] = mb_substr(preg_replace('/\s+/u', ' ', listing_description
 $page['nav'] = 'home';
 $page['body_class'] = 'body--listing';
 $page['canonical'] = ['listing.php', ['id' => $listing['id']]];
+// Seen by its author or staff only: never indexed
+if ($listing['status'] !== 'active') {
+	$page['robots'] = 'noindex, nofollow';
+}
 $page['og_type'] = 'product';
 if ($listing['price'] !== null) {
 	$page['og'] = ['product:price:amount' => (string) $listing['price'], 'product:price:currency' => $listing['currency']];
@@ -146,7 +154,9 @@ require INC_DIR . '/header.php';
 				<div class="listing-head__actions">
 					<?php if (!$isOwn): ?>
 					<a class="btn btn--primary btn--lg btn--block" href="<?= e($messageUrl) ?>"><?= icon('message', 20) ?><?= e(t('l.write')) ?></a>
-					<button type="button" class="btn btn--outline btn--block" data-reveal-phone="<?= e($seller['phone']) ?>"><?= icon('call', 18) ?><?= e(t('l.show_phone')) ?></button>
+					<?php if ($phone): ?>
+					<button type="button" class="btn btn--outline btn--block" data-reveal-phone="<?= e($phone) ?>"><?= icon('call', 18) ?><?= e(t('l.show_phone')) ?></button>
+					<?php endif; ?>
 					<?php else: ?>
 					<a class="btn btn--outline btn--block" href="<?= e(url('post.php', ['id' => $listing['id']])) ?>"><?= icon('edit', 18) ?><?= e(t('common.edit')) ?></a>
 					<?php endif; ?>
@@ -237,7 +247,9 @@ require INC_DIR . '/header.php';
 <!-- Contact bar (phones) -->
 <?php if (!$isOwn): ?>
 <div class="contact-bar">
-	<a class="btn btn--outline" href="tel:<?= e(str_replace(' ', '', $seller['phone'])) ?>"><?= icon('call', 18) ?><?= e(t('l.call')) ?></a>
+	<?php if ($phone): ?>
+	<a class="btn btn--outline" href="tel:<?= e(str_replace(' ', '', $phone)) ?>"><?= icon('call', 18) ?><?= e(t('l.call')) ?></a>
+	<?php endif; ?>
 	<a class="btn btn--primary" href="<?= e($messageUrl) ?>"><?= icon('message', 18) ?><?= e(t('l.message')) ?></a>
 </div>
 <?php endif; ?>

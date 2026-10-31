@@ -35,8 +35,9 @@ $counts = [
 	'active' => count(array_filter($myListings, fn($l) => $l['status'] === 'active')),
 	'pending' => count(array_filter($myListings, fn($l) => $l['status'] === 'pending')),
 	'expired' => count(array_filter($myListings, fn($l) => $l['status'] === 'expired')),
+	'rejected' => count(array_filter($myListings, fn($l) => $l['status'] === 'rejected')),
 ];
-$statusKeys = ['active' => 'p.status_active', 'pending' => 'p.status_pending', 'expired' => 'p.status_expired'];
+$statusKeys = ['active' => 'p.status_active', 'pending' => 'p.status_pending', 'expired' => 'p.status_expired', 'rejected' => 'p.status_rejected'];
 
 $page['title'] = t('p.title');
 $page['robots'] = 'noindex, follow';
@@ -80,7 +81,7 @@ require INC_DIR . '/header.php';
 		<div class="tabs__panel" role="tabpanel" id="panel-listings" aria-labelledby="tab-listings" tabindex="0">
 			<div class="pills" role="group" aria-label="<?= e(t('p.status_filter')) ?>" data-pills="my-listings">
 				<button type="button" class="pill" data-value="" aria-pressed="true"><?= e(t('p.status_all')) ?> <span><?= $counts[''] ?></span></button>
-				<?php foreach ($statusKeys as $status => $key): ?>
+				<?php foreach ($statusKeys as $status => $key): if ($status === 'rejected' && !$counts['rejected']) continue; ?>
 				<button type="button" class="pill" data-value="<?= $status ?>" aria-pressed="false"><?= e(t($key)) ?> <span><?= $counts[$status] ?></span></button>
 				<?php endforeach; ?>
 			</div>
@@ -99,6 +100,8 @@ require INC_DIR . '/header.php';
 							<span><?= e(t('p.expires', ['date' => date_label(date('Y-m-d', strtotime($item['created'] . ' +60 days')))])) ?></span>
 							<?php elseif ($item['status'] === 'expired'): ?>
 							<span><?= e(t('p.expired_on', ['date' => date_label(date('Y-m-d', strtotime($item['created'] . ' +60 days')))])) ?></span>
+							<?php elseif ($item['status'] === 'rejected'): ?>
+							<span><?= e(t('p.rejected_note', ['reason' => $item['reject_reason'] ?? '—'])) ?></span>
 							<?php else: ?>
 							<span><?= e(t('p.pending_note')) ?></span>
 							<?php endif; ?>
