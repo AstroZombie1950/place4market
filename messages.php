@@ -5,6 +5,8 @@
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
 
+require_login();
+
 $conversations = conversations();
 $requested = isset($_GET['c']) ? (int) $_GET['c'] : null;
 $activeId = $requested ?? ($conversations[0]['id'] ?? null);

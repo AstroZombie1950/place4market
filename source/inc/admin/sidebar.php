@@ -51,6 +51,6 @@ $navGroups = [
 
 	<!-- Log out -->
 	<div class="sidebar__foot">
-		<a class="sidebar__link" href="login.php"><?= icon('logout') ?><span>Log out</span></a>
+		<a class="sidebar__link" href="logout.php?csrf=<?= e(csrf_token()) ?>"><?= icon('logout') ?><span>Log out</span></a>
 	</div>
 </aside>

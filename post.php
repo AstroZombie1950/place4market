@@ -4,7 +4,7 @@
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
 
-$me = current_user();
+$me = require_login();
 
 // Subcategories for JS: {"vehicles": [{"slug": "cars", "name": "Cars"}, …]}
 $subcats = [];

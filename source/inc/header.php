@@ -5,6 +5,9 @@
 	========================================================================== */
 
 $unread = unread_count();
+$flash = take_flash();
+// Guests see "Log in" in place of the profile link
+$accountLink = current_user() ? ['profile.php', t('nav.profile')] : ['auth.php', t('auth.login')];
 $searchQuery = (string) ($_GET['q'] ?? '');
 $searchCity = (string) ($_GET['city'] ?? '');
 ?>
@@ -63,8 +66,8 @@ $searchCity = (string) ($_GET['city'] ?? '');
 					<?= icon('message', 20) ?><span aria-hidden="true"><?= e(t('nav.messages')) ?></span>
 					<?php if ($unread > 0): ?><span class="count-badge" aria-hidden="true"><?= $unread ?></span><?php endif; ?>
 				</a>
-				<a class="account-nav__link" href="<?= e(url('profile.php')) ?>"<?= nav_current('profile', $page['nav']) ?>>
-					<?= icon('user', 20) ?><span><?= e(t('nav.profile')) ?></span>
+				<a class="account-nav__link" href="<?= e(url($accountLink[0])) ?>"<?= nav_current('profile', $page['nav']) ?>>
+					<?= icon('user', 20) ?><span><?= e($accountLink[1]) ?></span>
 				</a>
 			</nav>
 
@@ -93,3 +96,9 @@ $searchCity = (string) ($_GET['city'] ?? '');
 </header>
 
 <main class="site-main" id="main" tabindex="-1">
+<?php if ($flash): ?>
+	<!-- One-time message after a redirect (login, password, email) -->
+	<div class="container flash">
+		<p class="notice notice--<?= e($flash['type']) ?>" role="status"><?= icon($flash['type'] === 'success' ? 'check-circle' : 'alert', 20) ?><?= e($flash['text']) ?></p>
+	</div>
+<?php endif; ?>

@@ -302,7 +302,7 @@ return [
 	'auth.reset_title' => 'Reset password',
 	'auth.reset_text' => 'Enter your email and we’ll send you a link to set a new password.',
 	'auth.reset_send' => 'Send link',
-	'auth.reset_sent' => 'Check your inbox for the link.',
+	'auth.reset_sent' => 'If an account with this email exists, we have sent a link to it. Check your inbox.',
 	'auth.logged_in' => 'You are logged in',
 	'auth.registered' => 'Account created. Check your email to confirm it.',
 	'auth.show_password' => 'Show password',
@@ -314,6 +314,27 @@ return [
 	'auth.benefit_2_text' => 'Get an email when something new matches.',
 	'auth.benefit_3' => 'Post ads for free',
 	'auth.benefit_3_text' => 'Up to 12 photos, edit any time.',
+	'auth.err_csrf' => 'The form has expired. Please try again.',
+	'auth.err_credentials' => 'Wrong email or password.',
+	'auth.err_blocked' => 'This account is blocked. Please contact support.',
+	'auth.err_too_many' => 'Too many attempts. Please try again later.',
+	'auth.err_name' => 'Enter your name (2 to 100 characters).',
+	'auth.err_email' => 'Enter a valid email address.',
+	'auth.err_email_taken' => 'An account with this email already exists. Log in or reset the password.',
+	'auth.err_phone' => 'Check the phone number.',
+	'auth.err_city' => 'Choose a city.',
+	'auth.err_password' => 'The password must be 8 to 72 characters long.',
+	'auth.err_password_repeat' => 'The passwords do not match.',
+	'auth.err_current_password' => 'The current password is wrong.',
+	'auth.err_terms' => 'Please accept the terms of use.',
+	'auth.err_token' => 'The link is invalid or has expired. Please request a new one.',
+	'auth.err_mail' => 'We could not send the email. Please try again in a few minutes.',
+	'auth.logged_out' => 'You are logged out.',
+	'auth.verified' => 'Email confirmed. Thank you!',
+	'auth.verify_title' => 'Email confirmation',
+	'auth.verify_needed' => 'Please confirm your email: we sent a link to {email}.',
+	'auth.verify_resend' => 'Send the link again',
+	'auth.verify_resent' => 'We sent a new link to {email}.',
 
 	// Profile
 	'p.title' => 'My profile',
@@ -350,6 +371,7 @@ return [
 	'p.save' => 'Save changes',
 	'p.saved' => 'Changes saved',
 	'p.password_saved' => 'Password changed',
+	'p.logout_text' => 'Log out of your account on this device.',
 	'p.language' => 'Interface language',
 	'p.danger' => 'Delete account',
 	'p.delete_account' => 'Delete account',
@@ -479,4 +501,24 @@ return [
 	'footer.users' => 'Buy and sell',
 	'footer.company' => 'Place4Market',
 	'footer.tagline' => 'Free classifieds across Serbia. Buy and sell locally.',
+
+	// Emails (plain text; {link} is the full URL)
+	'mail.verify_subject' => 'Confirm your email on Place4Market',
+	'mail.verify_body' => 'Hello {name},
+
+please confirm your email address by opening this link:
+{link}
+
+The link is valid for 48 hours. If you did not create an account on Place4Market, just ignore this email.
+
+Place4Market',
+	'mail.reset_subject' => 'New password for Place4Market',
+	'mail.reset_body' => 'Hello {name},
+
+to set a new password, open this link:
+{link}
+
+The link is valid for 1 hour and works once. If you did not ask for a new password, ignore this email: your password stays the same.
+
+Place4Market',
 ];

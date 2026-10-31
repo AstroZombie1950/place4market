@@ -25,7 +25,11 @@ require SOURCE_DIR . '/inc/icons.php';
 require ADMIN_INC . '/helpers.php';
 require SOURCE_DIR . '/inc/db.php';
 require SOURCE_DIR . '/inc/repo.php';
+require SOURCE_DIR . '/inc/auth.php';
+auth_init();
 
-// Logged-in admin (mock)
-$currentAdmin = user(3);
-log_set_user($currentAdmin['id'], 'admin');
+// Staff only (moderator, admin); login.php defines ADMIN_PUBLIC to stay reachable
+if (!defined('ADMIN_PUBLIC') && !is_staff()) {
+	redirect('login.php');
+}
+$currentAdmin = current_user();

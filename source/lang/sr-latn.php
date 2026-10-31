@@ -303,7 +303,7 @@ return [
 	'auth.reset_title' => 'Nova lozinka',
 	'auth.reset_text' => 'Unesite e-poštu i poslaćemo vam link za postavljanje nove lozinke.',
 	'auth.reset_send' => 'Pošalji link',
-	'auth.reset_sent' => 'Link je poslat, proverite poštu.',
+	'auth.reset_sent' => 'Ako postoji nalog sa ovom e-poštom, poslali smo link na nju. Proverite poštu.',
 	'auth.logged_in' => 'Prijavljeni ste',
 	'auth.registered' => 'Nalog je napravljen. Potvrdite ga preko linka u e-pošti.',
 	'auth.show_password' => 'Prikaži lozinku',
@@ -315,6 +315,27 @@ return [
 	'auth.benefit_2_text' => 'Dobićete e-poruku kada se pojavi nešto novo.',
 	'auth.benefit_3' => 'Postavljajte oglase besplatno',
 	'auth.benefit_3_text' => 'Do 12 fotografija, izmene u bilo kom trenutku.',
+	'auth.err_csrf' => 'Forma je istekla. Pokušajte ponovo.',
+	'auth.err_credentials' => 'Pogrešna e-pošta ili lozinka.',
+	'auth.err_blocked' => 'Ovaj nalog je blokiran. Obratite se podršci.',
+	'auth.err_too_many' => 'Previše pokušaja. Pokušajte ponovo kasnije.',
+	'auth.err_name' => 'Unesite ime (od 2 do 100 znakova).',
+	'auth.err_email' => 'Unesite ispravnu adresu e-pošte.',
+	'auth.err_email_taken' => 'Nalog sa ovom e-poštom već postoji. Prijavite se ili obnovite lozinku.',
+	'auth.err_phone' => 'Proverite broj telefona.',
+	'auth.err_city' => 'Izaberite grad.',
+	'auth.err_password' => 'Lozinka mora imati od 8 do 72 znaka.',
+	'auth.err_password_repeat' => 'Lozinke se ne poklapaju.',
+	'auth.err_current_password' => 'Trenutna lozinka nije tačna.',
+	'auth.err_terms' => 'Prihvatite uslove korišćenja.',
+	'auth.err_token' => 'Link je neispravan ili je istekao. Zatražite novi.',
+	'auth.err_mail' => 'Nismo uspeli da pošaljemo e-poštu. Pokušajte ponovo za nekoliko minuta.',
+	'auth.logged_out' => 'Odjavljeni ste.',
+	'auth.verified' => 'E-pošta je potvrđena. Hvala!',
+	'auth.verify_title' => 'Potvrda e-pošte',
+	'auth.verify_needed' => 'Potvrdite e-poštu: poslali smo link na {email}.',
+	'auth.verify_resend' => 'Pošalji link ponovo',
+	'auth.verify_resent' => 'Poslali smo novi link na {email}.',
 
 	// Profile
 	'p.title' => 'Moj profil',
@@ -351,6 +372,7 @@ return [
 	'p.save' => 'Sačuvaj izmene',
 	'p.saved' => 'Izmene su sačuvane',
 	'p.password_saved' => 'Lozinka je promenjena',
+	'p.logout_text' => 'Odjavite se sa naloga na ovom uređaju.',
 	'p.language' => 'Jezik interfejsa',
 	'p.danger' => 'Brisanje naloga',
 	'p.delete_account' => 'Obriši nalog',
@@ -480,4 +502,24 @@ return [
 	'footer.users' => 'Kupovina i prodaja',
 	'footer.company' => 'Place4Market',
 	'footer.tagline' => 'Besplatni mali oglasi širom Srbije. Kupujte i prodajte u svom kraju.',
+
+	// Emails (plain text; {link} is the full URL)
+	'mail.verify_subject' => 'Potvrdite e-poštu na Place4Market',
+	'mail.verify_body' => 'Zdravo, {name},
+
+potvrdite svoju adresu e-pošte otvaranjem ovog linka:
+{link}
+
+Link važi 48 sati. Ako niste otvorili nalog na Place4Market, samo zanemarite ovu poruku.
+
+Place4Market',
+	'mail.reset_subject' => 'Nova lozinka za Place4Market',
+	'mail.reset_body' => 'Zdravo, {name},
+
+da biste postavili novu lozinku, otvorite ovaj link:
+{link}
+
+Link važi 1 sat i može se iskoristiti jednom. Ako niste tražili novu lozinku, zanemarite ovu poruku: vaša lozinka ostaje ista.
+
+Place4Market',
 ];

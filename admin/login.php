@@ -1,8 +1,46 @@
 <?php
 /* ==========================================================================
-	Admin: Login (standalone page, no sidebar)
+	Admin: Login (standalone page, no sidebar). Staff only: moderators and
+	admins; the same accounts, limits and logging as the site login.
+	POST: email, password, remember, csrf
 	========================================================================== */
+const ADMIN_PUBLIC = true;
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
+
+if (is_staff()) {
+	redirect('index.php');
+}
+
+$error = '';
+$email = mb_strtolower(trim((string) ($_POST['email'] ?? '')));
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+	$emailKey = substr(rate_key($email), 0, 16);
+	$account = null;
+
+	if (!csrf_valid()) {
+		$error = 'The form has expired. Please try again.';
+	} elseif (rate_limited('login_email', $email) || rate_limited('login_ip', client_ip())) {
+		$error = 'Too many attempts. Please try again later.';
+		log_event('warning', 'Admin login rate limit', ['email_hash' => $emailKey], 'audit');
+	} else {
+		$account = user_credentials($email);
+		$password = (string) ($_POST['password'] ?? '');
+
+		// One answer for a wrong password, a non-staff account and a blocked one
+		if (!password_check($password, $account['password_hash'] ?? null)
+			|| $account['status'] !== 'active' || !in_array($account['role'], ['moderator', 'admin'], true)) {
+			rate_hit('login_email', $email);
+			rate_hit('login_ip', client_ip());
+			$error = 'Wrong email or password, or no staff access.';
+			log_action('admin.login_failed', ['email_hash' => $emailKey, 'user_id' => $account['id'] ?? null]);
+		} else {
+			login_user($account['id'], !empty($_POST['remember']));
+			log_action('admin.login');
+			redirect('index.php');
+		}
+	}
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -26,11 +64,15 @@ require __DIR__ . '/../source/inc/admin/bootstrap.php';
 		<h1 class="auth__title">Sign in</h1>
 		<p class="muted">Staff access only.</p>
 
-		<!-- Login form (posts to the dashboard for now) -->
-		<form class="auth__form" method="post" action="index.php">
+		<?php if ($error !== ''): ?>
+		<div class="notice notice--danger" role="alert"><?= icon('alert', 18) ?><span class="notice__text"><?= e($error) ?></span></div>
+		<?php endif; ?>
+
+		<form class="auth__form" method="post" action="login.php">
+			<?= csrf_field() ?>
 			<div class="field">
 				<label class="field__label" for="login-email">Email</label>
-				<input class="input" id="login-email" name="email" type="email" autocomplete="username" required>
+				<input class="input" id="login-email" name="email" type="email" autocomplete="username" required value="<?= e($email) ?>">
 			</div>
 
 			<div class="field">

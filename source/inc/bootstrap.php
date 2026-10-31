@@ -33,6 +33,11 @@ i18n_init();
 require INC_DIR . '/db.php';
 require INC_DIR . '/repo.php';
 
+// Who is logged in (session or "remember me"), email
+require INC_DIR . '/auth.php';
+require INC_DIR . '/mail.php';
+auth_init();
+
 // Page settings; each page overrides what it needs before header.php
 function page_defaults(): array
 {

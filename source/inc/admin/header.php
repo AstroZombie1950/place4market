@@ -65,7 +65,7 @@ $openReportsCount = report_status_counts()['open'] ?? 0;
 						<a class="dropdown__item" href="user.php?id=<?= (int) $currentAdmin['id'] ?>"><?= icon('user', 18) ?>My profile</a>
 						<a class="dropdown__item" href="settings.php"><?= icon('settings', 18) ?>Settings</a>
 						<div class="dropdown__sep"></div>
-						<a class="dropdown__item dropdown__item--danger" href="login.php"><?= icon('logout', 18) ?>Log out</a>
+						<a class="dropdown__item dropdown__item--danger" href="logout.php?csrf=<?= e(csrf_token()) ?>"><?= icon('logout', 18) ?>Log out</a>
 					</div>
 				</div>
 			</div>

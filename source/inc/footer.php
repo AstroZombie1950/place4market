@@ -65,8 +65,8 @@ $footerCols = [
 		<?= icon('message', 22) ?><span aria-hidden="true"><?= e(t('nav.messages')) ?></span>
 		<?php if ($unread > 0): ?><span class="count-badge bottom-nav__badge" aria-hidden="true"><?= $unread ?></span><?php endif; ?>
 	</a>
-	<a class="bottom-nav__link" href="<?= e(url('profile.php')) ?>"<?= nav_current('profile', $page['nav']) ?>>
-		<?= icon('user', 22) ?><span><?= e(t('nav.profile')) ?></span>
+	<a class="bottom-nav__link" href="<?= e(url($accountLink[0])) ?>"<?= nav_current('profile', $page['nav']) ?>>
+		<?= icon('user', 22) ?><span><?= e($accountLink[1]) ?></span>
 	</a>
 </nav>
 

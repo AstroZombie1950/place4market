@@ -1965,6 +1965,26 @@ button {
 	font-weight: var(--fw-semibold);
 }
 
+.notice .icon {
+	flex: none;
+	margin-top: 2px;
+}
+
+.notice--success {
+	background: var(--color-success-soft);
+	color: var(--color-success);
+}
+
+.notice--danger {
+	background: var(--color-danger-soft);
+	color: var(--color-danger);
+}
+
+/* One-time message under the header (after login, password change…) */
+.flash {
+	margin-top: var(--space-4);
+}
+
 /* Seller */
 .seller {
 	display: flex;

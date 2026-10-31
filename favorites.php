@@ -4,6 +4,8 @@
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
 
+require_login();
+
 $saved = favorite_listings();
 $savedSearches = saved_searches();
 

@@ -24,7 +24,7 @@ $json = fn($value) => json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPE
 $lastId = fn() => (int) db()->lastInsertId();
 
 db()->exec('SET FOREIGN_KEY_CHECKS = 0');
-foreach (['reports', 'messages', 'conversations', 'saved_searches', 'favorites', 'listing_videos', 'listing_photos', 'listings', 'users', 'categories', 'cities'] as $table) {
+foreach (['rate_events', 'remember_tokens', 'auth_tokens', 'reports', 'messages', 'conversations', 'saved_searches', 'favorites', 'listing_videos', 'listing_photos', 'listings', 'users', 'categories', 'cities'] as $table) {
 	db()->exec('TRUNCATE TABLE ' . $table);
 }
 db()->exec('SET FOREIGN_KEY_CHECKS = 1');

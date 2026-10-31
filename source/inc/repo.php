@@ -90,6 +90,7 @@ function user_from_row(array $r): array
 	return [
 		'id' => $r['id'], 'name' => $r['name'], 'email' => $r['email'], 'phone' => $r['phone'], 'city' => $r['city'] ?? '',
 		'role' => $r['role'], 'status' => $r['status'], 'verified' => $r['phone_verified_at'] !== null,
+		'email_verified' => $r['email_verified_at'] !== null,
 		'registered' => db_local($r['created_at']), 'last_active' => db_local($r['last_active_at']),
 	];
 }
@@ -109,17 +110,6 @@ function user(int $id): ?array
 function users(): array
 {
 	return array_map('user_from_row', db_all(USER_SELECT . ' ORDER BY u.id'));
-}
-
-// Logged-in user id (mock session; becomes the real session with auth)
-function current_user_id(): int
-{
-	return 1;
-}
-
-function current_user(): array
-{
-	return user(current_user_id());
 }
 
 /* ---------- Listings ---------- */
@@ -311,6 +301,10 @@ function favorite_ids(): array
 {
 	static $ids = null;
 
+	if (current_user_id() === null) {
+		return [];
+	}
+
 	return $ids ??= db_column('SELECT listing_id FROM favorites WHERE user_id = ? ORDER BY created_at DESC', [current_user_id()]);
 }
 
@@ -331,6 +325,10 @@ function favorite_listings(): array
 // ['id', 'label', 'lang', 'params', 'new', 'alerts']
 function saved_searches(): array
 {
+	if (current_user_id() === null) {
+		return [];
+	}
+
 	return array_map(fn($r) => [
 		'id' => $r['id'], 'label' => $r['label'], 'lang' => $r['lang'], 'params' => json_decode($r['params'], true),
 		'new' => $r['new_count'], 'alerts' => (bool) $r['alerts'],
@@ -350,6 +348,11 @@ function conversations(): array
 	}
 
 	$me = current_user_id();
+
+	if ($me === null) {
+		return $list = [];
+	}
+
 	$rows = db_all('SELECT id, listing_id, buyer_id, seller_id FROM conversations WHERE buyer_id = ? OR seller_id = ? ORDER BY last_message_at DESC', [$me, $me]);
 	$list = [];
 
@@ -376,6 +379,10 @@ function listing_conversation(int $listingId): ?array
 {
 	$me = current_user_id();
 
+	if ($me === null) {
+		return null;
+	}
+
 	return db_one('SELECT id FROM conversations WHERE listing_id = ? AND (buyer_id = ? OR seller_id = ?) ORDER BY last_message_at DESC LIMIT 1', [$listingId, $me, $me]);
 }
 
@@ -384,8 +391,130 @@ function unread_count(): int
 	static $count = null;
 	$me = current_user_id();
 
+	if ($me === null) {
+		return 0;
+	}
+
 	return $count ??= (int) db_value('SELECT COUNT(*) FROM messages m JOIN conversations c ON c.id = m.conversation_id
 		WHERE (c.buyer_id = ? OR c.seller_id = ?) AND m.sender_id <> ? AND m.read_at IS NULL', [$me, $me, $me]);
+}
+
+/* ---------- Accounts and sign-in (logic in auth.php) ---------- */
+
+// Login data by email: ['id', 'password_hash', 'status', 'role'] or null
+function user_credentials(string $email): ?array
+{
+	return db_one('SELECT id, password_hash, status, role FROM users WHERE email = ?', [$email]);
+}
+
+function user_password_hash(int $id): ?string
+{
+	return db_value('SELECT password_hash FROM users WHERE id = ?', [$id]) ?: null;
+}
+
+function email_taken(string $email): bool
+{
+	return (bool) db_value('SELECT 1 FROM users WHERE email = ?', [$email]);
+}
+
+// New account; returns its id
+function create_user(string $name, string $email, ?string $phone, string $city, string $passwordHash): int
+{
+	db_exec('INSERT INTO users (name, email, phone, city_id, password_hash, last_active_at)
+		VALUES (?, ?, ?, (SELECT id FROM cities WHERE latn = ?), ?, UTC_TIMESTAMP())', [$name, $email, $phone, $city, $passwordHash]);
+
+	return (int) db()->lastInsertId();
+}
+
+function set_user_password(int $id, string $hash): void
+{
+	db_exec('UPDATE users SET password_hash = ? WHERE id = ?', [$hash, $id]);
+}
+
+function mark_email_verified(int $id): void
+{
+	db_exec('UPDATE users SET email_verified_at = COALESCE(email_verified_at, UTC_TIMESTAMP()) WHERE id = ?', [$id]);
+}
+
+// "Last seen": written at most every 5 minutes per user
+function touch_user(int $id): void
+{
+	db_exec('UPDATE users SET last_active_at = UTC_TIMESTAMP()
+		WHERE id = ? AND (last_active_at IS NULL OR last_active_at < UTC_TIMESTAMP() - INTERVAL 5 MINUTE)', [$id]);
+}
+
+// One-time email tokens (type: verify_email | reset_password), stored as sha256
+function create_auth_token(int $userId, string $type, string $tokenHash, int $ttlSeconds): void
+{
+	db_exec('INSERT INTO auth_tokens (user_id, type, token_hash, expires_at) VALUES (?, ?, ?, UTC_TIMESTAMP() + INTERVAL ? SECOND)',
+		[$userId, $type, $tokenHash, $ttlSeconds]);
+}
+
+// User id of a valid (unused, not expired) token, or null
+function find_auth_token(string $type, string $tokenHash): ?int
+{
+	$id = db_value('SELECT user_id FROM auth_tokens WHERE type = ? AND token_hash = ? AND used_at IS NULL AND expires_at > UTC_TIMESTAMP()', [$type, $tokenHash]);
+
+	return $id === false ? null : (int) $id;
+}
+
+// Uses up a valid token; user id, or null when it was invalid or already used
+function use_auth_token(string $type, string $tokenHash): ?int
+{
+	$userId = find_auth_token($type, $tokenHash);
+
+	if ($userId === null || !db_exec('UPDATE auth_tokens SET used_at = UTC_TIMESTAMP() WHERE token_hash = ? AND used_at IS NULL', [$tokenHash])) {
+		return null;
+	}
+
+	return $userId;
+}
+
+// Invalidate all open tokens of a type (a new reset link cancels the old ones)
+function revoke_auth_tokens(int $userId, string $type): void
+{
+	db_exec('UPDATE auth_tokens SET used_at = UTC_TIMESTAMP() WHERE user_id = ? AND type = ? AND used_at IS NULL', [$userId, $type]);
+}
+
+// "Remember me" tokens
+function create_remember_token(int $userId, string $selector, string $validatorHash, int $ttlSeconds): void
+{
+	db_exec('INSERT INTO remember_tokens (user_id, selector, validator_hash, expires_at) VALUES (?, ?, ?, UTC_TIMESTAMP() + INTERVAL ? SECOND)',
+		[$userId, $selector, $validatorHash, $ttlSeconds]);
+}
+
+// ['user_id', 'validator_hash'] of a live token, or null
+function find_remember_token(string $selector): ?array
+{
+	return db_one('SELECT user_id, validator_hash FROM remember_tokens WHERE selector = ? AND expires_at > UTC_TIMESTAMP()', [$selector]);
+}
+
+function delete_remember_token(string $selector): void
+{
+	db_exec('DELETE FROM remember_tokens WHERE selector = ?', [$selector]);
+}
+
+// Log out everywhere: password change or reset
+function delete_user_remember_tokens(int $userId): void
+{
+	db_exec('DELETE FROM remember_tokens WHERE user_id = ?', [$userId]);
+}
+
+// Rate limits: attempts of an action by a key (sha256 of IP or email) in the last $seconds
+function rate_count(string $action, string $keyHash, int $seconds): int
+{
+	return (int) db_value('SELECT COUNT(*) FROM rate_events WHERE action = ? AND key_hash = ? AND created_at > UTC_TIMESTAMP() - INTERVAL ? SECOND',
+		[$action, $keyHash, $seconds]);
+}
+
+function rate_add(string $action, string $keyHash): void
+{
+	db_exec('INSERT INTO rate_events (action, key_hash) VALUES (?, ?)', [$action, $keyHash]);
+
+	// Now and then drop old events (the longest window is a day)
+	if (random_int(1, 100) === 1) {
+		db_exec('DELETE FROM rate_events WHERE created_at < UTC_TIMESTAMP() - INTERVAL 1 DAY');
+	}
 }
 
 /* ---------- Moderation (admin) ---------- */

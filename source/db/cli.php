@@ -1,6 +1,6 @@
 <?php
 /* ==========================================================================
-	Bootstrap for command-line database scripts (migrate.php, seed.php).
+	Bootstrap for command-line database scripts (migrate.php, seed.php, password.php).
 	Command line only: closed for the web here and in .htaccess (source/db/).
 	========================================================================== */
 
@@ -22,6 +22,7 @@ require INC_DIR . '/log.php';
 require INC_DIR . '/helpers.php';
 require INC_DIR . '/i18n.php';
 require INC_DIR . '/db.php';
+require INC_DIR . '/repo.php';
 
 // Errors of the script itself go to the terminal as well as to the journal
 ini_set('display_errors', 'stderr');

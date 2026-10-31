@@ -1,10 +1,34 @@
 <?php
 /* ==========================================================================
 	Profile: my listings, account settings, notifications (tabs)
+	POST: action = change_password (+ csrf). Logged-in users only.
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
 
-$me = current_user();
+$me = require_login();
+$passwordError = '';
+
+// Change password: the current one is required; other devices are logged out
+if (($_POST['action'] ?? '') === 'change_password') {
+	$new = (string) ($_POST['new_password'] ?? '');
+
+	if (!csrf_valid()) {
+		$passwordError = t('auth.err_csrf');
+	} elseif (!password_check((string) ($_POST['current_password'] ?? ''), user_password_hash($me['id']))) {
+		$passwordError = t('auth.err_current_password');
+		log_action('auth.password_change_failed');
+	} elseif (!password_ok($new)) {
+		$passwordError = t('auth.err_password');
+	} else {
+		set_user_password($me['id'], password_hash($new, PASSWORD_DEFAULT));
+		delete_user_remember_tokens($me['id']);
+		login_user($me['id'], isset($_COOKIE[REMEMBER_COOKIE]));
+		log_action('auth.password_changed');
+		flash('success', t('p.password_saved'));
+		redirect(url('profile.php') . '#settings');
+	}
+}
+
 $myListings = user_listings($me['id']);
 $counts = [
 	'' => count($myListings),
@@ -34,8 +58,12 @@ require INC_DIR . '/header.php';
 				<span><?= icon('tag', 16) ?><?= e(tp('p.active_count', $counts['active'])) ?></span>
 			</p>
 			<p class="profile-head__badges">
+				<?php if ($me['verified']): ?>
 				<span class="badge badge--verified"><?= icon('check-circle', 16) ?><?= e(t('p.verified_phone')) ?></span>
+				<?php endif; ?>
+				<?php if ($me['email_verified']): ?>
 				<span class="badge badge--verified"><?= icon('check-circle', 16) ?><?= e(t('p.verified_email')) ?></span>
+				<?php endif; ?>
 			</p>
 		</div>
 		<a class="btn btn--primary" href="<?= e(url('post.php')) ?>"><?= icon('plus', 18) ?><?= e(t('nav.post_ad')) ?></a>
@@ -97,6 +125,17 @@ require INC_DIR . '/header.php';
 
 		<!-- Account settings -->
 		<div class="tabs__panel" role="tabpanel" id="panel-settings" aria-labelledby="tab-settings" tabindex="0" hidden>
+			<?php if (!$me['email_verified']): ?>
+			<!-- Email not confirmed yet: new link -->
+			<form class="panel" method="post" action="<?= e(url('verify.php')) ?>">
+				<?= csrf_field() ?>
+				<div class="panel__body row row--between">
+					<p class="notice"><?= icon('mail', 20) ?><?= e(t('auth.verify_needed', ['email' => $me['email']])) ?></p>
+					<button type="submit" class="btn btn--outline"><?= e(t('auth.verify_resend')) ?></button>
+				</div>
+			</form>
+			<?php endif; ?>
+
 			<form class="panel" method="post" data-demo="<?= e(t('p.saved')) ?>">
 				<div class="panel__body">
 					<h2 class="panel__title"><?= e(t('p.personal')) ?></h2>
@@ -132,9 +171,14 @@ require INC_DIR . '/header.php';
 				</div>
 			</form>
 
-			<form class="panel" method="post" data-demo="<?= e(t('p.password_saved')) ?>" data-demo-reset>
+			<form class="panel" method="post" action="<?= e(url('profile.php')) ?>#settings">
+				<?= csrf_field() ?>
+				<input type="hidden" name="action" value="change_password">
 				<div class="panel__body">
 					<h2 class="panel__title"><?= e(t('p.change_password')) ?></h2>
+					<?php if ($passwordError !== ''): ?>
+					<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($passwordError) ?></p>
+					<?php endif; ?>
 					<div class="form-grid">
 						<div class="field">
 							<label class="field__label" for="s-pass"><?= e(t('p.current_password')) ?></label>
@@ -142,7 +186,7 @@ require INC_DIR . '/header.php';
 						</div>
 						<div class="field">
 							<label class="field__label" for="s-pass-new"><?= e(t('p.new_password')) ?></label>
-							<input class="input" id="s-pass-new" name="new_password" type="password" autocomplete="new-password" minlength="8" required aria-describedby="s-pass-hint">
+							<input class="input" id="s-pass-new" name="new_password" type="password" autocomplete="new-password" minlength="8" maxlength="72" required aria-describedby="s-pass-hint">
 							<span class="field__hint" id="s-pass-hint"><?= e(t('auth.password_hint')) ?></span>
 						</div>
 					</div>
@@ -151,6 +195,16 @@ require INC_DIR . '/header.php';
 					</div>
 				</div>
 			</form>
+
+			<section class="panel" aria-labelledby="logout-title">
+				<div class="panel__body">
+					<h2 class="panel__title" id="logout-title"><?= e(t('nav.logout')) ?></h2>
+					<div class="row row--between">
+						<p class="muted"><?= e(t('p.logout_text')) ?></p>
+						<a class="btn btn--outline" href="<?= e(url('logout.php', ['csrf' => csrf_token()])) ?>"><?= icon('logout', 18) ?><?= e(t('nav.logout')) ?></a>
+					</div>
+				</div>
+			</section>
 
 			<section class="panel danger-zone" aria-labelledby="danger-title">
 				<div class="panel__body">
