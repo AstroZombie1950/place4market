@@ -335,12 +335,12 @@ button {
 
 .btn--danger {
 	background: var(--color-danger);
-	color: #FFFFFF;
+	color: var(--color-on-status);
 }
 
 .btn--danger:hover {
 	background: var(--color-danger-hover);
-	color: #FFFFFF;
+	color: var(--color-on-status);
 }
 
 .btn--danger-ghost {
@@ -598,7 +598,7 @@ button {
 	width: 20px;
 	height: 20px;
 	border-radius: 50%;
-	background: #FFFFFF;
+	background: var(--color-knob);
 	box-shadow: var(--shadow-sm);
 	transition: transform var(--transition);
 }
@@ -1755,6 +1755,11 @@ button {
 	gap: var(--space-5);
 }
 
+/* The column's gap spaces the panels; the margin of .panel + .panel would double it */
+.listing__aside > .panel + .panel {
+	margin-top: 0;
+}
+
 /* Gallery */
 .gallery__main {
 	position: relative;
@@ -2443,7 +2448,7 @@ button {
 	flex-shrink: 0;
 	width: 44px;
 	height: 44px;
-	border: 1px solid rgba(242, 237, 228, 0.35);
+	border: 1px solid var(--color-on-sea-border);
 	border-radius: var(--radius);
 }
 
@@ -3672,9 +3677,10 @@ button {
 		display: inline-flex;
 	}
 
-	/* The filters column leaves the flow (drawer): no gap before the results */
+	/* The filters column leaves the flow (drawer): no gap before the results, neither
+	   beside them nor above (on phones the results wrap under the empty column) */
 	.layout.layout--filters {
-		column-gap: 0;
+		gap: 0;
 	}
 
 	.layout--filters > .layout__side {
@@ -3740,6 +3746,11 @@ button {
 
 	.listing__aside {
 		position: static;
+		margin-top: var(--space-5);
+	}
+
+	/* One column: details, description and location keep the aside's 20px rhythm */
+	.listing__section {
 		margin-top: var(--space-5);
 	}
 
@@ -3943,6 +3954,11 @@ button {
 		width: 28px;
 		height: 3px;
 		background: var(--color-accent);
+	}
+
+	/* Icons take the height of the "+" tile (38px), so all five labels sit on one line */
+	.bottom-nav__link > .icon {
+		margin-block: var(--space-2);
 	}
 
 	.bottom-nav__link--post {
@@ -4230,6 +4246,12 @@ button {
 		display: none;
 	}
 
+	/* On phones the list stands alone: no row looks opened until it is */
+	.chat:not(.is-thread-open) .conv[aria-current="true"] {
+		background: none;
+		box-shadow: none;
+	}
+
 	.chat.is-thread-open .thread:not([hidden]) {
 		display: flex;
 		min-height: calc(100dvh - var(--bottom-nav-h) - 200px);
@@ -4370,6 +4392,44 @@ button {
 
 	.contact__form {
 		flex-basis: 100%;
+	}
+}
+
+/* ==========================================================================
+	Touch screens: text links outside running text (breadcrumbs, the seller's
+	name, titles in lists) keep their look and get a 44px tap zone around them
+	========================================================================== */
+@media (pointer: coarse) {
+	.breadcrumbs a,
+	.seller__name a,
+	.auth__switch a,
+	.mylist__title a,
+	.saved-search__title a {
+		position: relative;
+	}
+
+	.breadcrumbs a::after,
+	.seller__name a::after,
+	.auth__switch a::after,
+	.mylist__title a::after,
+	.saved-search__title a::after {
+		content: "";
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		width: max(100%, var(--tap-size));
+		height: max(100%, var(--tap-size));
+		transform: translate(-50%, -50%);
+	}
+
+	/* Cover / remove buttons on a photo in the post form */
+	.photo-item__actions {
+		gap: var(--space-2);
+	}
+
+	.photo-item__btn {
+		width: var(--tap-size);
+		height: var(--tap-size);
 	}
 }
 

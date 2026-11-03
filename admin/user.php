@@ -17,6 +17,7 @@ if (!$user) {
 
 $userListings = user_listings($user['id']);
 $userReports = reports(['seller' => $user['id']]);
+$reportListings = find_listings(array_column($userReports, 'listing_id'));
 $activity = audit_entries(30, null, $user['id']);
 $back = 'user.php?id=' . $user['id'];
 $isSelf = $user['id'] === $currentAdmin['id'];
@@ -150,6 +151,11 @@ require ADMIN_INC . '/header.php';
 					</div>
 				</div>
 			</fieldset>
+			<?php if ($canEdit): ?>
+			<div class="form-actions">
+				<button type="submit" class="btn btn--primary"><?= icon('check', 18) ?>Save changes</button>
+			</div>
+			<?php endif; ?>
 		</form>
 
 		<div class="form-section form-section--split">
@@ -216,7 +222,7 @@ require ADMIN_INC . '/header.php';
 							<div class="cell-main">
 								<?= thumb($listing, 'sm') ?>
 								<div class="cell-main__text">
-									<a class="cell-main__title" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= e($listing['title']) ?></a>
+									<a class="cell-main__title" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= e(admin_title($listing)) ?></a>
 									<div class="cell-main__sub">#<?= (int) $listing['id'] ?> · <?= e(category_name($listing['category'])) ?></div>
 								</div>
 							</div>
@@ -225,7 +231,7 @@ require ADMIN_INC . '/header.php';
 						<td><?= status_badge($listing['status']) ?></td>
 						<td class="nowrap muted"><?= e(format_date($listing['created'])) ?></td>
 						<td class="num"><?= (int) $listing['views'] ?></td>
-						<td class="col-actions"><a class="btn btn--ghost btn--icon btn--sm" href="listing-edit.php?id=<?= (int) $listing['id'] ?>" aria-label="Edit “<?= e($listing['title']) ?>”"><?= icon('edit', 18) ?></a></td>
+						<td class="col-actions"><a class="btn btn--ghost btn--icon btn--sm" href="listing-edit.php?id=<?= (int) $listing['id'] ?>" aria-label="Edit “<?= e(admin_title($listing)) ?>”"><?= icon('edit', 18) ?></a></td>
 					</tr>
 					<?php endforeach; ?>
 				</tbody>
@@ -240,11 +246,11 @@ require ADMIN_INC . '/header.php';
 	<div class="tabs__panel" role="tabpanel" id="panel-reports" aria-labelledby="tab-reports" tabindex="0" hidden>
 		<?php if ($userReports): ?>
 		<ul class="list">
-			<?php foreach ($userReports as $report): $listing = find_listing($report['listing_id']); ?>
+			<?php foreach ($userReports as $report): $listing = $reportListings[$report['listing_id']] ?? null; ?>
 			<li class="list__item">
 				<span class="stat__icon stat__icon--danger"><?= icon('flag', 18) ?></span>
 				<div class="list__main">
-					<span class="list__title"><?= e(report_reasons()[$report['reason']] ?? $report['reason']) ?> · “<?= e($listing['title']) ?>”</span>
+					<span class="list__title"><?= e(report_reasons()[$report['reason']] ?? $report['reason']) ?> · “<?= e(admin_title($listing)) ?>”</span>
 					<div class="list__meta">Reported by <?= e(user_name($report['reporter_id'])) ?> · <?= e(format_date($report['created'], true)) ?></div>
 				</div>
 				<div class="list__aside"><?= status_badge($report['status']) ?></div>

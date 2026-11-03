@@ -150,7 +150,8 @@ require ADMIN_INC . '/header.php';
 	</div>
 
 	<!-- General -->
-	<form class="tabs__panel card__body" role="tabpanel" id="panel-general" aria-labelledby="tab-general" tabindex="0" method="post" action="settings.php">
+	<div class="tabs__panel card__body" role="tabpanel" id="panel-general" aria-labelledby="tab-general" tabindex="0">
+	<form method="post" action="settings.php">
 		<?= csrf_field() ?>
 		<input type="hidden" name="action" value="save">
 		<input type="hidden" name="section" value="general">
@@ -187,9 +188,11 @@ require ADMIN_INC . '/header.php';
 			<button type="submit" class="btn btn--primary"><?= icon('check', 18) ?>Save</button>
 		</div>
 	</form>
+	</div>
 
 	<!-- Moderation -->
-	<form class="tabs__panel card__body" role="tabpanel" id="panel-moderation" aria-labelledby="tab-moderation" tabindex="0" method="post" action="settings.php" hidden>
+	<div class="tabs__panel card__body" role="tabpanel" id="panel-moderation" aria-labelledby="tab-moderation" tabindex="0" hidden>
+	<form method="post" action="settings.php">
 		<?= csrf_field() ?>
 		<input type="hidden" name="action" value="save">
 		<input type="hidden" name="section" value="moderation">
@@ -245,6 +248,7 @@ require ADMIN_INC . '/header.php';
 			<button type="submit" class="btn btn--primary"><?= icon('check', 18) ?>Save</button>
 		</div>
 	</form>
+	</div>
 
 	<!-- Cities -->
 	<div class="tabs__panel" role="tabpanel" id="panel-cities" aria-labelledby="tab-cities" tabindex="0" hidden>

@@ -16,7 +16,12 @@ $page['body_class'] = 'body--home';
 $page['schema'][] = schema_site();
 
 // 12 newest listings: 4 rows on desktop, 6 on phones
-$recent = search_listings([], 12);
+const HOME_RECENT = 12;
+$recent = search_listings([], HOME_RECENT);
+// "Show more" continues after them on the results page that holds listing 13 (any page size
+// from the settings: nothing is skipped); only when there is more
+$morePage = intdiv(HOME_RECENT, setting('per_page')) + 1;
+$hasMore = count_listings([]) > HOME_RECENT;
 
 require INC_DIR . '/header.php';
 ?>
@@ -72,9 +77,11 @@ require INC_DIR . '/header.php';
 				<?php endforeach; ?>
 			</div>
 
+			<?php if ($hasMore): ?>
 			<div class="show-more">
-				<a class="btn btn--outline" href="<?= e(url('category.php', ['page' => 2])) ?>"><?= e(t('common.show_more')) ?></a>
+				<a class="btn btn--outline" href="<?= e(url('category.php', ['page' => $morePage > 1 ? $morePage : null])) ?>"><?= e(t('common.show_more')) ?></a>
 			</div>
+			<?php endif; ?>
 		</section>
 	</div>
 </div>

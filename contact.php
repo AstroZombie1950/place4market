@@ -18,7 +18,7 @@ $topic = in_array($src['topic'] ?? '', $topics, true) ? $src['topic'] : 'general
 $listingId = substr(preg_replace('/\D/', '', (string) ($src['listing'] ?? '')), 0, 10);
 // A logged-in visitor's name and email are filled in
 $form = [
-	'name' => trim(mb_substr((string) ($_POST['name'] ?? current_user()['name'] ?? ''), 0, 100)),
+	'name' => trim(mb_substr(preg_replace('/\s+/u', ' ', (string) ($_POST['name'] ?? current_user()['name'] ?? '')), 0, 100)),
 	'email' => mb_strtolower(trim((string) ($_POST['email'] ?? current_user()['email'] ?? ''))),
 	'message' => trim(mb_substr(str_replace("\r\n", "\n", (string) ($_POST['message'] ?? '')), 0, 5000)),
 ];

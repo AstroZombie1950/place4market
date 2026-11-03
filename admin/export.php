@@ -38,7 +38,7 @@ if ($type === 'listings') {
 		'user' => ctype_digit(list_param('user')) ? list_param('user') : '',
 	];
 	$head = ['ID', 'Title', 'Category', 'Price', 'Currency', 'Negotiable', 'City', 'Seller ID', 'Seller', 'Seller email', 'Status',
-		'Created', 'Published', 'Expires', 'Views', 'Favorites', 'Messages', 'Photos', 'Language', 'URL'];
+		'Created', 'Published', 'Expires', 'Views', 'Favorites', 'Conversations', 'Photos', 'Language', 'URL'];
 	$chunk = fn(int $offset) => admin_listing_rows($f, EXPORT_CHUNK, $offset);
 	$row = fn(array $l) => [
 		$l['id'], $l['title'], category_path($l['category']), $l['price'], $l['currency'], $l['negotiable'] ? 'yes' : 'no', $l['city'],

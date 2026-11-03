@@ -124,9 +124,14 @@ function clean_attrs(string $slug, array $input, bool $strict = true): array
 	return [$attrs, ''];
 }
 
-// "168 000" / "2,5" → number within the field's limits and step, or null
+// "168 000" / "2,5" / "168 000 km" (the field's own unit typed after the number) → number
+// within the field's limits and step, or null
 function attr_number(string $raw, array $field): int|float|null
 {
+	$unit = $field['unit'] ?? '';
+	if ($unit !== '') {
+		$raw = preg_replace('/\s*' . preg_quote(str_starts_with($unit, 'u.') ? t($unit) : $unit, '/') . '$/iu', '', $raw);
+	}
 	$raw = str_replace(',', '.', preg_replace('/[\s\x{00A0}]/u', '', $raw));
 
 	if (!preg_match('/^\d+(\.\d+)?$/', $raw)) {

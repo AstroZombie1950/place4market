@@ -30,6 +30,7 @@ $counts = report_counts($query);
 $total = count_reports($query);
 [$page, $offset] = list_page($total);
 $reports = reports($query, ADMIN_PAGE_SIZE, $offset);
+$reportListings = find_listings(array_column($reports, 'listing_id'));
 $back = list_url('reports.php', $f, ['status' => $f['status'] === 'open' ? null : $f['status'], 'page' => $page > 1 ? $page : null]);
 
 require ADMIN_INC . '/header.php';
@@ -86,13 +87,13 @@ require ADMIN_INC . '/header.php';
 			</thead>
 			<tbody>
 				<?php foreach ($reports as $report):
-					$listing = find_listing($report['listing_id']);
+					$listing = $reportListings[$report['listing_id']] ?? null;
 					$reasonLabel = report_reasons()[$report['reason']] ?? $report['reason'];
 					$payload = [
 						'report_id' => (string) $report['id'],
 						'r_id' => '#' . $report['id'],
 						'r_reason' => $reasonLabel,
-						'r_listing' => $listing['title'] ?? '—',
+						'r_listing' => admin_title($listing),
 						'r_seller' => user_name($listing['user_id'] ?? 0),
 						'r_reporter' => user_name($report['reporter_id']),
 						'r_date' => format_date($report['created'], true),
@@ -108,7 +109,7 @@ require ADMIN_INC . '/header.php';
 						<div class="cell-main">
 							<?= thumb($listing, 'sm') ?>
 							<div class="cell-main__text">
-								<a class="cell-main__title" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= e($listing['title']) ?></a>
+								<a class="cell-main__title" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= e(admin_title($listing)) ?></a>
 								<div class="cell-main__sub">Seller: <?= e(user_name($listing['user_id'])) ?></div>
 							</div>
 						</div>

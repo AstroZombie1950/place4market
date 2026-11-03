@@ -31,7 +31,7 @@ $cardTitle = listing_title($listing);
 		<h3 class="card__title"><a class="card__link" href="<?= e(listing_url($listing)) ?>"><?= e($cardTitle) ?></a></h3>
 		<p class="card__meta">
 			<span><?= e(city_name($listing['city'])) ?></span>
-			<time datetime="<?= e(date('c', strtotime($listing['created']))) ?>"><?= e(time_ago($listing['created'])) ?></time>
+			<time datetime="<?= e(date('c', strtotime(listing_time($listing)))) ?>"><?= e(time_ago(listing_time($listing))) ?></time>
 		</p>
 	</div>
 </article>

@@ -70,6 +70,16 @@ function category_parent(string $slug): ?array
 	return null;
 }
 
+// Listing title for staff screens; a draft may have none yet: "Untitled (Draft)"
+function admin_title(?array $listing): string
+{
+	if (!$listing) {
+		return '—';
+	}
+
+	return $listing['title'] !== '' ? $listing['title'] : 'Untitled (' . status_meta($listing['status'])[0] . ')';
+}
+
 // Category name (EN) for any slug
 function category_name(string $slug): string
 {

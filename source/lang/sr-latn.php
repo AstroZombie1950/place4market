@@ -455,7 +455,7 @@ return [
 	'p.empty' => 'Ovde još nema oglasa.',
 	'p.actions' => 'Radnje za „{title}“',
 	'p.stats_views' => ['one' => '{n} pregled', 'few' => '{n} pregleda', 'many' => '{n} pregleda'],
-	'p.stats_messages' => ['one' => '{n} poruka', 'few' => '{n} poruke', 'many' => '{n} poruka'],
+	'p.stats_messages' => ['one' => '{n} razgovor', 'few' => '{n} razgovora', 'many' => '{n} razgovora'],
 	'p.active_count' => ['one' => '{n} aktivan oglas', 'few' => '{n} aktivna oglasa', 'many' => '{n} aktivnih oglasa'],
 	'p.personal' => 'Lični podaci',
 	'p.email_hint' => 'Nova adresa važi kada je potvrdite e-poštom.',

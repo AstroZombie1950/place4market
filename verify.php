@@ -52,6 +52,7 @@ if ($userId !== null) {
 $page['title'] = t('auth.verify_title');
 $page['robots'] = 'noindex, follow';
 $page['search'] = false;
+$page['nav'] = 'profile';
 
 require INC_DIR . '/header.php';
 ?>

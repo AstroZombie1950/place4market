@@ -115,18 +115,18 @@ require ADMIN_INC . '/header.php';
 			<tbody>
 				<?php foreach ($listings as $listing): ?>
 				<tr data-row data-id="<?= (int) $listing['id'] ?>">
-					<td class="col-check"><input type="checkbox" data-row-check aria-label="Select “<?= e($listing['title']) ?>”"></td>
+					<td class="col-check"><input type="checkbox" data-row-check aria-label="Select “<?= e(admin_title($listing)) ?>”"></td>
 					<td>
 						<div class="cell-main">
 							<?= thumb($listing) ?>
 							<div class="cell-main__text">
-								<a class="cell-main__title" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= e($listing['title']) ?></a>
+								<a class="cell-main__title" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= e(admin_title($listing)) ?></a>
 								<div class="cell-main__sub">#<?= (int) $listing['id'] ?><?= $listing['negotiable'] ? ' · Negotiable' : '' ?></div>
 								<?php if ($listing['moderation_note'] && $listing['status'] === 'pending'): ?><div class="cell-main__sub text-danger"><?= e($listing['moderation_note']) ?></div><?php endif; ?>
 							</div>
 						</div>
 					</td>
-					<td class="nowrap">
+					<td>
 						<?= e(category_name($listing['category'])) ?>
 						<div class="cell-main__sub"><?= e(category_parent($listing['category'])['names']['en'] ?? '') ?></div>
 					</td>
@@ -143,7 +143,7 @@ require ADMIN_INC . '/header.php';
 					<td class="num"><?= (int) $listing['views'] ?></td>
 					<td class="col-actions">
 						<div class="dropdown" data-dropdown>
-							<button type="button" class="btn btn--ghost btn--icon btn--sm" data-dropdown-toggle aria-expanded="false" aria-label="Actions for “<?= e($listing['title']) ?>”"><?= icon('more', 18) ?></button>
+							<button type="button" class="btn btn--ghost btn--icon btn--sm" data-dropdown-toggle aria-expanded="false" aria-label="Actions for “<?= e(admin_title($listing)) ?>”"><?= icon('more', 18) ?></button>
 							<form class="dropdown__menu" method="post" action="moderate.php">
 								<?= csrf_field() ?>
 								<input type="hidden" name="id" value="<?= (int) $listing['id'] ?>">
@@ -154,11 +154,11 @@ require ADMIN_INC . '/header.php';
 								<button type="submit" class="dropdown__item" name="action" value="approve"><?= icon('check', 18) ?>Approve</button>
 								<?php endif; ?>
 								<?php if (in_array($listing['status'], ['pending', 'active', 'inactive', 'expired'], true)): ?>
-								<button type="button" class="dropdown__item" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => $listing['title'], 'id_list' => (string) $listing['id']]) ?>"><?= icon('ban', 18) ?>Reject</button>
+								<button type="button" class="dropdown__item" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => admin_title($listing), 'id_list' => (string) $listing['id']]) ?>"><?= icon('ban', 18) ?>Reject</button>
 								<?php endif; ?>
 								<?php if ($listing['status'] !== 'deleted'): ?>
 								<div class="dropdown__sep"></div>
-								<button type="submit" class="dropdown__item dropdown__item--danger" name="action" value="delete" data-confirm="Delete “<?= e($listing['title']) ?>”? Its photos are removed, this cannot be undone." data-confirm-label="Delete"><?= icon('trash', 18) ?>Delete</button>
+								<button type="submit" class="dropdown__item dropdown__item--danger" name="action" value="delete" data-confirm="Delete “<?= e(admin_title($listing)) ?>”? Its photos are removed, this cannot be undone." data-confirm-label="Delete"><?= icon('trash', 18) ?>Delete</button>
 								<?php endif; ?>
 							</form>
 						</div>

@@ -12,21 +12,15 @@ const SITE_NAME = 'Place4Market';
 const SITE_HOST = 'place4market.com';
 const SITE_EMAIL = 'support@place4market.com'; // placeholder until the client gives the real one
 
-// Absolute URL for a link built by url(): site_url('listing.php?id=5')
+// Absolute URL for a link built by url(): site_url('listing.php?id=5').
+// Always https://place4market.com, whatever the Host header says: links in letters (password
+// reset, email change) must not lead to a forged host. Only php -S on a developer machine
+// keeps its own host
 function site_url(string $link = ''): string
 {
 	static $base = null;
 
-	if ($base === null) {
-		$host = $_SERVER['HTTP_HOST'] ?? SITE_HOST;
-		// Production always canonical as https://place4market.com, local dev keeps its own host
-		if (preg_replace('/^www\./', '', $host) === SITE_HOST) {
-			$base = 'https://' . SITE_HOST;
-		} else {
-			$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-			$base = $scheme . '://' . $host;
-		}
-	}
+	$base ??= IS_DEV && !empty($_SERVER['HTTP_HOST']) ? 'http://' . $_SERVER['HTTP_HOST'] : 'https://' . SITE_HOST;
 
 	return $base . '/' . preg_replace('#^\./#', '', $link);
 }

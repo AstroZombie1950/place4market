@@ -180,6 +180,8 @@ if ($draft) {
 	array_unshift($conversations, $draft);
 }
 $ids = array_column($conversations, 'id');
+// The listing of every conversation, read once for the list and the threads
+$convListings = find_listings(array_column($conversations, 'listing_id'));
 $activeId = $draft ? 0 : (in_array($requested, $ids, true) ? $requested : ($ids[0] ?? null));
 $openOnLoad = $draft || ($requested && $activeId === $requested);
 $quickReplies = [t('m.quick_1'), t('m.quick_2'), t('m.quick_3')];
@@ -208,7 +210,7 @@ require INC_DIR . '/header.php';
 			<ul class="chat__convs">
 				<?php foreach ($conversations as $conv):
 					$other = user($conv['with']);
-					$item = find_listing($conv['listing_id']);
+					$item = $convListings[$conv['listing_id']];
 					$last = end($conv['messages']) ?: null;
 					$rowId = 'conv-' . $conv['id'];
 				?>
@@ -240,7 +242,7 @@ require INC_DIR . '/header.php';
 		<!-- Threads (one visible at a time) -->
 		<?php foreach ($conversations as $conv):
 			$other = user($conv['with']);
-			$item = find_listing($conv['listing_id']);
+			$item = $convListings[$conv['listing_id']];
 			$threadId = 'thread-' . $conv['id'];
 			$prevDay = null;
 		?>
@@ -290,12 +292,14 @@ require INC_DIR . '/header.php';
 				<?php endforeach; ?>
 			</div>
 
-			<!-- Quick replies -->
+			<!-- Quick replies: a buyer's questions, so the seller of the listing does not get them -->
+			<?php if ($item['user_id'] !== $me['id']): ?>
 			<div class="quick" role="group" aria-label="<?= e(t('m.quick')) ?>">
 				<?php foreach ($quickReplies as $reply): ?>
 				<button type="button" class="chip" data-quick><?= e($reply) ?></button>
 				<?php endforeach; ?>
 			</div>
+			<?php endif; ?>
 
 			<!-- Composer: a new conversation is sent with the listing id -->
 			<form class="composer" method="post" action="<?= e(url('messages.php')) ?>" data-composer>

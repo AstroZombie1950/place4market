@@ -154,7 +154,7 @@ require INC_DIR . '/header.php';
 
 				<p class="listing-head__meta">
 					<span><?= icon('map-pin', 16) ?><?= e(city_name($listing['city'])) ?></span>
-					<span><?= icon('clock', 16) ?><time datetime="<?= e(date('c', strtotime($listing['created']))) ?>"><?= e(time_ago($listing['created'])) ?></time></span>
+					<span><?= icon('clock', 16) ?><time datetime="<?= e(date('c', strtotime(listing_time($listing)))) ?>"><?= e(time_ago(listing_time($listing))) ?></time></span>
 					<span><?= icon('eye', 16) ?><?= e(tp('p.stats_views', $listing['views'])) ?></span>
 				</p>
 
@@ -208,7 +208,7 @@ require INC_DIR . '/header.php';
 						<?php if ($canReport && current_user()): ?>
 						<button type="button" class="text-link" data-dialog-open="report-dialog"><?= icon('flag', 16) ?><?= e(t('l.report')) ?></button>
 						<?php elseif ($canReport): ?>
-						<a class="text-link" href="<?= e(url('auth.php', ['next' => listing_url($listing)])) ?>" title="<?= e(t('l.report_login')) ?>"><?= icon('flag', 16) ?><?= e(t('l.report')) ?></a>
+						<a class="text-link" href="<?= e(url('auth.php', ['next' => '/' . listing_url($listing)])) ?>" title="<?= e(t('l.report_login')) ?>"><?= icon('flag', 16) ?><?= e(t('l.report')) ?></a>
 						<?php endif; ?>
 					</div>
 				</div>

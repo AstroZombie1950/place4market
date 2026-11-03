@@ -125,8 +125,8 @@
 			if (e.key === 'Escape' && sidebar.classList.contains('is-open')) setOpen(false);
 		});
 
-		// Back to desktop layout: reset state
-		window.matchMedia('(min-width: 1025px)').addEventListener('change', (e) => {
+		// Back to desktop layout (≥1024, admin.css): reset state
+		window.matchMedia('(min-width: 1024px)').addEventListener('change', (e) => {
 			if (e.matches) setOpen(false);
 		});
 	};
@@ -176,6 +176,14 @@
 				|| tabs.find((t) => t.getAttribute('aria-selected') === 'true')
 				|| tabs[0];
 			select(initial, { updateHash: false });
+
+			// Only the #part of the address changed (a link to another tab of this page): follow it
+			if (useHash) {
+				window.addEventListener('hashchange', () => {
+					const tab = document.getElementById('tab-' + location.hash.slice(1));
+					if (tab && tabs.includes(tab)) select(tab, { updateHash: false });
+				});
+			}
 
 			// Links that open a tab: <a href="#photos" data-open-tab="tab-photos">
 			$$('[data-open-tab]').forEach((link) => {
@@ -236,6 +244,13 @@
 					});
 				}
 				if (e.target.matches('[data-check-all], [data-row-check]')) updateBulk(table);
+			});
+
+			// The whole checkbox cell toggles its box: a 24px box alone is a small touch target
+			table.addEventListener('click', (e) => {
+				const cell = e.target.closest('td, th');
+				const box = cell && !e.target.matches('input') ? $('[data-row-check], [data-check-all]', cell) : null;
+				if (box) box.click();
 			});
 
 			// Checkboxes the browser restored after "Back"
@@ -351,6 +366,10 @@
 				const dialog = document.getElementById(opener.dataset.modalOpen);
 				if (dialog && typeof dialog.showModal === 'function') {
 					closeDropdowns();
+					// Opened for another row: nothing typed for the previous one stays
+					// (a reject message must not reach the wrong seller)
+					const form = $('form', dialog);
+					if (form) form.reset();
 					if (opener.dataset.payload) fillFields(dialog, readPayload(opener));
 					if (opener.dataset.bulkIds) fillFields(dialog, { id_list: checkedIds(opener.dataset.bulkIds).join(',') });
 					dialog.showModal();
@@ -442,8 +461,10 @@
 				const row = edit.closest('.tree__row');
 				if (row) row.classList.add('is-current');
 
-				// On stacked layout, bring the form into view
-				if (window.matchMedia('(max-width: 1200px)').matches) {
+				// Stacked layout (the form wrapped under the tree, up to ~1250px): bring it into view
+				const card = form.closest('.card');
+				const tree = card && card.previousElementSibling;
+				if (card && tree && card.getBoundingClientRect().top >= tree.getBoundingClientRect().bottom) {
 					form.scrollIntoView({ behavior: 'smooth', block: 'start' });
 				}
 				const firstField = $('input:not([type="hidden"])', form);

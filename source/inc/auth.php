@@ -292,10 +292,12 @@ function auth_token_hash(string $token): string
 
 /* ---------- Redirects and one-time messages ---------- */
 
-// Only paths of this site: "/profile.php?x=1", never "//evil.com" or "https://…"
+// Only paths of this site: "/profile.php?x=1", never "//evil.com" or "https://…".
+// Backslashes and control characters are refused anywhere: browsers drop tabs and line
+// breaks from a URL and read "\" as "/", so "/\t/evil.com" would lead to //evil.com
 function safe_next(string $next, string $fallback): string
 {
-	return preg_match('~^/(?![/\\\\])~', $next) ? $next : $fallback;
+	return preg_match('~^/(?!/)[^\x00-\x1F\x7F\\\\]*$~', $next) ? $next : $fallback;
 }
 
 function redirect(string $location, int $code = 303): never

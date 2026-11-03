@@ -18,7 +18,7 @@ $openRegister = $action === 'register' || ($action === '' && ($_GET['tab'] ?? ''
 $errors = ['login' => '', 'register' => ''];
 $old = [
 	'email' => mb_strtolower(trim((string) ($_POST['email'] ?? ''))),
-	'name' => trim((string) ($_POST['name'] ?? '')),
+	'name' => trim(preg_replace('/\s+/u', ' ', (string) ($_POST['name'] ?? ''))),
 	'phone' => trim((string) ($_POST['phone'] ?? '')),
 	'city' => (string) ($_POST['city'] ?? 'Beograd'),
 ];
@@ -83,6 +83,8 @@ if ($action === 'register') {
 $page['title'] = t('auth.title');
 $page['robots'] = 'noindex, follow';
 $page['search'] = false;
+// The account item ("Log in") of the header and the bottom bar
+$page['nav'] = 'profile';
 
 require INC_DIR . '/header.php';
 ?>

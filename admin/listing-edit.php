@@ -28,7 +28,7 @@ $editable = $listing['status'] !== 'deleted';
 
 // Form values: the listing, replaced by the sent form
 $v = [
-	'title' => $listing['title'],
+	'title' => admin_title($listing),
 	'description' => $listing['description'],
 	'category' => $listing['category'],
 	'city' => $listing['city'],
@@ -197,7 +197,7 @@ require ADMIN_INC . '/header.php';
 			<li><a href="listings.php">Listings</a></li>
 			<li aria-current="page">#<?= (int) $listing['id'] ?></li>
 		</ol>
-		<h1 class="page-head__title"><?= e($listing['title']) ?> <?= status_badge($listing['status']) ?></h1>
+		<h1 class="page-head__title"><?= e(admin_title($listing)) ?> <?= status_badge($listing['status']) ?></h1>
 	</div>
 	<div class="page-head__actions">
 		<a class="btn btn--secondary" href="<?= SITE_URL ?>listing.php?id=<?= (int) $listing['id'] ?>" target="_blank" rel="noopener"><?= icon('external', 18) ?>View on site</a>
@@ -288,6 +288,12 @@ require ADMIN_INC . '/header.php';
 						</label>
 					</div>
 				</fieldset>
+				<?php if ($editable): ?>
+				<!-- Also at the end of the long form, not only in the page head -->
+				<div class="form-actions">
+					<button type="submit" class="btn btn--primary"><?= icon('check', 18) ?>Save changes</button>
+				</div>
+				<?php endif; ?>
 			</form>
 		</div>
 
@@ -295,7 +301,7 @@ require ADMIN_INC . '/header.php';
 		<div class="tabs__panel card__body" role="tabpanel" id="panel-photos" aria-labelledby="tab-photos" tabindex="0" hidden>
 			<?php if ($listing['images']): ?>
 			<div class="photos">
-				<?php foreach ($listing['images'] as $i => $image): $alt = 'Photo ' . ($i + 1) . ' of “' . $listing['title'] . '”'; ?>
+				<?php foreach ($listing['images'] as $i => $image): $alt = 'Photo ' . ($i + 1) . ' of “' . admin_title($listing) . '”'; ?>
 				<figure class="photo">
 					<?= photo($image, '(max-width: 1023px) 50vw, 220px', ['alt' => $alt]) ?>
 					<?php if ($i === 0): ?><span class="badge badge--info badge--plain photo__cover">Cover</span><?php endif; ?>
@@ -319,7 +325,7 @@ require ADMIN_INC . '/header.php';
 			<div class="photos">
 				<?php foreach ($listing['videos'] as $i => $video): ?>
 				<figure class="photo">
-					<video controls preload="none" width="<?= (int) $video['width'] ?>" height="<?= (int) $video['height'] ?>" poster="<?= e(photo_url($video['poster'], isset($video['poster']['sizes'][480]) ? 480 : array_key_last($video['poster']['sizes']))) ?>" aria-label="Video <?= $i + 1 ?> of “<?= e($listing['title']) ?>”">
+					<video controls preload="none" width="<?= (int) $video['width'] ?>" height="<?= (int) $video['height'] ?>" poster="<?= e(photo_url($video['poster'], isset($video['poster']['sizes'][480]) ? 480 : array_key_last($video['poster']['sizes']))) ?>" aria-label="Video <?= $i + 1 ?> of “<?= e(admin_title($listing)) ?>”">
 						<source src="<?= e(video_url($video)) ?>" type="video/mp4">
 					</video>
 					<figcaption class="photo__bar"><span class="text-sm"><?= e(video_time($video['duration'])) ?> · <?= (int) $video['width'] ?>×<?= (int) $video['height'] ?> · <?= e(number_format($video['bytes'] / 1048576, 1, ',', ' ')) ?> MB</span></figcaption>
@@ -428,7 +434,7 @@ require ADMIN_INC . '/header.php';
 					<button type="submit" class="btn btn--success" name="action" value="approve"><?= icon('check', 18) ?>Approve</button>
 					<?php endif; ?>
 					<?php if (in_array($listing['status'], ['pending', 'active', 'inactive', 'expired'], true)): ?>
-					<button type="button" class="btn btn--secondary" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => $listing['title'], 'id_list' => (string) $listing['id']]) ?>"><?= icon('ban', 18) ?>Reject</button>
+					<button type="button" class="btn btn--secondary" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => admin_title($listing), 'id_list' => (string) $listing['id']]) ?>"><?= icon('ban', 18) ?>Reject</button>
 					<?php endif; ?>
 					<?php if (!$editable): ?>
 					<p class="muted">Deleted, visible to staff only.</p>
@@ -455,7 +461,7 @@ require ADMIN_INC . '/header.php';
 					<dt>ID</dt><dd>#<?= (int) $listing['id'] ?></dd>
 					<dt>Views</dt><dd><?= (int) $listing['views'] ?></dd>
 					<dt>In favorites</dt><dd><?= (int) $listing['favorites'] ?></dd>
-					<dt>Messages</dt><dd><?= (int) $listing['messages'] ?></dd>
+					<dt>Conversations</dt><dd><?= (int) $listing['messages'] ?></dd>
 					<dt>Created</dt><dd><?= e(format_date($listing['created'], true)) ?></dd>
 					<dt>Expires</dt><dd><?= e($expires) ?></dd>
 					<dt>Language</dt><dd><?= e($listing['lang']) ?></dd>

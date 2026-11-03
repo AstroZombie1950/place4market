@@ -20,6 +20,7 @@ $pendingCount = $listingCounts['pending'] ?? 0;
 $openCount = $reportCounts['open'] ?? 0;
 $pendingListings = admin_listings(['status' => 'pending'], DASHBOARD_ROWS);
 $openReports = reports(['status' => 'open'], DASHBOARD_ROWS);
+$reportListings = find_listings(array_column($openReports, 'listing_id'));
 $recentUsers = admin_users([], 5);
 
 require ADMIN_INC . '/header.php';
@@ -74,15 +75,15 @@ require ADMIN_INC . '/header.php';
 			<li class="list__item">
 				<?= thumb($listing, 'sm') ?>
 				<div class="list__main">
-					<a class="list__title" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= e($listing['title']) ?></a>
+					<a class="list__title" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= e(admin_title($listing)) ?></a>
 					<div class="list__meta"><?= e(user_name($listing['user_id'])) ?> · <?= e($listing['city']) ?> · <?= e(format_date($listing['created'], true)) ?></div>
 				</div>
 				<form class="list__aside" method="post" action="moderate.php">
 					<?= csrf_field() ?>
 					<input type="hidden" name="id" value="<?= (int) $listing['id'] ?>">
 					<input type="hidden" name="back" value="index.php">
-					<button type="submit" class="btn btn--success btn--sm btn--icon" name="action" value="approve" aria-label="Approve “<?= e($listing['title']) ?>”"><?= icon('check', 18) ?></button>
-					<button type="button" class="btn btn--danger-ghost btn--sm btn--icon" aria-label="Reject “<?= e($listing['title']) ?>”" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => $listing['title'], 'id_list' => (string) $listing['id']]) ?>"><?= icon('x', 18) ?></button>
+					<button type="submit" class="btn btn--success btn--sm btn--icon" name="action" value="approve" aria-label="Approve “<?= e(admin_title($listing)) ?>”"><?= icon('check', 18) ?></button>
+					<button type="button" class="btn btn--danger-ghost btn--sm btn--icon" aria-label="Reject “<?= e(admin_title($listing)) ?>”" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => admin_title($listing), 'id_list' => (string) $listing['id']]) ?>"><?= icon('x', 18) ?></button>
 				</form>
 			</li>
 			<?php endforeach; ?>
@@ -103,12 +104,12 @@ require ADMIN_INC . '/header.php';
 		</div>
 		<?php if ($openReports): ?>
 		<ul class="list">
-			<?php foreach ($openReports as $report): $listing = find_listing($report['listing_id']); ?>
+			<?php foreach ($openReports as $report): $listing = $reportListings[$report['listing_id']] ?? null; ?>
 			<li class="list__item">
 				<span class="stat__icon stat__icon--danger"><?= icon('flag', 18) ?></span>
 				<div class="list__main">
 					<span class="list__title"><?= e(report_reasons()[$report['reason']] ?? $report['reason']) ?></span>
-					<div class="list__meta">“<?= e($listing['title'] ?? '—') ?>” · by <?= e(user_name($report['reporter_id'])) ?> · <?= e(format_date($report['created'], true)) ?></div>
+					<div class="list__meta">“<?= e(admin_title($listing)) ?>” · by <?= e(user_name($report['reporter_id'])) ?> · <?= e(format_date($report['created'], true)) ?></div>
 				</div>
 				<div class="list__aside">
 					<a class="btn btn--secondary btn--sm" href="reports.php?q=%23<?= (int) $report['id'] ?>">Review</a>

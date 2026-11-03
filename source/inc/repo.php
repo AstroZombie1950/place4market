@@ -301,6 +301,15 @@ function find_listing(int $id): ?array
 	return listings_query(LISTING_SELECT . ' WHERE l.id = ?', [$id])[0] ?? null;
 }
 
+// Several listings in any status, three queries for all: [id => listing] (lists of
+// conversations and reports show the listing of every row)
+function find_listings(array $ids): array
+{
+	$ids = array_values(array_unique(array_map('intval', $ids)));
+
+	return array_column(listings_query(LISTING_SELECT . ' WHERE l.id IN (' . db_in($ids) . ')', $ids), null, 'id');
+}
+
 // Listings of a user in any status but deleted ("My listings", admin user page)
 function user_listings(int $userId): array
 {
@@ -621,12 +630,13 @@ function add_favorite(int $userId, int $listingId): bool
 	return $added;
 }
 
-// Favorites whose published listing got cheaper (same currency) for users with price alerts on,
-// at most $limit users: ['user_id', 'email', 'name', 'lang', 'drops' => [['listing' (array), 'was' (price)], …]]
+// Favorites whose published listing got cheaper (same currency) for users with price alerts on
+// and a confirmed email (like saved search alerts and messages), at most $limit users:
+// ['user_id', 'email', 'name', 'lang', 'drops' => [['listing' (array), 'was' (price)], …]]
 function price_drops(int $limit): array
 {
 	$rows = db_all('SELECT f.user_id, f.listing_id, f.price AS was, u.email, u.name, u.lang FROM favorites f
-		JOIN users u ON u.id = f.user_id AND u.status = \'active\' AND u.notify_price = 1
+		JOIN users u ON u.id = f.user_id AND u.status = \'active\' AND u.notify_price = 1 AND u.email_verified_at IS NOT NULL
 		JOIN listings l ON l.id = f.listing_id
 		JOIN categories c ON c.id = l.category_id
 		JOIN users s ON s.id = l.user_id AND s.status = \'active\'
@@ -1425,6 +1435,19 @@ function resolve_report(int $id, string $resolution, string $note, int $staffId)
 {
 	return db_exec("UPDATE reports SET status = 'resolved', resolution = ?, note = ?, resolved_by = ?, resolved_at = UTC_TIMESTAMP()
 		WHERE id = ? AND status <> 'resolved'", [$resolution, $note !== '' ? $note : null, $staffId, $id]) > 0;
+}
+
+// The listing was removed by staff: its other open reports close with it (nothing is left to
+// review). Returns their ids
+function resolve_listing_reports(int $listingId, string $note, int $staffId): array
+{
+	$ids = db_column("SELECT id FROM reports WHERE listing_id = ? AND status <> 'resolved'", [$listingId]);
+	if ($ids) {
+		db_exec("UPDATE reports SET status = 'resolved', resolution = 'remove', note = ?, resolved_by = ?, resolved_at = UTC_TIMESTAMP()
+			WHERE id IN (" . db_in($ids) . ')', [$note, $staffId, ...$ids]);
+	}
+
+	return $ids;
 }
 
 /* ---------- Journal (admin; written by log.php) ---------- */

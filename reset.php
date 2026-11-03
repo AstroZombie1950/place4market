@@ -68,6 +68,7 @@ $title = $token === '' ? t('reset.title') : t('reset.new_title');
 $page['title'] = $title;
 $page['robots'] = 'noindex, follow';
 $page['search'] = false;
+$page['nav'] = 'profile';
 
 require INC_DIR . '/header.php';
 ?>

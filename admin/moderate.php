@@ -51,6 +51,12 @@ function remove_listing(int $id, array $context = []): bool
 	array_map('delete_photo_files', $paths);
 	log_action('listing.remove', ['listing_id' => $id, 'photos' => count($paths)] + $context);
 
+	// Other open reports about it have nothing left to review
+	$note = 'Closed with the listing' . (isset($context['report_id']) ? ' (report #' . $context['report_id'] . ')' : '');
+	foreach (resolve_listing_reports($id, $note, current_user_id()) as $reportId) {
+		log_action('report.resolve', ['report_id' => $reportId, 'listing_id' => $id, 'resolution' => 'remove', 'auto' => true]);
+	}
+
 	return true;
 }
 
@@ -120,6 +126,8 @@ switch ($action) {
 		if (review_report($reportId)) {
 			log_action('report.review', ['report_id' => $reportId, 'listing_id' => find_report($reportId)['listing_id']]);
 			flash('success', 'Report #' . $reportId . ' is in review');
+		} else {
+			flash('info', 'Report #' . $reportId . ' is already in review or resolved.');
 		}
 		break;
 

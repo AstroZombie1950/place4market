@@ -82,7 +82,7 @@ $profile = ['name' => $me['name'], 'email' => $me['email'], 'phone' => (string) 
 
 if (($_POST['action'] ?? '') === 'save_profile') {
 	$profile = [
-		'name' => trim((string) ($_POST['name'] ?? '')),
+		'name' => trim(preg_replace('/\s+/u', ' ', (string) ($_POST['name'] ?? ''))),
 		'email' => mb_strtolower(trim((string) ($_POST['email'] ?? ''))),
 		'phone' => trim((string) ($_POST['phone'] ?? '')),
 		'city' => (string) ($_POST['city'] ?? ''),
@@ -259,7 +259,7 @@ require INC_DIR . '/header.php';
 						</p>
 					</div>
 
-					<form class="mylist__actions" method="post" action="<?= e(url('profile.php')) ?>" role="group" aria-label="<?= e(t('p.actions', ['title' => $itemTitle])) ?>">
+					<form class="mylist__actions" method="post" action="<?= e(url('profile.php')) ?>" aria-label="<?= e(t('p.actions', ['title' => $itemTitle])) ?>">
 						<?= csrf_field() ?>
 						<input type="hidden" name="id" value="<?= (int) $item['id'] ?>">
 						<a class="btn btn--soft btn--sm" href="<?= e(url('post.php', ['id' => $item['id']])) ?>"><?= icon('edit', 16) ?><?= e(t('common.edit')) ?></a>

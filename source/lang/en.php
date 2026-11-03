@@ -454,7 +454,7 @@ return [
 	'p.empty' => 'No ads here yet.',
 	'p.actions' => 'Actions for “{title}”',
 	'p.stats_views' => ['one' => '{n} view', 'other' => '{n} views'],
-	'p.stats_messages' => ['one' => '{n} message', 'other' => '{n} messages'],
+	'p.stats_messages' => ['one' => '{n} conversation', 'other' => '{n} conversations'],
 	'p.active_count' => ['one' => '{n} active ad', 'other' => '{n} active ads'],
 	'p.personal' => 'Personal details',
 	'p.email_hint' => 'A new address takes effect once you confirm it by email.',

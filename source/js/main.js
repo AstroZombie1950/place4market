@@ -66,6 +66,17 @@
 	// 145000 → "145 000"
 	const formatNumber = (value) => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
+	// An item of a horizontally scrolling strip comes into view: only the strip scrolls,
+	// never the page (scrollIntoView would also scroll the page to a strip below the fold).
+	// center: the item goes to the middle, its neighbours stay visible on both sides
+	const revealInStrip = (item, strip, center = false) => {
+		const s = strip.getBoundingClientRect();
+		const t = item.getBoundingClientRect();
+		if (center) strip.scrollLeft += t.left + t.width / 2 - (s.left + s.width / 2);
+		else if (t.left < s.left) strip.scrollLeft -= s.left - t.left + 8;
+		else if (t.right > s.right) strip.scrollLeft += t.right - s.right + 8;
+	};
+
 	/* ----------------------------------------------------------------------
 		Toasts: toast('Saved'), toast('Copied', 'info'), toast('Failed', 'danger')
 		---------------------------------------------------------------------- */
@@ -243,6 +254,14 @@
 				|| tabs[0];
 			select(initial, { updateHash: false });
 
+			// Only the #part of the address changed (a link to another tab of this page): follow it
+			if (useHash) {
+				window.addEventListener('hashchange', () => {
+					const tab = document.getElementById('tab-' + location.hash.slice(1));
+					if (tab && tabs.includes(tab)) select(tab, { updateHash: false });
+				});
+			}
+
 			$$('[data-open-tab]').forEach((link) => {
 				const target = document.getElementById(link.dataset.openTab);
 				if (!target || !tabs.includes(target)) return;
@@ -322,8 +341,8 @@
 				if (e.key === 'Escape' && drawer.classList.contains('is-open')) close(drawer);
 			});
 
-			// Back to desktop: reset
-			window.matchMedia('(min-width: 1025px)').addEventListener('change', (e) => {
+			// Back to the laptop/desktop layout (≥1024, site.css): reset
+			window.matchMedia('(min-width: 1024px)').addEventListener('change', (e) => {
 				if (e.matches && drawer.classList.contains('is-open')) close(drawer);
 			});
 		});
@@ -473,8 +492,11 @@
 				});
 				thumbs.forEach((t, i) => t.setAttribute('aria-current', String(i === current)));
 				if (counter) counter.textContent = `${current + 1} / ${slides.length}`;
+
+				// The active thumbnail stays visible inside its strip
 				const thumb = thumbs[current];
-				if (thumb) thumb.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+				const strip = thumb && thumb.closest('.gallery__thumbs');
+				if (strip) revealInStrip(thumb, strip);
 			};
 
 			const prev = $('[data-gallery-prev]', root);
@@ -1146,6 +1168,18 @@
 		if (!openOnLoad) chat.classList.remove('is-thread-open');
 	};
 
+	/* ----------------------------------------------------------------------
+		Scrolling menus: [data-strip] is a row that scrolls sideways (the info
+		pages menu on tablets and phones); its [aria-current="page"] item is
+		put in the middle on load
+		---------------------------------------------------------------------- */
+	const initStrips = () => {
+		$$('[data-strip]').forEach((strip) => {
+			const current = $('[aria-current="page"]', strip);
+			if (current && strip.scrollWidth > strip.clientWidth) revealInStrip(current, strip, true);
+		});
+	};
+
 	/* ---------- Init ---------- */
 	window.P4M = { toast };
 
@@ -1158,6 +1192,7 @@
 	initConfirm();
 	initForms();
 	initViewToggle();
+	initStrips();
 	initGallery();
 	initVideos();
 	initContacts();

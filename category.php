@@ -194,10 +194,11 @@ require INC_DIR . '/header.php';
 				<div class="results-bar__tools">
 					<button type="button" class="btn btn--soft filters-toggle" data-drawer-open="filters" aria-controls="filters" aria-expanded="false"><?= icon('filter', 18) ?><?= e(t('cat.show_filters')) ?><?php if ($chips): ?> <span class="count-badge"><?= count($chips) ?></span><?php endif; ?></button>
 
-					<!-- Sort (keeps all filters) -->
+					<?php if ($total): ?>
+					<!-- Sort (keeps all filters); with nothing found there is nothing to sort or show -->
 					<form class="row" action="category.php" method="get">
-						<?php foreach (array_merge($f, ['sort' => null, 'page' => null, 'lang' => lang() === DEFAULT_LANG ? null : lang()]) as $name => $value): ?>
-						<?php if ($value !== null && $value !== '' && $value !== false): ?><input type="hidden" name="<?= e($name) ?>" value="<?= e($value === true ? '1' : $value) ?>"><?php endif; ?>
+						<?php foreach (array_diff_key(search_query($f), ['sort' => true]) + (lang() === DEFAULT_LANG ? [] : ['lang' => lang()]) as $name => $value): ?>
+						<input type="hidden" name="<?= e($name) ?>" value="<?= e($value) ?>">
 						<?php endforeach; ?>
 						<label class="visually-hidden" for="sort"><?= e(t('cat.sort')) ?></label>
 						<select class="select select--sm results-bar__sort" id="sort" name="sort" data-autosubmit>
@@ -213,6 +214,7 @@ require INC_DIR . '/header.php';
 						<button type="button" class="view-toggle__btn" data-view="grid" aria-pressed="true" aria-label="<?= e(t('cat.view_grid')) ?>"><?= icon('grid', 18) ?></button>
 						<button type="button" class="view-toggle__btn" data-view="list" aria-pressed="false" aria-label="<?= e(t('cat.view_list')) ?>"><?= icon('list', 18) ?></button>
 					</div>
+					<?php endif; ?>
 				</div>
 			</div>
 

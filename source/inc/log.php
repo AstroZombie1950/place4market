@@ -379,7 +379,8 @@ function log_alert(array $record): void
 		return;
 	}
 
-	$host = $_SERVER['HTTP_HOST'] ?? 'place4market.com';
+	// The real host, not a Host header the request may have forged (like site_url())
+	$host = IS_DEV && !empty($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'place4market.com';
 	$text = 'Place4Market: critical error' . "\n\n" . $record['message']
 		. ($place !== '' ? "\n\nWhere: " . $place : '')
 		. "\nRequest: " . $record['method'] . ' ' . ($record['url'] ?? '')

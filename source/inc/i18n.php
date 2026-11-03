@@ -187,7 +187,7 @@ function sr_cyr(string $text): string
 	];
 	static $keep = [
 		'Place4Market', 'iPhone', 'MacBook', 'Air', 'Golf', 'Gorenje', 'Atomic', 'Yamaha', 'Thule',
-		'PlayStation', 'Liman', 'Naked', 'Instagram', 'Facebook',
+		'PlayStation', 'Naked', 'Instagram', 'Facebook',
 	];
 
 	return preg_replace_callback('/\{[a-z_]+\}|<[^>]*>|&[a-z#0-9]+;|[\p{L}\p{N}]+/u', function ($m) use ($map, $keep) {

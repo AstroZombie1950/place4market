@@ -112,6 +112,13 @@ function listing_url(array $listing): string
 	return url('listing.php', ['id' => $listing['id']]);
 }
 
+// Time shown on cards and the listing: the feed's own order (publication or the last bump),
+// so "New first" reads top-down; creation time until it is published
+function listing_time(array $listing): string
+{
+	return $listing['sorted'] ?? $listing['created'];
+}
+
 // Number with thin spaces: 145000 → "145 000"
 function format_number(int $n): string
 {

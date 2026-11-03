@@ -109,6 +109,7 @@
 	--color-on-sea: #F2EDE4;
 	--color-on-sea-muted: #C9D6DE;
 	--color-on-sea-line: rgba(242, 237, 228, 0.2);  /* rules on sea blue (footer) */
+	--color-on-sea-border: rgba(242, 237, 228, 0.35);  /* outlines on sea blue */
 
 	/* Paper & neutrals */
 	--color-bg: #F7F3EC;
@@ -142,6 +143,8 @@
 	--color-info-soft: var(--color-accent-soft);
 	--color-neutral: #4F463F;
 	--color-neutral-soft: #EEE8DF;
+	--color-on-status: #FFFFFF;           /* text on success / danger fills */
+	--color-knob: #FFFFFF;                /* switch knob */
 
 	/* Admin sidebar (warm dark) */
 	--sidebar-bg: #231E1A;
@@ -152,6 +155,7 @@
 	--sidebar-hover: rgba(255, 255, 255, 0.06);
 	--sidebar-active: rgba(255, 255, 255, 0.10);
 	--sidebar-accent: #F2A07F;
+	--sidebar-count-bg: rgba(255, 255, 255, 0.12);
 
 	/* Toasts */
 	--toast-bg: #2A2420;

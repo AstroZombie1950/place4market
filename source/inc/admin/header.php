@@ -37,9 +37,9 @@ $openReportsCount = report_status_counts()['open'] ?? 0;
 
 			<!-- Global search -->
 			<form class="topbar__search" role="search" action="listings.php" method="get">
-				<label class="visually-hidden" for="global-search">Search listings and users</label>
+				<label class="visually-hidden" for="global-search">Search listings</label>
 				<?= icon('search', 18) ?>
-				<input class="input" id="global-search" type="search" name="q" placeholder="Search listings, users, IDs…">
+				<input class="input" id="global-search" type="search" name="q" placeholder="Search listings: title, #ID, seller…">
 				<button class="visually-hidden" type="submit">Search</button>
 			</form>
 

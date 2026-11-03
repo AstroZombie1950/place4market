@@ -18,12 +18,19 @@ $activeNav = 'logs';
 
 const LOG_PAGE_SIZE = 50;
 
+// A real calendar date Y-m-d from the address, or '' (2026-13-45 would break the query)
+$date = function (string $key): string {
+	$value = (string) ($_GET[$key] ?? '');
+
+	return preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $m) && checkdate((int) $m[2], (int) $m[3], (int) $m[1]) ? $value : '';
+};
+
 $f = [
 	'level' => in_array($_GET['level'] ?? '', LOG_LEVELS, true) ? $_GET['level'] : '',
 	'channel' => preg_match('/^[a-z_]{1,20}$/', (string) ($_GET['channel'] ?? '')) ? $_GET['channel'] : '',
 	'user' => trim((string) ($_GET['user'] ?? '')),
-	'from' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['from'] ?? '')) ? $_GET['from'] : '',
-	'to' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['to'] ?? '')) ? $_GET['to'] : '',
+	'from' => $date('from'),
+	'to' => $date('to'),
 	'q' => trim(mb_substr((string) ($_GET['q'] ?? ''), 0, 100)),
 ];
 $total = count_log_entries($f);
@@ -71,11 +78,11 @@ require ADMIN_INC . '/header.php';
 			<?php endforeach; ?>
 		</select>
 		<label class="visually-hidden" for="logs-user">User id or email</label>
-		<input class="input input--narrow" id="logs-user" name="user" type="text" placeholder="User id or email" value="<?= e($f['user']) ?>">
+		<input class="input input--md" id="logs-user" name="user" type="text" placeholder="User id or email" value="<?= e($f['user']) ?>">
 		<label class="visually-hidden" for="logs-from">From</label>
-		<input class="input input--narrow" id="logs-from" name="from" type="date" value="<?= e($f['from']) ?>">
+		<input class="input input--md" id="logs-from" name="from" type="date" value="<?= e($f['from']) ?>">
 		<label class="visually-hidden" for="logs-to">To</label>
-		<input class="input input--narrow" id="logs-to" name="to" type="date" value="<?= e($f['to']) ?>">
+		<input class="input input--md" id="logs-to" name="to" type="date" value="<?= e($f['to']) ?>">
 		<button type="submit" class="btn btn--primary"><?= icon('search', 18) ?>Show</button>
 		<a class="btn btn--ghost" href="logs.php"><?= icon('refresh', 18) ?>Reset</a>
 	</form>

@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				'phone' => preg_match('/^\+?[0-9 ()\-]{6,20}$/', $v['phone']) ? $v['phone'] : null,
 				'photos' => array_slice($v['photos'], 0, setting('max_photos')),
 			]);
-			log_action('listing.draft', ['listing_id' => $id, 'photos' => min(12, count($v['photos']))]);
+			log_action('listing.draft', ['listing_id' => $id, 'photos' => min(setting('max_photos'), count($v['photos']))]);
 			flash('success', t('post.draft_saved'));
 			redirect(url('post.php', ['id' => $id]));
 		}
