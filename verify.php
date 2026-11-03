@@ -1,7 +1,8 @@
 <?php
 /* ==========================================================================
 	Email confirmation
-	GET: token (from the email link) confirms the address
+	GET: token (from the email link) confirms the address: of a new account
+	(verify_email) or a new one from the profile (change_email)
 	POST: resend (from the profile, logged in) sends a new link, + csrf
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
@@ -27,14 +28,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	redirect(url('profile.php') . '#settings');
 }
 
-// Link from the email
-$userId = use_auth_token('verify_email', auth_token_hash((string) ($_GET['token'] ?? '')));
+// Link from the email: a new account's address, or a new address from the profile
+$hash = auth_token_hash((string) ($_GET['token'] ?? ''));
+$userId = use_auth_token('verify_email', $hash);
 
 if ($userId !== null) {
 	mark_email_verified($userId);
 	log_action('auth.email_verified', ['user_id' => $userId]);
 	flash('success', t('auth.verified'));
 	redirect(current_user() ? url('profile.php') : url('auth.php'));
+}
+
+$userId = use_auth_token('change_email', $hash);
+
+if ($userId !== null) {
+	// Another account may have taken the address since the link was sent
+	$changed = confirm_new_email($userId);
+	log_action($changed ? 'account.email_changed' : 'account.email_change_failed', ['user_id' => $userId]);
+	flash($changed ? 'success' : 'danger', t($changed ? 'p.email_changed' : 'auth.err_email_taken'));
+	redirect(current_user() ? url('profile.php') . '#settings' : url('auth.php'));
 }
 
 $page['title'] = t('auth.verify_title');

@@ -8,6 +8,7 @@
 	========================================================================== */
 
 require __DIR__ . '/cli.php';
+require INC_DIR . '/site.php';
 
 $demo = require INC_DIR . '/mock-data.php';
 
@@ -108,8 +109,9 @@ foreach ($demo['favorites'] as $userId => $ids) {
 
 foreach ($demo['saved_searches'] as $userId => $searches) {
 	foreach ($searches as $s) {
-		db_exec('INSERT INTO saved_searches (id, user_id, label, lang, params, alerts, new_count) VALUES (?, ?, ?, ?, ?, ?, ?)',
-			[$s['id'], $userId, $s['label']['sr'], 'sr-latn', $json($s['params']), (int) $s['alerts'], $s['new']]);
+		// Saved a few days ago: listings published since then show as new
+		db_exec('INSERT INTO saved_searches (id, user_id, lang, params, alerts, created_at, checked_at) VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())',
+			[$s['id'], $userId, 'sr-latn', saved_search_json(saved_search_params(search_filters($s['params']))), (int) $s['alerts'], db_utc(ago($s['saved']))]);
 	}
 }
 

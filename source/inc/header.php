@@ -64,7 +64,7 @@ $searchCity = (string) ($_GET['city'] ?? '');
 				</a>
 				<a class="account-nav__link" href="<?= e(url('messages.php')) ?>"<?= nav_current('messages', $page['nav']) ?> aria-label="<?= e(t('nav.messages_unread', ['n' => $unread])) ?>">
 					<?= icon('message', 20) ?><span aria-hidden="true"><?= e(t('nav.messages')) ?></span>
-					<?php if ($unread > 0): ?><span class="count-badge" aria-hidden="true"><?= $unread ?></span><?php endif; ?>
+					<?php if ($unread > 0): ?><span class="count-badge" aria-hidden="true" data-unread-total><?= $unread ?></span><?php endif; ?>
 				</a>
 				<a class="account-nav__link" href="<?= e(url($accountLink[0])) ?>"<?= nav_current('profile', $page['nav']) ?>>
 					<?= icon('user', 20) ?><span><?= e($accountLink[1]) ?></span>

@@ -1,8 +1,9 @@
 <?php
 /* ==========================================================================
 	Profile: my listings, account settings, notifications (tabs)
-	POST (+ csrf): action = change_password; or id + action = raise | deactivate
-	| activate | renew | delete for an own listing. Logged-in users only.
+	POST (+ csrf): action = change_password | save_profile | save_notifications
+	| delete_account (+ password); or id + action = raise | deactivate | activate
+	| renew | delete for an own listing. Logged-in users only.
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
 require INC_DIR . '/media.php';
@@ -70,6 +71,100 @@ if (($_POST['action'] ?? '') === 'change_password') {
 		log_action('auth.password_changed');
 		flash('success', t('p.password_saved'));
 		redirect(url('profile.php') . '#settings');
+	}
+}
+
+// Personal data. A new email waits for the link sent to it (the old one gets a notice);
+// the chosen language becomes the site's and the emails' one
+$profileError = '';
+$profile = ['name' => $me['name'], 'email' => $me['email'], 'phone' => (string) $me['phone'], 'city' => $me['city'], 'lang' => $me['lang'] ?? lang()];
+
+if (($_POST['action'] ?? '') === 'save_profile') {
+	$profile = [
+		'name' => trim((string) ($_POST['name'] ?? '')),
+		'email' => mb_strtolower(trim((string) ($_POST['email'] ?? ''))),
+		'phone' => trim((string) ($_POST['phone'] ?? '')),
+		'city' => (string) ($_POST['city'] ?? ''),
+		'lang' => isset(languages()[$_POST['language'] ?? '']) ? $_POST['language'] : lang(),
+	];
+	$newEmail = $profile['email'] !== $me['email'] ? $profile['email'] : null;
+
+	$profileError = match (true) {
+		!csrf_valid() => t('auth.err_csrf'),
+		($dataError = account_data_error($profile)) !== '' => $dataError,
+		$newEmail && email_taken($newEmail) => t('auth.err_email_taken'),
+		$newEmail && rate_limited('email_change', (string) $me['id']) => t('auth.err_too_many'),
+		default => '',
+	};
+
+	if ($profileError === '') {
+		update_profile($me['id'], $profile['name'], $profile['phone'] ?: null, $profile['city'], $profile['lang']);
+		$changed = array_keys(array_filter([
+			'name' => $profile['name'] !== $me['name'], 'phone' => $profile['phone'] !== (string) $me['phone'],
+			'city' => $profile['city'] !== $me['city'], 'lang' => $profile['lang'] !== $me['lang'],
+		]));
+		if ($changed) {
+			log_action('account.update', ['fields' => $changed]);
+		}
+
+		$sent = true;
+		if ($newEmail) {
+			rate_hit('email_change', (string) $me['id']);
+			set_new_email($me['id'], $newEmail);
+			revoke_auth_tokens($me['id'], 'change_email');
+			$link = site_url(lang_link($profile['lang'], 'verify.php', ['token' => issue_auth_token($me['id'], 'change_email')]));
+			$sent = in_lang($profile['lang'], fn() => send_template_mail($newEmail, 'email_change', ['name' => $profile['name'], 'link' => $link], ['user_id' => $me['id']])
+				&& send_template_mail($me['email'], 'email_change_notice', ['name' => $profile['name'], 'email' => $newEmail], ['user_id' => $me['id']]));
+			log_action('account.email_change_requested', ['user_id' => $me['id']]);
+		}
+
+		// The message and the page in the chosen language (?lang= also updates the cookie)
+		in_lang($profile['lang'], fn() => flash($sent ? 'success' : 'warning', match (true) {
+			!$sent => t('auth.err_mail'),
+			$newEmail !== null => t('p.email_change_sent', ['email' => $newEmail]),
+			default => t('p.saved'),
+		}));
+		redirect('profile.php?' . http_build_query(['lang' => $profile['lang']]) . '#settings');
+	}
+}
+
+// Email notifications (what is sent for them: README, "Profile")
+if (($_POST['action'] ?? '') === 'save_notifications') {
+	if (!csrf_valid()) {
+		flash('danger', t('auth.err_csrf'));
+	} else {
+		set_notifications($me['id'], array_map(fn($key) => !empty($_POST['notify'][$key]), ['messages' => 'messages', 'saved' => 'saved', 'price' => 'price', 'news' => 'news']));
+		flash('success', t('p.saved'));
+	}
+	redirect(url('profile.php') . '#notifications');
+}
+
+// Delete the account: the password is asked again; listings, photos and personal data go
+$deleteError = '';
+if (($_POST['action'] ?? '') === 'delete_account') {
+	if (!csrf_valid()) {
+		$deleteError = t('auth.err_csrf');
+	} elseif (is_staff()) {
+		// A moderator or admin first loses the role (otherwise the last admin could lock everyone out)
+		$deleteError = t('p.delete_staff');
+	} elseif (!password_check((string) ($_POST['password'] ?? ''), user_password_hash($me['id']))) {
+		$deleteError = t('auth.err_current_password');
+		log_action('account.delete_failed');
+	} else {
+		db()->beginTransaction();
+		try {
+			$paths = delete_account($me['id']);
+			db()->commit();
+		} catch (Throwable $e) {
+			db()->rollBack();
+			throw $e;
+		}
+
+		array_map('delete_photo_files', $paths);
+		log_action('account.delete', ['user_id' => $me['id'], 'photos' => count($paths)]);
+		logout_user();
+		flash('success', t('p.account_deleted'));
+		redirect(url('index.php'));
 	}
 }
 
@@ -198,31 +293,41 @@ require INC_DIR . '/header.php';
 			</form>
 			<?php endif; ?>
 
-			<form class="panel" method="post" data-demo="<?= e(t('p.saved')) ?>">
+			<!-- Name as written (not transliterated: it is saved back as is) -->
+			<form class="panel" method="post" action="<?= e(url('profile.php')) ?>#settings">
+				<?= csrf_field() ?>
+				<input type="hidden" name="action" value="save_profile">
 				<div class="panel__body">
 					<h2 class="panel__title"><?= e(t('p.personal')) ?></h2>
+					<?php if ($profileError !== ''): ?>
+					<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($profileError) ?></p>
+					<?php endif; ?>
+					<?php if ($me['new_email']): ?>
+					<p class="notice"><?= icon('mail', 20) ?><?= e(t('p.email_pending', ['email' => $me['new_email']])) ?></p>
+					<?php endif; ?>
 					<div class="form-grid">
 						<div class="field">
 							<label class="field__label" for="s-name"><?= e(t('auth.name')) ?></label>
-							<input class="input" id="s-name" name="name" type="text" autocomplete="name" value="<?= e(person_name($me['name'])) ?>" required>
+							<input class="input" id="s-name" name="name" type="text" autocomplete="name" maxlength="100" value="<?= e($profile['name']) ?>" required>
 						</div>
 						<div class="field">
 							<label class="field__label" for="s-email"><?= e(t('auth.email')) ?></label>
-							<input class="input" id="s-email" name="email" type="email" autocomplete="email" value="<?= e($me['email']) ?>" required>
+							<input class="input" id="s-email" name="email" type="email" autocomplete="email" maxlength="190" value="<?= e($profile['email']) ?>" required aria-describedby="s-email-hint">
+							<span class="field__hint" id="s-email-hint"><?= e(t('p.email_hint')) ?></span>
 						</div>
 						<div class="field">
 							<label class="field__label" for="s-phone"><?= e(t('auth.phone')) ?></label>
-							<input class="input" id="s-phone" name="phone" type="tel" autocomplete="tel" value="<?= e($me['phone']) ?>">
+							<input class="input" id="s-phone" name="phone" type="tel" autocomplete="tel" value="<?= e($profile['phone']) ?>">
 						</div>
 						<div class="field">
 							<label class="field__label" for="s-city"><?= e(t('auth.city')) ?></label>
-							<select class="select" id="s-city" name="city"><?= city_select_options($me['city'], false) ?></select>
+							<select class="select" id="s-city" name="city"><?= city_select_options($profile['city'], false) ?></select>
 						</div>
 						<div class="field">
 							<label class="field__label" for="s-lang"><?= e(t('p.language')) ?></label>
 							<select class="select" id="s-lang" name="language">
 								<?php foreach (languages() as $code => $meta): ?>
-								<option value="<?= e($code) ?>" lang="<?= e($meta['html']) ?>"<?= $code === lang() ? ' selected' : '' ?>><?= e($meta['name']) ?></option>
+								<option value="<?= e($code) ?>" lang="<?= e($meta['html']) ?>"<?= $code === $profile['lang'] ? ' selected' : '' ?>><?= e($meta['name']) ?></option>
 								<?php endforeach; ?>
 							</select>
 						</div>
@@ -271,28 +376,45 @@ require INC_DIR . '/header.php';
 			<section class="panel danger-zone" aria-labelledby="danger-title">
 				<div class="panel__body">
 					<h2 class="panel__title" id="danger-title"><?= e(t('p.danger')) ?></h2>
-					<div class="row row--between">
-						<p class="muted"><?= e(t('p.delete_account_text')) ?></p>
-						<button type="button" class="btn btn--danger-ghost" data-confirm="<?= e(t('p.delete_account_confirm')) ?>" data-confirm-label="<?= e(t('p.delete_account')) ?>" data-done="<?= e(t('p.account_deleted')) ?>"><?= icon('trash', 18) ?><?= e(t('p.delete_account')) ?></button>
-					</div>
+					<?php if ($deleteError !== ''): ?>
+					<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($deleteError) ?></p>
+					<?php endif; ?>
+					<form method="post" action="<?= e(url('profile.php')) ?>#settings">
+						<?= csrf_field() ?>
+						<input type="hidden" name="action" value="delete_account">
+						<div class="stack">
+							<p class="muted"><?= e(t('p.delete_account_text')) ?></p>
+							<div class="form-grid">
+								<div class="field">
+									<label class="field__label" for="s-delete-pass"><?= e(t('p.current_password')) ?></label>
+									<input class="input" id="s-delete-pass" name="password" type="password" autocomplete="current-password" required>
+								</div>
+							</div>
+						</div>
+						<div class="form-actions">
+							<button type="submit" class="btn btn--danger-ghost" data-confirm="<?= e(t('p.delete_account_confirm')) ?>" data-confirm-label="<?= e(t('p.delete_account')) ?>"><?= icon('trash', 18) ?><?= e(t('p.delete_account')) ?></button>
+						</div>
+					</form>
 				</div>
 			</section>
 		</div>
 
 		<!-- Notifications -->
 		<div class="tabs__panel" role="tabpanel" id="panel-notifications" aria-labelledby="tab-notifications" tabindex="0" hidden>
-			<form class="panel" method="post" data-demo="<?= e(t('p.saved')) ?>">
+			<form class="panel" method="post" action="<?= e(url('profile.php')) ?>#notifications">
+				<?= csrf_field() ?>
+				<input type="hidden" name="action" value="save_notifications">
 				<div class="panel__body">
 					<h2 class="panel__title"><?= e(t('p.notifications')) ?></h2>
 					<ul class="switch-list">
 						<?php
 						$notices = [
-							['messages', 'p.n_messages', 'p.n_messages_hint', true],
-							['saved', 'p.n_saved', 'p.n_saved_hint', true],
-							['price', 'p.n_price', 'p.n_price_hint', true],
-							['news', 'p.n_news', 'p.n_news_hint', false],
+							['messages', 'p.n_messages', 'p.n_messages_hint'],
+							['saved', 'p.n_saved', 'p.n_saved_hint'],
+							['price', 'p.n_price', 'p.n_price_hint'],
+							['news', 'p.n_news', 'p.n_news_hint'],
 						];
-						foreach ($notices as [$name, $titleKey, $hintKey, $on]):
+						foreach ($notices as [$name, $titleKey, $hintKey]): $on = $me['notify'][$name];
 						?>
 						<li>
 							<label class="switch">

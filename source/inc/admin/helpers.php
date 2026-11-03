@@ -264,7 +264,8 @@ function notify_seller(array $listing, string $decision): void
 		return;
 	}
 
-	in_lang($listing['lang'], function () use ($listing, $seller, $decision) {
+	// The seller's language, or the one the listing is written in
+	in_lang($seller['lang'] ?? $listing['lang'], function () use ($listing, $seller, $decision) {
 		$params = ['name' => person_name($seller['name']), 'title' => listing_title($listing) ?: '#' . $listing['id'], 'days' => LISTING_DAYS];
 
 		if ($decision === 'approved') {

@@ -46,6 +46,7 @@ return [
 	'search.submit' => 'Search',
 
 	// Common
+	'common.failed' => 'Something went wrong. Check your connection and try again.',
 	'common.close' => 'Close',
 	'common.cancel' => 'Cancel',
 	'common.save' => 'Save',
@@ -56,6 +57,7 @@ return [
 	'common.home' => 'Home',
 	'common.breadcrumbs' => 'Breadcrumbs',
 	'common.optional' => 'optional',
+	'user.deleted' => 'Deleted user',
 	'common.are_you_sure' => 'Are you sure?',
 	'common.show_more' => 'Show more',
 	'common.see_all' => 'See all',
@@ -115,6 +117,9 @@ return [
 	'cat.empty_text' => 'Try changing the filters or searching in all cities.',
 	'cat.save_search' => 'Save search',
 	'cat.search_saved' => 'Search saved. We’ll email you about new listings.',
+	'cat.search_is_saved' => 'Search saved',
+	'cat.search_exists' => 'This search is already saved.',
+	'cat.search_limit' => 'You can keep up to {n} saved searches. Delete one you no longer need.',
 	'cat.remove_filter' => 'Remove filter: {name}',
 	'cat.active_filters' => 'Active filters',
 	'cat.price_range' => '{from} – {to}',
@@ -448,6 +453,10 @@ return [
 	'p.stats_messages' => ['one' => '{n} message', 'other' => '{n} messages'],
 	'p.active_count' => ['one' => '{n} active ad', 'other' => '{n} active ads'],
 	'p.personal' => 'Personal details',
+	'p.email_hint' => 'A new address takes effect once you confirm it by email.',
+	'p.email_pending' => 'We sent a link to {email}. The address changes once you open it.',
+	'p.email_change_sent' => 'Saved. To change your email, open the link we sent to {email}.',
+	'p.email_changed' => 'Your email has been changed.',
 	'p.change_password' => 'Change password',
 	'p.current_password' => 'Current password',
 	'p.new_password' => 'New password',
@@ -458,9 +467,10 @@ return [
 	'p.language' => 'Interface language',
 	'p.danger' => 'Delete account',
 	'p.delete_account' => 'Delete account',
-	'p.delete_account_text' => 'All your ads and messages will be removed.',
-	'p.delete_account_confirm' => 'Delete your account permanently? All ads and messages will be removed.',
-	'p.account_deleted' => 'Account deletion requested',
+	'p.delete_account_text' => 'Your ads, favorites and personal data will be removed. Your messages stay with the people you wrote to, signed as a deleted user.',
+	'p.delete_account_confirm' => 'Delete your account permanently? This cannot be undone.',
+	'p.account_deleted' => 'Your account has been deleted.',
+	'p.delete_staff' => 'Staff accounts cannot be deleted here: ask an administrator to remove your role first.',
 	'p.verified_phone' => 'Phone verified',
 	'p.verified_email' => 'Email verified',
 	'p.n_messages' => 'New messages',
@@ -487,6 +497,9 @@ return [
 	'fav.search_deleted' => 'Search deleted',
 	'fav.alerts_on' => 'Email alerts on',
 	'fav.alerts_off' => 'Email alerts off',
+	'fav.unavailable' => 'This ad is no longer available.',
+	'fav.searches_empty_title' => 'No saved searches yet',
+	'fav.searches_empty_text' => 'Set filters in any category and tap “Save search”: we’ll email you when new ads appear.',
 
 	// Messages
 	'm.title' => 'Messages',
@@ -502,13 +515,17 @@ return [
 	'm.unread' => 'Unread: {n}',
 	'm.view_listing' => 'View listing',
 	'm.delete_chat' => 'Delete conversation',
-	'm.delete_confirm' => 'Delete this conversation?',
+	'm.delete_confirm' => 'Delete this conversation? It disappears only for you.',
 	'm.deleted' => 'Conversation deleted',
 	'm.quick' => 'Quick replies',
 	'm.quick_1' => 'Is it still available?',
 	'm.quick_2' => 'Is the price negotiable?',
 	'm.quick_3' => 'When can I see it?',
 	'm.message_input' => 'Message',
+	'm.new_conversation' => 'New conversation',
+	'm.none' => 'No conversations yet. Open any ad and write to the seller.',
+	'm.unavailable' => 'You can no longer write in this conversation.',
+	'm.err_empty' => 'Write a message first.',
 
 	// Info pages: about, help, safety, terms, privacy, contact
 	'meta.about' => 'About Place4Market: free classifieds across Serbia. How the site works and what we care about.',
@@ -554,6 +571,7 @@ return [
 	'contact.message' => 'Message',
 	'contact.send' => 'Send message',
 	'contact.sent' => 'Thank you! We will reply by email as soon as possible.',
+	'contact.err_message' => 'Please write a bit more: at least 10 characters.',
 	'contact.reply' => 'We reply by email as soon as possible.',
 	'contact.before' => 'Before you write',
 	'contact.before_text' => 'Many answers are already in the help center.',
@@ -621,6 +639,47 @@ Reason: {reason}
 {comment}
 Fix the ad and send it again, it will be checked once more:
 {link}
+
+Place4Market',
+	'mail.search_alert_subject' => 'New ads for your saved searches',
+	'mail.search_alert_body' => 'Hello {name},
+
+new ads have appeared for your saved searches:
+
+{list}
+
+We send such an email at most once a day. You can turn alerts off in your saved searches:
+{link}
+
+Place4Market',
+	'mail.message_new_subject' => 'New message about “{title}”',
+	'mail.message_new_body' => 'Hello {name},
+
+{sender} wrote to you about “{title}”:
+
+{text}
+
+Reply on Place4Market:
+{link}
+
+Until you read this conversation, we will not email you about it again.
+
+Place4Market',
+	'mail.email_change_subject' => 'Confirm your new email on Place4Market',
+	'mail.email_change_body' => 'Hello {name},
+
+to use this address on Place4Market, open the link:
+{link}
+
+The link is valid for 48 hours. Until then your old address stays. If you did not ask for this, just ignore this email.
+
+Place4Market',
+	'mail.email_change_notice_subject' => 'Email change requested on Place4Market',
+	'mail.email_change_notice_body' => 'Hello {name},
+
+someone asked to change the email of your Place4Market account to {email}. It changes only after the link sent to that address is opened.
+
+If it was not you, log in and change your password right away.
 
 Place4Market',
 ];

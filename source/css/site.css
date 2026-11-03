@@ -3009,6 +3009,10 @@ button {
 	border-left-color: var(--toast-info);
 }
 
+.toast--danger {
+	border-left-color: var(--toast-error);
+}
+
 /* ==========================================================================
 	24. Info pages: about, help, safety, terms, privacy, contact;
 	seller page, reset password

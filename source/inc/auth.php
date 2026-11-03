@@ -208,6 +208,14 @@ const RATE_LIMITS = [
 	'verify_resend' => [3, 3600],
 	'photo_upload' => [120, 3600],
 	'report' => [10, 3600],
+	'favorite' => [300, 3600],
+	'saved_search' => [30, 3600],
+	'message' => [100, 3600],
+	'conversation' => [30, 86400],
+	'email_change' => [3, 3600],
+	'contact_ip' => [5, 3600],
+	'phone_ip' => [30, 3600],
+	'view' => [1, 86400],
 ];
 
 function rate_key(string $value): string
@@ -233,6 +241,20 @@ function rate_hit(string $action, string $value): void
 	rate_add($action, rate_key($value));
 }
 
+/* ---------- Account data ---------- */
+
+// Name, email, phone and city (registration, profile): error text or ''
+function account_data_error(array $f): string
+{
+	return match (true) {
+		mb_strlen($f['name']) < 2 || mb_strlen($f['name']) > 100 => t('auth.err_name'),
+		!filter_var($f['email'], FILTER_VALIDATE_EMAIL) || mb_strlen($f['email']) > 190 => t('auth.err_email'),
+		$f['phone'] !== '' && !preg_match('/^\+?[0-9 ()\-]{6,20}$/', $f['phone']) => t('auth.err_phone'),
+		!in_array($f['city'], array_column(cities(), 'latn'), true) => t('auth.err_city'),
+		default => '',
+	};
+}
+
 /* ---------- Passwords ---------- */
 
 function password_ok(string $password): bool
@@ -251,7 +273,7 @@ function password_check(string $password, ?string $hash): bool
 
 /* ---------- One-time email links ---------- */
 
-const TOKEN_TTL = ['verify_email' => 2 * 86400, 'reset_password' => 3600];
+const TOKEN_TTL = ['verify_email' => 2 * 86400, 'reset_password' => 3600, 'change_email' => 2 * 86400];
 
 // New link token for an email; the raw token goes into the link only
 function issue_auth_token(int $userId, string $type): string

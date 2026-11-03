@@ -19,8 +19,10 @@ if (!$listing || !(($listing['status'] === 'active' && $seller['status'] === 'ac
 	exit;
 }
 
-// Phone of this ad (the seller's by default); none when the author hid it
-$phone = $listing['show_phone'] ? ($listing['phone'] ?? $seller['phone']) : null;
+// The "similar" cards below reuse $listing: the bottom of the page uses this id
+$listingId = (int) $listing['id'];
+// Phone buttons only when there is a phone to show (the ad's or the seller's); the number comes from phone.php
+$phoneFor = listing_phone($listing, $seller) !== null ? $listingId : null;
 [$parentCat, $childCat] = find_category($listing['category']);
 $title = listing_title($listing) ?: t('p.untitled');
 $isOwn = $listing['user_id'] === current_user_id();
@@ -46,9 +48,8 @@ if (count($similar) < 4) {
 	$similar = array_merge($similar, search_listings(['exclude' => $exclude], 4 - count($similar)));
 }
 
-// Existing conversation about this listing
-$chatId = listing_conversation($listing['id'])['id'] ?? null;
-$messageUrl = url('messages.php', ['c' => $chatId]);
+// "Write to seller": messages.php opens the conversation about this listing or starts one
+$messageUrl = url('messages.php', ['listing' => $listing['id']]);
 
 // Breadcrumbs
 $crumbs = [
@@ -139,7 +140,7 @@ require INC_DIR . '/header.php';
 
 		<!-- Aside: title, price, contacts, seller, safety -->
 		<aside class="listing__aside">
-			<div class="listing-head">
+			<div class="listing-head"<?= !$isOwn && $listing['status'] === 'active' ? ' data-listing-view="' . (int) $listing['id'] . '"' : '' ?>>
 				<?php if ($listing['status'] !== 'active'): ?>
 				<p class="notice"><?= icon('info', 20) ?><?= e(t('l.not_active')) ?></p>
 				<?php endif; ?>
@@ -160,8 +161,8 @@ require INC_DIR . '/header.php';
 				<div class="listing-head__actions">
 					<?php if (!$isOwn): ?>
 					<a class="btn btn--primary btn--lg btn--block" href="<?= e($messageUrl) ?>"><?= icon('message', 20) ?><?= e(t('l.write')) ?></a>
-					<?php if ($phone): ?>
-					<button type="button" class="btn btn--outline btn--block" data-reveal-phone="<?= e($phone) ?>"><?= icon('call', 18) ?><?= e(t('l.show_phone')) ?></button>
+					<?php if ($phoneFor): ?>
+					<button type="button" class="btn btn--outline btn--block" data-reveal-phone="<?= $phoneFor ?>"><?= icon('call', 18) ?><?= e(t('l.show_phone')) ?></button>
 					<?php endif; ?>
 					<?php else: ?>
 					<a class="btn btn--outline btn--block" href="<?= e(url('post.php', ['id' => $listing['id']])) ?>"><?= icon('edit', 18) ?><?= e(t('common.edit')) ?></a>
@@ -257,8 +258,8 @@ require INC_DIR . '/header.php';
 <!-- Contact bar (phones) -->
 <?php if (!$isOwn): ?>
 <div class="contact-bar">
-	<?php if ($phone): ?>
-	<a class="btn btn--outline" href="tel:<?= e(str_replace(' ', '', $phone)) ?>"><?= icon('call', 18) ?><?= e(t('l.call')) ?></a>
+	<?php if ($phoneFor): ?>
+	<button type="button" class="btn btn--outline" data-reveal-phone="<?= $phoneFor ?>" data-reveal-call><?= icon('call', 18) ?><?= e(t('l.call')) ?></button>
 	<?php endif; ?>
 	<a class="btn btn--primary" href="<?= e($messageUrl) ?>"><?= icon('message', 18) ?><?= e(t('l.message')) ?></a>
 </div>
@@ -269,7 +270,7 @@ require INC_DIR . '/header.php';
 <dialog class="modal" id="report-dialog" aria-labelledby="report-title">
 	<form class="modal__inner" method="post" action="<?= e(url('report.php')) ?>">
 		<?= csrf_field() ?>
-		<input type="hidden" name="id" value="<?= (int) $listing['id'] ?>">
+		<input type="hidden" name="id" value="<?= $listingId ?>">
 		<div class="modal__head">
 			<h2 class="modal__title" id="report-title"><?= e(t('l.report_title')) ?></h2>
 			<button type="button" class="btn btn--ghost btn--icon" data-dialog-close aria-label="<?= e(t('common.close')) ?>"><?= icon('x') ?></button>

@@ -91,6 +91,13 @@ function listing_description(array $listing): string
 	return user_text($listing['description'], $listing['lang']);
 }
 
+// Phone shown on a listing: its own or the seller's; null when the author hid it.
+// Never printed into the page: phone.php gives it on request
+function listing_phone(array $listing, array $seller): ?string
+{
+	return $listing['show_phone'] ? ($listing['phone'] ?? $seller['phone']) : null;
+}
+
 function listing_url(array $listing): string
 {
 	return url('listing.php', ['id' => $listing['id']]);
@@ -134,6 +141,95 @@ function category_count(array $category): int
 function city_count(string $city): int
 {
 	return count_listings(['city' => $city]);
+}
+
+/* ---------- Search filters (category.php, saved searches) ---------- */
+
+// Filters from a query (GET, the "save search" form, a saved search):
+// cat, q, city, price_from, price_to, currency, condition, negotiable, photos, sort
+function search_filters(array $src): array
+{
+	return [
+		'cat' => (string) ($src['cat'] ?? ''),
+		'q' => trim(mb_substr((string) ($src['q'] ?? ''), 0, 100)),
+		'city' => (string) ($src['city'] ?? ''),
+		'price_from' => substr(preg_replace('/\D/', '', (string) ($src['price_from'] ?? '')), 0, 12),
+		'price_to' => substr(preg_replace('/\D/', '', (string) ($src['price_to'] ?? '')), 0, 12),
+		'currency' => ($src['currency'] ?? 'RSD') === 'EUR' ? 'EUR' : 'RSD',
+		'condition' => in_array($src['condition'] ?? '', ['new', 'used'], true) ? $src['condition'] : '',
+		'negotiable' => !empty($src['negotiable']),
+		'photos' => !empty($src['photos']),
+		'sort' => in_array($src['sort'] ?? '', ['new', 'cheap', 'expensive'], true) ? $src['sort'] : 'new',
+	];
+}
+
+// Query string params of a search: defaults and empty values left out (no page)
+function search_query(array $f): array
+{
+	$params = $f;
+	$params['negotiable'] = !empty($f['negotiable']) ? 1 : null;
+	$params['photos'] = !empty($f['photos']) ? 1 : null;
+	if (($f['sort'] ?? 'new') === 'new') {
+		$params['sort'] = null;
+	}
+	if (($f['price_from'] ?? '') === '' && ($f['price_to'] ?? '') === '') {
+		$params['currency'] = null;
+	}
+
+	return array_filter($params, fn($v) => $v !== null && $v !== '' && $v !== false);
+}
+
+// Params kept for a saved search: no sorting, fixed key order (duplicates are found by them)
+function saved_search_params(array $f): array
+{
+	$params = search_query($f);
+	unset($params['sort']);
+	ksort($params);
+
+	return $params;
+}
+
+// Active filters as text, key → label: chips on category.php, saved search names
+function search_filter_labels(array $f): array
+{
+	$labels = [];
+
+	if ($f['q'] !== '') {
+		$labels['q'] = '“' . $f['q'] . '”';
+	}
+	if ($f['city'] !== '') {
+		$labels['city'] = city_name($f['city']);
+	}
+	if ($f['price_from'] !== '' || $f['price_to'] !== '') {
+		$from = $f['price_from'] !== '' ? price_text((int) $f['price_from'], $f['currency']) : '';
+		$to = $f['price_to'] !== '' ? price_text((int) $f['price_to'], $f['currency']) : '';
+		$labels['price'] = $from && $to ? t('cat.price_range', ['from' => $from, 'to' => $to]) : ($from ? t('cat.price_min', ['from' => $from]) : t('cat.price_max', ['to' => $to]));
+	}
+	if ($f['condition'] !== '') {
+		$labels['condition'] = t('cat.condition_' . $f['condition']);
+	}
+	if ($f['negotiable']) {
+		$labels['negotiable'] = t('cat.only_negotiable');
+	}
+	if ($f['photos']) {
+		$labels['photos'] = t('cat.only_photos');
+	}
+
+	return $labels;
+}
+
+// Saved search name in the current language: “query” · Category · Beograd · up to 150 000 €
+function search_label(array $f): string
+{
+	[$parent, $child] = find_category($f['cat']);
+	$category = $child ?? $parent;
+	$labels = search_filter_labels($f);
+
+	$head = $labels['q'] ?? null;
+	unset($labels['q']);
+	$parts = array_filter([$head, $category ? cat_name($category) : null]) ?: [t('cat.all_listings')];
+
+	return implode(' · ', [...$parts, ...array_values($labels)]);
 }
 
 /* ---------- Dates ---------- */

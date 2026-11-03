@@ -63,7 +63,7 @@ $footerCols = [
 	</a>
 	<a class="bottom-nav__link" href="<?= e(url('messages.php')) ?>"<?= nav_current('messages', $page['nav']) ?> aria-label="<?= e(t('nav.messages_unread', ['n' => $unread])) ?>">
 		<?= icon('message', 22) ?><span aria-hidden="true"><?= e(t('nav.messages')) ?></span>
-		<?php if ($unread > 0): ?><span class="count-badge bottom-nav__badge" aria-hidden="true"><?= $unread ?></span><?php endif; ?>
+		<?php if ($unread > 0): ?><span class="count-badge bottom-nav__badge" aria-hidden="true" data-unread-total><?= $unread ?></span><?php endif; ?>
 	</a>
 	<a class="bottom-nav__link" href="<?= e(url($accountLink[0])) ?>"<?= nav_current('profile', $page['nav']) ?>>
 		<?= icon('user', 22) ?><span><?= e($accountLink[1]) ?></span>
@@ -90,8 +90,14 @@ $footerCols = [
 <!-- Toasts -->
 <div class="toast-region" data-toast-region aria-live="polite"></div>
 
-<!-- Strings for main.js -->
+<!-- Strings and endpoints for main.js; csrf only for a logged-in user (a guest gets no session) -->
 <script type="application/json" id="i18n-js"><?= json_encode([
+	'csrf' => current_user() ? csrf_token() : '',
+	'favoriteUrl' => url('favorite.php'),
+	'savedSearchUrl' => url('saved-search.php'),
+	'phoneUrl' => url('phone.php'),
+	'viewUrl' => url('view.php'),
+	'actionFailed' => t('common.failed'),
 	'linkCopied' => t('l.link_copied'),
 	'photosLimit' => t('post.photos_limit'),
 	'photoTooBig' => t('post.photo_too_big'),
@@ -106,6 +112,7 @@ $footerCols = [
 	'showPassword' => t('auth.show_password'),
 	'hidePassword' => t('auth.hide_password'),
 	'today' => t('time.today'),
+	'you' => t('m.you'),
 ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
 </body>
 </html>

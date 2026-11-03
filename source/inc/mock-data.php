@@ -324,9 +324,9 @@ $favorites = [1 => [1047, 1042, 1036, 1034, 1043]];
 
 // Saved searches by user id
 $savedSearches = [1 => [
-	['id' => 1, 'label' => ['en' => 'Apartments in Novi Sad up to 150 000 €', 'sr' => 'Stanovi u Novom Sadu do 150 000 €'], 'params' => ['cat' => 'apartments', 'city' => 'Novi Sad', 'price_to' => 150000, 'currency' => 'EUR'], 'new' => 3, 'alerts' => true],
-	['id' => 2, 'label' => ['en' => 'MacBook in Beograd', 'sr' => 'MacBook u Beogradu'], 'params' => ['q' => 'MacBook', 'city' => 'Beograd'], 'new' => 1, 'alerts' => true],
-	['id' => 3, 'label' => ['en' => 'Bikes in Niš', 'sr' => 'Bicikli u Nišu'], 'params' => ['cat' => 'bikes', 'city' => 'Niš'], 'new' => 0, 'alerts' => false],
+	['id' => 1, 'params' => ['cat' => 'apartments', 'city' => 'Novi Sad', 'price_to' => 150000, 'currency' => 'EUR'], 'saved' => '-20 days', 'alerts' => true],
+	['id' => 2, 'params' => ['q' => 'MacBook', 'city' => 'Beograd'], 'saved' => '-10 days', 'alerts' => true],
+	['id' => 3, 'params' => ['cat' => 'bikes', 'city' => 'Niš'], 'saved' => '-2 days', 'alerts' => false],
 ]];
 
 // Conversations by user id: 'with' = the other person, 'from' = sender's user id

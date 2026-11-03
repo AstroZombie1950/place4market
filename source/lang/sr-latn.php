@@ -47,6 +47,7 @@ return [
 	'search.submit' => 'Traži',
 
 	// Common
+	'common.failed' => 'Nešto nije u redu. Proverite vezu i pokušajte ponovo.',
 	'common.close' => 'Zatvori',
 	'common.cancel' => 'Otkaži',
 	'common.save' => 'Sačuvaj',
@@ -57,6 +58,7 @@ return [
 	'common.home' => 'Početna',
 	'common.breadcrumbs' => 'Putanja',
 	'common.optional' => 'opciono',
+	'user.deleted' => 'Obrisan korisnik',
 	'common.are_you_sure' => 'Da li ste sigurni?',
 	'common.show_more' => 'Prikaži još',
 	'common.see_all' => 'Prikaži sve',
@@ -116,6 +118,9 @@ return [
 	'cat.empty_text' => 'Pokušajte da promenite filtere ili pretražite celu Srbiju.',
 	'cat.save_search' => 'Sačuvaj pretragu',
 	'cat.search_saved' => 'Pretraga je sačuvana. Javićemo vam kada stignu novi oglasi.',
+	'cat.search_is_saved' => 'Pretraga je sačuvana',
+	'cat.search_exists' => 'Ova pretraga je već sačuvana.',
+	'cat.search_limit' => 'Možete sačuvati najviše {n} pretraga. Obrišite neku koja vam više ne treba.',
 	'cat.remove_filter' => 'Ukloni filter: {name}',
 	'cat.active_filters' => 'Aktivni filteri',
 	'cat.price_range' => '{from} – {to}',
@@ -449,6 +454,10 @@ return [
 	'p.stats_messages' => ['one' => '{n} poruka', 'few' => '{n} poruke', 'many' => '{n} poruka'],
 	'p.active_count' => ['one' => '{n} aktivan oglas', 'few' => '{n} aktivna oglasa', 'many' => '{n} aktivnih oglasa'],
 	'p.personal' => 'Lični podaci',
+	'p.email_hint' => 'Nova adresa važi kada je potvrdite e-poštom.',
+	'p.email_pending' => 'Poslali smo link na {email}. Adresa se menja kada ga otvorite.',
+	'p.email_change_sent' => 'Sačuvano. Da biste promenili e-poštu, otvorite link koji smo poslali na {email}.',
+	'p.email_changed' => 'Vaša e-pošta je promenjena.',
 	'p.change_password' => 'Promena lozinke',
 	'p.current_password' => 'Trenutna lozinka',
 	'p.new_password' => 'Nova lozinka',
@@ -459,9 +468,10 @@ return [
 	'p.language' => 'Jezik interfejsa',
 	'p.danger' => 'Brisanje naloga',
 	'p.delete_account' => 'Obriši nalog',
-	'p.delete_account_text' => 'Svi vaši oglasi i poruke biće uklonjeni.',
-	'p.delete_account_confirm' => 'Trajno obrisati nalog? Svi oglasi i poruke biće uklonjeni.',
-	'p.account_deleted' => 'Zahtev za brisanje naloga je poslat',
+	'p.delete_account_text' => 'Vaši oglasi, omiljeno i lični podaci biće uklonjeni. Vaše poruke ostaju kod ljudi kojima ste pisali, potpisane kao obrisan korisnik.',
+	'p.delete_account_confirm' => 'Trajno obrisati nalog? Ovo se ne može poništiti.',
+	'p.account_deleted' => 'Vaš nalog je obrisan.',
+	'p.delete_staff' => 'Nalozi osoblja se ne mogu obrisati ovde: zamolite administratora da vam prvo ukloni ulogu.',
 	'p.verified_phone' => 'Telefon potvrđen',
 	'p.verified_email' => 'E-pošta potvrđena',
 	'p.n_messages' => 'Nove poruke',
@@ -488,6 +498,9 @@ return [
 	'fav.search_deleted' => 'Pretraga je obrisana',
 	'fav.alerts_on' => 'Obaveštenja su uključena',
 	'fav.alerts_off' => 'Obaveštenja su isključena',
+	'fav.unavailable' => 'Ovaj oglas više nije dostupan.',
+	'fav.searches_empty_title' => 'Još nema sačuvanih pretraga',
+	'fav.searches_empty_text' => 'Podesite filtere u bilo kojoj kategoriji i dodirnite „Sačuvaj pretragu“: javićemo vam e-poštom kada stignu novi oglasi.',
 
 	// Messages
 	'm.title' => 'Poruke',
@@ -503,13 +516,17 @@ return [
 	'm.unread' => 'Nepročitano: {n}',
 	'm.view_listing' => 'Pogledaj oglas',
 	'm.delete_chat' => 'Obriši razgovor',
-	'm.delete_confirm' => 'Obrisati ovaj razgovor?',
+	'm.delete_confirm' => 'Obrisati ovaj razgovor? Nestaće samo kod vas.',
 	'm.deleted' => 'Razgovor je obrisan',
 	'm.quick' => 'Brzi odgovori',
 	'm.quick_1' => 'Da li je još uvek dostupno?',
 	'm.quick_2' => 'Da li je moguć dogovor oko cene?',
 	'm.quick_3' => 'Kada mogu da pogledam?',
 	'm.message_input' => 'Poruka',
+	'm.new_conversation' => 'Novi razgovor',
+	'm.none' => 'Još nema razgovora. Otvorite bilo koji oglas i pišite prodavcu.',
+	'm.unavailable' => 'U ovom razgovoru više ne možete da pišete.',
+	'm.err_empty' => 'Prvo napišite poruku.',
 
 	// Info pages: about, help, safety, terms, privacy, contact
 	'meta.about' => 'O Place4Market: besplatni mali oglasi širom Srbije. Kako sajt radi i do čega nam je stalo.',
@@ -555,6 +572,7 @@ return [
 	'contact.message' => 'Poruka',
 	'contact.send' => 'Pošalji poruku',
 	'contact.sent' => 'Hvala! Odgovorićemo vam e-poštom u najkraćem roku.',
+	'contact.err_message' => 'Napišite malo više: najmanje 10 znakova.',
 	'contact.reply' => 'Odgovaramo e-poštom u najkraćem roku.',
 	'contact.before' => 'Pre nego što pišete',
 	'contact.before_text' => 'Mnogi odgovori se već nalaze u centru za pomoć.',
@@ -622,6 +640,47 @@ Razlog: {reason}
 {comment}
 Ispravite oglas i pošaljite ga ponovo, proverićemo ga još jednom:
 {link}
+
+Place4Market',
+	'mail.search_alert_subject' => 'Novi oglasi za vaše sačuvane pretrage',
+	'mail.search_alert_body' => 'Zdravo, {name},
+
+stigli su novi oglasi za vaše sačuvane pretrage:
+
+{list}
+
+Ovakvu poruku šaljemo najviše jednom dnevno. Obaveštenja možete isključiti u sačuvanim pretragama:
+{link}
+
+Place4Market',
+	'mail.message_new_subject' => 'Nova poruka o oglasu „{title}“',
+	'mail.message_new_body' => 'Zdravo, {name},
+
+imate novu poruku od korisnika {sender} o oglasu „{title}“:
+
+{text}
+
+Odgovorite na Place4Market:
+{link}
+
+Dok ne pročitate ovaj razgovor, nećemo vam ponovo slati e-poruku o njemu.
+
+Place4Market',
+	'mail.email_change_subject' => 'Potvrdite novu e-poštu na Place4Market',
+	'mail.email_change_body' => 'Zdravo, {name},
+
+da biste koristili ovu adresu na Place4Market, otvorite link:
+{link}
+
+Link važi 48 sati. Do tada ostaje stara adresa. Ako niste tražili promenu, zanemarite ovu poruku.
+
+Place4Market',
+	'mail.email_change_notice_subject' => 'Zatražena promena e-pošte na Place4Market',
+	'mail.email_change_notice_body' => 'Zdravo, {name},
+
+zatražena je promena e-pošte vašeg Place4Market naloga na {email}. Adresa se menja tek kada se otvori link poslat na tu adresu.
+
+Ako to niste bili vi, prijavite se i odmah promenite lozinku.
 
 Place4Market',
 ];

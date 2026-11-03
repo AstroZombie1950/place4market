@@ -1,6 +1,7 @@
 <?php
 /* ==========================================================================
-	Favorites: saved listings + saved searches (tabs)
+	Favorites: saved listings + saved searches (tabs). The heart posts to
+	favorite.php, search actions go to saved-search.php
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
 
@@ -49,26 +50,37 @@ require INC_DIR . '/header.php';
 		<!-- Saved searches -->
 		<div class="tabs__panel" role="tabpanel" id="panel-searches" aria-labelledby="tab-searches" tabindex="0" hidden>
 			<h2 class="visually-hidden"><?= e(t('fav.searches')) ?></h2>
+			<?php if ($savedSearches): ?>
 			<ul class="saved-list">
-				<?php foreach ($savedSearches as $search): $rowId = 'search-' . $search['id']; $label = user_text($search['label'], $search['lang']); ?>
-				<li class="saved-search" id="<?= e($rowId) ?>">
+				<?php foreach ($savedSearches as $search): $label = search_label(search_filters($search['params'])); $openUrl = url('saved-search.php', ['open' => $search['id']]); ?>
+				<li class="saved-search">
 					<div class="saved-search__main">
-						<p class="saved-search__title"><a href="<?= e(url('category.php', $search['params'])) ?>"><?= e($label) ?></a></p>
+						<p class="saved-search__title"><a href="<?= e($openUrl) ?>"><?= e($label) ?></a></p>
 						<?php if ($search['new'] > 0): ?>
 						<span class="badge badge--accent"><?= e(tp('fav.new', $search['new'])) ?></span>
 						<?php endif; ?>
 					</div>
-					<div class="saved-search__actions">
+					<form class="saved-search__actions" method="post" action="<?= e(url('saved-search.php')) ?>">
+						<?= csrf_field() ?>
+						<input type="hidden" name="id" value="<?= (int) $search['id'] ?>">
 						<label class="switch">
-							<input type="checkbox" role="switch" name="alerts[<?= (int) $search['id'] ?>]"<?= $search['alerts'] ? ' checked' : '' ?> data-toast-on="<?= e(t('fav.alerts_on')) ?>" data-toast-off="<?= e(t('fav.alerts_off')) ?>">
+							<input type="checkbox" role="switch"<?= $search['alerts'] ? ' checked' : '' ?> data-search-alerts="<?= (int) $search['id'] ?>" data-toast-on="<?= e(t('fav.alerts_on')) ?>" data-toast-off="<?= e(t('fav.alerts_off')) ?>">
 							<span><?= e(t('fav.alerts')) ?></span>
 						</label>
-						<a class="btn btn--soft btn--sm" href="<?= e(url('category.php', $search['params'])) ?>"><?= e(t('fav.open')) ?></a>
-						<button type="button" class="btn btn--danger-ghost btn--icon btn--sm" aria-label="<?= e(t('fav.search_delete')) ?>: <?= e($label) ?>" data-confirm="<?= e(t('fav.search_delete')) ?>?" data-confirm-label="<?= e(t('common.delete')) ?>" data-done="<?= e(t('fav.search_deleted')) ?>" data-remove-target="#<?= e($rowId) ?>"><?= icon('trash', 18) ?></button>
-					</div>
+						<a class="btn btn--soft btn--sm" href="<?= e($openUrl) ?>"><?= e(t('fav.open')) ?></a>
+						<button type="submit" class="btn btn--danger-ghost btn--icon btn--sm" name="action" value="delete" aria-label="<?= e(t('fav.search_delete')) ?>: <?= e($label) ?>" data-confirm="<?= e(t('fav.search_delete')) ?>?" data-confirm-label="<?= e(t('common.delete')) ?>"><?= icon('trash', 18) ?></button>
+					</form>
 				</li>
 				<?php endforeach; ?>
 			</ul>
+			<?php else: ?>
+			<div class="empty">
+				<?= icon('bell', 40) ?>
+				<p class="empty__title"><?= e(t('fav.searches_empty_title')) ?></p>
+				<p><?= e(t('fav.searches_empty_text')) ?></p>
+				<a class="btn btn--outline" href="<?= e(url('category.php')) ?>"><?= e(t('fav.browse')) ?></a>
+			</div>
+			<?php endif; ?>
 		</div>
 	</div>
 </div>

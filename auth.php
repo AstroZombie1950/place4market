@@ -55,20 +55,12 @@ if ($action === 'login') {
 }
 
 if ($action === 'register') {
-	$cities = array_column(cities(), 'latn');
-
 	if (!csrf_valid()) {
 		$errors['register'] = t('auth.err_csrf');
 	} elseif (rate_limited('register_ip', client_ip())) {
 		$errors['register'] = t('auth.err_too_many');
-	} elseif (mb_strlen($old['name']) < 2 || mb_strlen($old['name']) > 100) {
-		$errors['register'] = t('auth.err_name');
-	} elseif (!filter_var($old['email'], FILTER_VALIDATE_EMAIL) || mb_strlen($old['email']) > 190) {
-		$errors['register'] = t('auth.err_email');
-	} elseif ($old['phone'] !== '' && !preg_match('/^\+?[0-9 ()\-]{6,20}$/', $old['phone'])) {
-		$errors['register'] = t('auth.err_phone');
-	} elseif (!in_array($old['city'], $cities, true)) {
-		$errors['register'] = t('auth.err_city');
+	} elseif (($dataError = account_data_error($old)) !== '') {
+		$errors['register'] = $dataError;
 	} elseif (!password_ok($password)) {
 		$errors['register'] = t('auth.err_password');
 	} elseif (empty($_POST['terms'])) {
@@ -77,7 +69,7 @@ if ($action === 'register') {
 		$errors['register'] = t('auth.err_email_taken');
 	} else {
 		rate_hit('register_ip', client_ip());
-		$userId = create_user($old['name'], $old['email'], $old['phone'] ?: null, $old['city'], password_hash($password, PASSWORD_DEFAULT));
+		$userId = create_user($old['name'], $old['email'], $old['phone'] ?: null, $old['city'], password_hash($password, PASSWORD_DEFAULT), lang());
 		login_user($userId);
 		log_action('auth.register', ['user_id' => $userId]);
 

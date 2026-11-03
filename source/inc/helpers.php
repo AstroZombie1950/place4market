@@ -122,3 +122,11 @@ function attr_json(array $data): string
 {
 	return e(json_encode($data, JSON_UNESCAPED_UNICODE));
 }
+
+// Crawlers, link previews and test tools: not counted as views, get no phone numbers
+function is_bot(): bool
+{
+	$agent = (string) ($_SERVER['HTTP_USER_AGENT'] ?? '');
+
+	return $agent === '' || (bool) preg_match('/bot|crawl|spider|slurp|preview|facebookexternalhit|lighthouse|headless|curl|wget|python|scrapy/i', $agent);
+}

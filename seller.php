@@ -7,8 +7,8 @@ require __DIR__ . '/source/inc/bootstrap.php';
 
 $seller = user((int) ($_GET['id'] ?? 0));
 
-// Unknown or blocked user → 404
-if (!$seller || $seller['status'] === 'blocked') {
+// Unknown, blocked or deleted user → 404
+if (!$seller || $seller['status'] !== 'active') {
 	require ROOT_DIR . '/404.php';
 	exit;
 }

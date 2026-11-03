@@ -7,18 +7,7 @@
 require __DIR__ . '/source/inc/bootstrap.php';
 
 // Read filters
-$f = [
-	'cat' => (string) ($_GET['cat'] ?? ''),
-	'q' => trim((string) ($_GET['q'] ?? '')),
-	'city' => (string) ($_GET['city'] ?? ''),
-	'price_from' => preg_replace('/\D/', '', (string) ($_GET['price_from'] ?? '')),
-	'price_to' => preg_replace('/\D/', '', (string) ($_GET['price_to'] ?? '')),
-	'currency' => ($_GET['currency'] ?? 'RSD') === 'EUR' ? 'EUR' : 'RSD',
-	'condition' => in_array($_GET['condition'] ?? '', ['new', 'used'], true) ? $_GET['condition'] : '',
-	'negotiable' => !empty($_GET['negotiable']),
-	'photos' => !empty($_GET['photos']),
-	'sort' => in_array($_GET['sort'] ?? '', ['new', 'cheap', 'expensive'], true) ? $_GET['sort'] : 'new',
-];
+$f = search_filters($_GET);
 
 [$parentCat, $childCat] = find_category($f['cat']);
 $currentCat = $childCat ?? $parentCat;
@@ -47,42 +36,20 @@ if ($f['q'] !== '') {
 }
 
 // Link to this page with some params changed (null removes a param)
-$linkWith = function (array $changes) use ($f): string {
-	$params = array_merge($f, $changes, ['page' => null]);
-	$params['negotiable'] = $params['negotiable'] ? 1 : null;
-	$params['photos'] = $params['photos'] ? 1 : null;
-	if ($params['sort'] === 'new') {
-		$params['sort'] = null;
-	}
-	if ($params['price_from'] === '' && $params['price_to'] === '') {
-		$params['currency'] = null;
-	}
-	return url('category.php', $params);
-};
+$linkWith = fn(array $changes): string => url('category.php', search_query(array_merge($f, $changes)));
 
-// Active filter chips
+// Active filter chips: label + link without that filter
+$chipRemove = [
+	'q' => ['q' => ''], 'city' => ['city' => ''], 'price' => ['price_from' => '', 'price_to' => ''],
+	'condition' => ['condition' => ''], 'negotiable' => ['negotiable' => false], 'photos' => ['photos' => false],
+];
 $chips = [];
-if ($f['q'] !== '') {
-	$chips[] = ['label' => '“' . $f['q'] . '”', 'href' => $linkWith(['q' => null])];
+foreach (search_filter_labels($f) as $key => $label) {
+	$chips[] = ['label' => $label, 'href' => $linkWith($chipRemove[$key])];
 }
-if ($f['city'] !== '') {
-	$chips[] = ['label' => city_name($f['city']), 'href' => $linkWith(['city' => null])];
-}
-if ($f['price_from'] !== '' || $f['price_to'] !== '') {
-	$from = $f['price_from'] !== '' ? price_text((int) $f['price_from'], $f['currency']) : '';
-	$to = $f['price_to'] !== '' ? price_text((int) $f['price_to'], $f['currency']) : '';
-	$label = $from && $to ? t('cat.price_range', ['from' => $from, 'to' => $to]) : ($from ? t('cat.price_min', ['from' => $from]) : t('cat.price_max', ['to' => $to]));
-	$chips[] = ['label' => $label, 'href' => $linkWith(['price_from' => '', 'price_to' => ''])];
-}
-if ($f['condition'] !== '') {
-	$chips[] = ['label' => t('cat.condition_' . $f['condition']), 'href' => $linkWith(['condition' => null])];
-}
-if ($f['negotiable']) {
-	$chips[] = ['label' => t('cat.only_negotiable'), 'href' => $linkWith(['negotiable' => false])];
-}
-if ($f['photos']) {
-	$chips[] = ['label' => t('cat.only_photos'), 'href' => $linkWith(['photos' => false])];
-}
+
+// Save search: guests log in first; an already saved one links to it
+$savedSearchId = current_user() ? find_saved_search(current_user_id(), saved_search_params($f)) : null;
 
 // Breadcrumbs
 $crumbs = [['label' => t('common.home'), 'href' => url('index.php')]];
@@ -121,7 +88,20 @@ require INC_DIR . '/header.php';
 		<div>
 			<h1 class="page-title"><?= e($title) ?></h1>
 		</div>
-		<button type="button" class="btn btn--soft" data-toast="<?= e(t('cat.search_saved')) ?>"><?= icon('bell', 18) ?><?= e(t('cat.save_search')) ?></button>
+		<?php if ($savedSearchId): ?>
+		<a class="btn btn--soft" href="<?= e(url('favorites.php')) ?>#searches"><?= icon('check', 18) ?><?= e(t('cat.search_is_saved')) ?></a>
+		<?php elseif (current_user()): ?>
+		<form method="post" action="<?= e(url('saved-search.php')) ?>">
+			<?= csrf_field() ?>
+			<input type="hidden" name="action" value="save">
+			<?php foreach (search_query($f) as $name => $value): ?>
+			<input type="hidden" name="<?= e($name) ?>" value="<?= e($value) ?>">
+			<?php endforeach; ?>
+			<button type="submit" class="btn btn--soft"><?= icon('bell', 18) ?><?= e(t('cat.save_search')) ?></button>
+		</form>
+		<?php else: ?>
+		<a class="btn btn--soft" href="<?= e(url('auth.php', ['next' => $_SERVER['REQUEST_URI'] ?? '/'])) ?>"><?= icon('bell', 18) ?><?= e(t('cat.save_search')) ?></a>
+		<?php endif; ?>
 	</div>
 
 	<div class="layout layout--filters">

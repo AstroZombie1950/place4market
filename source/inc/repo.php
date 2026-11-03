@@ -94,12 +94,14 @@ function language_settings(): array
 
 /* ---------- Users ---------- */
 
+// A deleted account shows as "Deleted user" (its personal data is gone)
 function user_from_row(array $r): array
 {
 	return [
-		'id' => $r['id'], 'name' => $r['name'], 'email' => $r['email'], 'phone' => $r['phone'], 'city' => $r['city'] ?? '',
+		'id' => $r['id'], 'name' => $r['status'] === 'deleted' ? t('user.deleted') : $r['name'], 'email' => $r['email'], 'phone' => $r['phone'], 'city' => $r['city'] ?? '',
 		'role' => $r['role'], 'status' => $r['status'], 'verified' => $r['phone_verified_at'] !== null,
-		'email_verified' => $r['email_verified_at'] !== null,
+		'email_verified' => $r['email_verified_at'] !== null, 'new_email' => $r['new_email'], 'lang' => $r['lang'],
+		'notify' => ['messages' => (bool) $r['notify_messages'], 'saved' => (bool) $r['notify_saved'], 'price' => (bool) $r['notify_price'], 'news' => (bool) $r['notify_news']],
 		'registered' => db_local($r['created_at']), 'last_active' => db_local($r['last_active_at']),
 	];
 }
@@ -203,7 +205,7 @@ function listing_status_counts(): array
 }
 
 // WHERE for public search: published listings of active users + filters.
-// $f: cat, q, city, price_from, price_to, currency, condition, negotiable, photos, user, exclude (ids)
+// $f: cat, q, city, price_from, price_to, currency, condition, negotiable, photos, user, exclude (ids), since
 function listing_search_where(array $f): array
 {
 	$where = [LISTING_LIVE, "u.status = 'active'"];
@@ -259,6 +261,11 @@ function listing_search_where(array $f): array
 	if (!empty($f['exclude'])) {
 		$where[] = 'l.id NOT IN (' . db_in($f['exclude']) . ')';
 		array_push($params, ...array_map('intval', $f['exclude']));
+	}
+	// Published after a moment (UTC): new listings for saved searches
+	if (!empty($f['since'])) {
+		$where[] = 'l.published_at > ?';
+		$params[] = $f['since'];
 	}
 
 	return [implode(' AND ', $where), $params];
@@ -427,6 +434,12 @@ function delete_listing(int $id, int $userId): ?array
 	return $paths;
 }
 
+// One more view of a published listing (view.php decides what counts)
+function add_listing_view(int $id): bool
+{
+	return db_exec("UPDATE listings SET views = views + 1, updated_at = updated_at WHERE id = ? AND status = 'active'", [$id]) > 0;
+}
+
 /* ---------- Maintenance (cron.php) ---------- */
 
 // Active listings past their expiry date become expired; returns how many
@@ -446,7 +459,7 @@ function take_stale_photos(): array
 	return array_column($rows, 'path');
 }
 
-/* ---------- Favorites and saved searches (current user) ---------- */
+/* ---------- Favorites and saved searches ---------- */
 
 function favorite_ids(): array
 {
@@ -473,68 +486,230 @@ function favorite_listings(): array
 	);
 }
 
-// ['id', 'label', 'lang', 'params', 'new', 'alerts']
+// Save a published listing; false when it was saved already or is not published.
+// favorites_count follows, the listing's updated_at stays
+function add_favorite(int $userId, int $listingId): bool
+{
+	$added = db_exec('INSERT IGNORE INTO favorites (user_id, listing_id) SELECT ?, l.id FROM listings l WHERE l.id = ? AND ' . LISTING_LIVE, [$userId, $listingId]) > 0;
+	if ($added) {
+		db_exec('UPDATE listings SET favorites_count = favorites_count + 1, updated_at = updated_at WHERE id = ?', [$listingId]);
+	}
+
+	return $added;
+}
+
+function remove_favorite(int $userId, int $listingId): bool
+{
+	$removed = db_exec('DELETE FROM favorites WHERE user_id = ? AND listing_id = ?', [$userId, $listingId]) > 0;
+	if ($removed) {
+		db_exec('UPDATE listings SET favorites_count = GREATEST(favorites_count, 1) - 1, updated_at = updated_at WHERE id = ?', [$listingId]);
+	}
+
+	return $removed;
+}
+
+// Searches of the current user, newest first: ['id', 'params', 'lang', 'alerts', 'new'];
+// new = listings published since the search was saved or last opened
 function saved_searches(): array
 {
 	if (current_user_id() === null) {
 		return [];
 	}
 
-	return array_map(fn($r) => [
-		'id' => $r['id'], 'label' => $r['label'], 'lang' => $r['lang'], 'params' => json_decode($r['params'], true),
-		'new' => $r['new_count'], 'alerts' => (bool) $r['alerts'],
-	], db_all('SELECT * FROM saved_searches WHERE user_id = ? ORDER BY id', [current_user_id()]));
+	return array_map(function ($r) {
+		$params = json_decode($r['params'], true);
+
+		return [
+			'id' => $r['id'], 'params' => $params, 'lang' => $r['lang'], 'alerts' => (bool) $r['alerts'],
+			'new' => count_listings(['since' => $r['since']] + search_filters($params)),
+		];
+	}, db_all('SELECT id, params, lang, alerts, GREATEST(created_at, COALESCE(seen_at, created_at)) AS since
+		FROM saved_searches WHERE user_id = ? ORDER BY id DESC', [current_user_id()]));
 }
 
-/* ---------- Messages (current user) ---------- */
-
-// Conversations, latest first: id, with (user id), listing_id, unread,
-// messages[] = ['from' (user id), 'at' (site time), 'text', 'lang']
-function conversations(): array
+// Id of the user's search with these params (saved_search_params()), or null
+function find_saved_search(int $userId, array $params): ?int
 {
-	static $list = null;
+	$id = db_value('SELECT id FROM saved_searches WHERE user_id = ? AND params = ?', [$userId, saved_search_json($params)]);
 
-	if ($list !== null) {
-		return $list;
+	return $id === false ? null : (int) $id;
+}
+
+function count_saved_searches(int $userId): int
+{
+	return (int) db_value('SELECT COUNT(*) FROM saved_searches WHERE user_id = ?', [$userId]);
+}
+
+// lang: the language of alert emails (the page it was saved from)
+function save_search(int $userId, array $params, string $lang): int
+{
+	db_exec('INSERT INTO saved_searches (user_id, lang, params) VALUES (?, ?, ?)', [$userId, $lang, saved_search_json($params)]);
+
+	return (int) db()->lastInsertId();
+}
+
+// Turned on: alerts count from now, not from the last check
+function set_search_alerts(int $id, int $userId, bool $on): void
+{
+	db_exec('UPDATE saved_searches SET alerts = ?, checked_at = IF(?, UTC_TIMESTAMP(), checked_at) WHERE id = ? AND user_id = ?', [(int) $on, (int) $on, $id, $userId]);
+}
+
+function delete_saved_search(int $id, int $userId): bool
+{
+	return db_exec('DELETE FROM saved_searches WHERE id = ? AND user_id = ?', [$id, $userId]) > 0;
+}
+
+// Opened by its owner: params for the results link; nothing is new from now on
+function open_saved_search(int $id, int $userId): ?array
+{
+	$params = db_value('SELECT params FROM saved_searches WHERE id = ? AND user_id = ?', [$id, $userId]);
+
+	if ($params === false) {
+		return null;
 	}
 
+	db_exec('UPDATE saved_searches SET seen_at = UTC_TIMESTAMP() WHERE id = ?', [$id]);
+
+	return json_decode($params, true);
+}
+
+// Alerts due (cron.php): searches with alerts on, checked over a day ago (oldest first),
+// of active users with a confirmed email and saved search emails on in the profile.
+// since = new listings count from here; user_lang = the user's language, if chosen
+function search_alerts_due(int $limit): array
+{
+	return array_map(fn($r) => ['params' => json_decode($r['params'], true)] + $r, db_all(
+		"SELECT s.id, s.user_id, s.lang, s.params, u.name, u.email, u.lang AS user_lang,
+			GREATEST(s.created_at, COALESCE(s.seen_at, s.created_at), COALESCE(s.checked_at, s.created_at)) AS since
+		FROM saved_searches s JOIN users u ON u.id = s.user_id
+		WHERE s.alerts = 1 AND u.status = 'active' AND u.email_verified_at IS NOT NULL AND u.notify_saved = 1
+			AND (s.checked_at IS NULL OR s.checked_at < UTC_TIMESTAMP() - INTERVAL 1 DAY)
+		ORDER BY s.checked_at IS NOT NULL, s.checked_at, s.id
+		LIMIT " . max(1, $limit)
+	));
+}
+
+function mark_searches_checked(array $ids): void
+{
+	if ($ids) {
+		db_exec('UPDATE saved_searches SET checked_at = UTC_TIMESTAMP() WHERE id IN (' . db_in($ids) . ')', $ids);
+	}
+}
+
+// Stored form of params: duplicates are compared as text
+function saved_search_json(array $params): string
+{
+	return json_encode($params, JSON_UNESCAPED_UNICODE);
+}
+
+/* ---------- Messages ---------- */
+
+// Conversations of the current user, latest first: id, with (user id), listing_id, unread,
+// messages[] = ['from' (user id), 'at' (site time), 'text', 'lang'].
+// One the user deleted shows only the messages after that and only once there are any;
+// $include (an opened one) is listed even when empty
+function conversations(?int $include = null): array
+{
 	$me = current_user_id();
 
 	if ($me === null) {
-		return $list = [];
+		return [];
 	}
 
-	$rows = db_all('SELECT id, listing_id, buyer_id, seller_id FROM conversations WHERE buyer_id = ? OR seller_id = ? ORDER BY last_message_at DESC', [$me, $me]);
+	$rows = db_all('SELECT id, listing_id, buyer_id, seller_id, IF(buyer_id = ?, buyer_hidden_at, seller_hidden_at) AS hidden_at
+		FROM conversations WHERE buyer_id = ? OR seller_id = ? ORDER BY last_message_at DESC', [$me, $me, $me]);
 	$list = [];
+	$hidden = [];
 
 	foreach ($rows as $r) {
 		$list[$r['id']] = [
 			'id' => $r['id'], 'with' => $r['buyer_id'] === $me ? $r['seller_id'] : $r['buyer_id'],
 			'listing_id' => $r['listing_id'], 'unread' => 0, 'messages' => [],
 		];
+		$hidden[$r['id']] = $r['hidden_at'];
 	}
 
 	$ids = array_keys($list);
 	foreach (db_all('SELECT conversation_id, sender_id, body, lang, created_at, read_at FROM messages WHERE conversation_id IN (' . db_in($ids) . ') ORDER BY created_at, id', $ids) as $m) {
-		$list[$m['conversation_id']]['messages'][] = ['from' => $m['sender_id'], 'at' => db_local($m['created_at']), 'text' => $m['body'], 'lang' => $m['lang']];
+		$cid = $m['conversation_id'];
+		if ($hidden[$cid] !== null && $m['created_at'] <= $hidden[$cid]) {
+			continue;
+		}
+		$list[$cid]['messages'][] = ['from' => $m['sender_id'], 'at' => db_local($m['created_at']), 'text' => $m['body'], 'lang' => $m['lang']];
 		if ($m['sender_id'] !== $me && $m['read_at'] === null) {
-			$list[$m['conversation_id']]['unread']++;
+			$list[$cid]['unread']++;
 		}
 	}
 
-	return $list = array_values($list);
+	return array_values(array_filter($list, fn($c) => $c['messages'] || $c['id'] === $include));
 }
 
-// Conversation of the current user about a listing, if there is one: ['id']
-function listing_conversation(int $listingId): ?array
+// A conversation the user takes part in: ['id', 'listing_id', 'buyer_id', 'seller_id'] or null
+function find_conversation(int $id, int $userId): ?array
 {
-	$me = current_user_id();
+	return db_one('SELECT id, listing_id, buyer_id, seller_id FROM conversations WHERE id = ? AND (buyer_id = ? OR seller_id = ?)', [$id, $userId, $userId]);
+}
 
-	if ($me === null) {
-		return null;
+// The buyer's conversation about a listing (one per listing and buyer), id or null
+function buyer_conversation(int $listingId, int $buyerId): ?int
+{
+	$id = db_value('SELECT id FROM conversations WHERE listing_id = ? AND buyer_id = ?', [$listingId, $buyerId]);
+
+	return $id === false ? null : (int) $id;
+}
+
+// New conversation (or the existing one after a double submit): ['id', 'created'].
+// listings.messages_count counts conversations
+function start_conversation(int $listingId, int $buyerId, int $sellerId): array
+{
+	$created = db_exec('INSERT IGNORE INTO conversations (listing_id, buyer_id, seller_id) VALUES (?, ?, ?)', [$listingId, $buyerId, $sellerId]) > 0;
+	if ($created) {
+		db_exec('UPDATE listings SET messages_count = messages_count + 1, updated_at = updated_at WHERE id = ?', [$listingId]);
 	}
 
-	return db_one('SELECT id FROM conversations WHERE listing_id = ? AND (buyer_id = ? OR seller_id = ?) ORDER BY last_message_at DESC LIMIT 1', [$listingId, $me, $me]);
+	return ['id' => buyer_conversation($listingId, $buyerId), 'created' => $created];
+}
+
+function add_message(int $conversationId, int $senderId, string $body, string $lang): void
+{
+	db_exec('INSERT INTO messages (conversation_id, sender_id, body, lang) VALUES (?, ?, ?, ?)', [$conversationId, $senderId, $body, $lang]);
+	db_exec('UPDATE conversations SET last_message_at = UTC_TIMESTAMP() WHERE id = ?', [$conversationId]);
+}
+
+// Unread messages to the user in one conversation
+function conversation_unread(int $conversationId, int $userId): int
+{
+	return (int) db_value('SELECT COUNT(*) FROM messages WHERE conversation_id = ? AND sender_id <> ? AND read_at IS NULL', [$conversationId, $userId]);
+}
+
+// The language the user last wrote in here (for emails to them), or null
+function conversation_lang(int $conversationId, int $userId): ?string
+{
+	$lang = db_value('SELECT lang FROM messages WHERE conversation_id = ? AND sender_id = ? ORDER BY id DESC LIMIT 1', [$conversationId, $userId]);
+
+	return $lang === false ? null : $lang;
+}
+
+// Messages to the user in a conversation of theirs become read; number marked
+function mark_conversation_read(int $conversationId, int $userId): int
+{
+	return db_exec('UPDATE messages m JOIN conversations c ON c.id = m.conversation_id
+		SET m.read_at = UTC_TIMESTAMP()
+		WHERE m.conversation_id = ? AND (c.buyer_id = ? OR c.seller_id = ?) AND m.sender_id <> ? AND m.read_at IS NULL',
+		[$conversationId, $userId, $userId, $userId]);
+}
+
+// Deleted by one side: hidden for them (read), the other side keeps it
+function hide_conversation(int $conversationId, int $userId): bool
+{
+	$done = db_exec('UPDATE conversations
+		SET buyer_hidden_at = IF(buyer_id = ?, UTC_TIMESTAMP(), buyer_hidden_at), seller_hidden_at = IF(seller_id = ?, UTC_TIMESTAMP(), seller_hidden_at)
+		WHERE id = ? AND (buyer_id = ? OR seller_id = ?)', [$userId, $userId, $conversationId, $userId, $userId]) > 0;
+	if ($done) {
+		mark_conversation_read($conversationId, $userId);
+	}
+
+	return $done;
 }
 
 function unread_count(): int
@@ -568,11 +743,11 @@ function email_taken(string $email): bool
 	return (bool) db_value('SELECT 1 FROM users WHERE email = ?', [$email]);
 }
 
-// New account; returns its id
-function create_user(string $name, string $email, ?string $phone, string $city, string $passwordHash): int
+// New account; returns its id. lang: of the page it registered on (emails go in it)
+function create_user(string $name, string $email, ?string $phone, string $city, string $passwordHash, string $lang): int
 {
-	db_exec('INSERT INTO users (name, email, phone, city_id, password_hash, last_active_at)
-		VALUES (?, ?, ?, (SELECT id FROM cities WHERE latn = ?), ?, UTC_TIMESTAMP())', [$name, $email, $phone, $city, $passwordHash]);
+	db_exec('INSERT INTO users (name, email, phone, city_id, lang, password_hash, last_active_at)
+		VALUES (?, ?, ?, (SELECT id FROM cities WHERE latn = ?), ?, ?, UTC_TIMESTAMP())', [$name, $email, $phone, $city, $lang, $passwordHash]);
 
 	return (int) db()->lastInsertId();
 }
@@ -585,6 +760,62 @@ function set_user_password(int $id, string $hash): void
 function mark_email_verified(int $id): void
 {
 	db_exec('UPDATE users SET email_verified_at = COALESCE(email_verified_at, UTC_TIMESTAMP()) WHERE id = ?', [$id]);
+}
+
+// Personal data from the profile (the email changes only through a confirmed link)
+function update_profile(int $id, string $name, ?string $phone, string $city, string $lang): void
+{
+	db_exec('UPDATE users SET name = ?, phone = ?, city_id = (SELECT id FROM cities WHERE latn = ?), lang = ? WHERE id = ?', [$name, $phone, $city, $lang, $id]);
+}
+
+// New address waiting for its link (null cancels)
+function set_new_email(int $id, ?string $email): void
+{
+	db_exec('UPDATE users SET new_email = ? WHERE id = ?', [$email, $id]);
+}
+
+// The link from the new address was opened: it becomes the login, confirmed.
+// False when there is nothing waiting or another account took the address meanwhile
+function confirm_new_email(int $id): bool
+{
+	$email = db_value('SELECT new_email FROM users WHERE id = ?', [$id]);
+
+	if (!$email || email_taken($email)) {
+		return false;
+	}
+
+	return db_exec('UPDATE users SET email = new_email, new_email = NULL, email_verified_at = UTC_TIMESTAMP() WHERE id = ? AND new_email = ?', [$id, $email]) > 0;
+}
+
+// Email notifications from the profile: messages, saved, price, news (bool each)
+function set_notifications(int $id, array $on): void
+{
+	db_exec('UPDATE users SET notify_messages = ?, notify_saved = ?, notify_price = ?, notify_news = ? WHERE id = ?',
+		[(int) $on['messages'], (int) $on['saved'], (int) $on['price'], (int) $on['news'], $id]);
+}
+
+// Account deleted by its owner: listings deleted (photo paths returned for the files),
+// favorites, searches and sign-in tokens removed, personal data replaced; the row stays,
+// so the other side keeps its conversations. The email is free for a new account
+function delete_account(int $id): array
+{
+	$paths = [];
+	foreach (db_column("SELECT id FROM listings WHERE user_id = ? AND status <> 'deleted'", [$id]) as $listingId) {
+		array_push($paths, ...(delete_listing($listingId, $id) ?? []));
+	}
+	array_push($paths, ...db_column('SELECT path FROM listing_photos WHERE user_id = ? AND listing_id IS NULL', [$id]));
+	db_exec('DELETE FROM listing_photos WHERE user_id = ? AND listing_id IS NULL', [$id]);
+
+	foreach (['favorites', 'saved_searches', 'remember_tokens', 'auth_tokens'] as $table) {
+		db_exec('DELETE FROM ' . $table . ' WHERE user_id = ?', [$id]);
+	}
+
+	db_exec("UPDATE users SET status = 'deleted', deleted_at = UTC_TIMESTAMP(), name = 'Deleted user',
+		email = CONCAT('deleted-', id, '@deleted.invalid'), new_email = NULL, phone = NULL, password_hash = NULL,
+		email_verified_at = NULL, phone_verified_at = NULL, notify_messages = 0, notify_saved = 0, notify_price = 0, notify_news = 0
+		WHERE id = ?", [$id]);
+
+	return $paths;
 }
 
 // "Last seen": written at most every 5 minutes per user
@@ -866,4 +1097,16 @@ function audit_entries(int $limit, ?int $listingId = null): array
 function delete_old_log_entries(int $days): int
 {
 	return db_exec('DELETE FROM log_entries WHERE created_at < UTC_TIMESTAMP() - INTERVAL ' . max(1, $days) . ' DAY');
+}
+
+/* ---------- Contact form ---------- */
+
+// listing_id only when such a listing exists; returns the id
+function create_contact_message(?int $userId, string $name, string $email, string $topic, ?int $listingId, string $message, string $lang): int
+{
+	$listingId = $listingId && db_value('SELECT 1 FROM listings WHERE id = ?', [$listingId]) ? $listingId : null;
+	db_exec('INSERT INTO contact_messages (user_id, name, email, topic, listing_id, message, lang) VALUES (?, ?, ?, ?, ?, ?, ?)',
+		[$userId, $name, $email, $topic, $listingId, $message, $lang]);
+
+	return (int) db()->lastInsertId();
 }

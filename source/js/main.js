@@ -67,7 +67,7 @@
 	const formatNumber = (value) => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
 	/* ----------------------------------------------------------------------
-		Toasts: toast('Saved'), toast('Copied', 'info')
+		Toasts: toast('Saved'), toast('Copied', 'info'), toast('Failed', 'danger')
 		---------------------------------------------------------------------- */
 	const toast = (message, type = 'success') => {
 		const region = $('[data-toast-region]');
@@ -98,20 +98,64 @@
 	};
 
 	/* ----------------------------------------------------------------------
-		Favorites: button[data-fav="id"] with aria-pressed
+		POST to our JSON endpoints (favorite.php, saved-search.php) with the csrf
+		token. Resolves to the answer; rejects with a text for the visitor
+		---------------------------------------------------------------------- */
+	const postJson = async (url, fields) => {
+		const body = new FormData();
+		Object.entries({ ...fields, csrf: i18n.csrf || '' }).forEach(([key, value]) => body.append(key, value));
+
+		let res;
+		let data = {};
+		try {
+			res = await fetch(url, { method: 'POST', body, headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+			data = await res.json();
+		} catch (err) {
+			throw new Error(i18n.actionFailed);
+		}
+		if (!res.ok && !data.login) throw new Error(data.error || i18n.actionFailed);
+		return data;
+	};
+
+	/* ----------------------------------------------------------------------
+		Favorites: button[data-fav="id"] with aria-pressed, saved in favorite.php.
+		The heart switches at once and goes back if saving fails; a guest is
+		sent to the login page and comes back here.
 		data-toast-on / data-toast-off: messages
 		data-fav-remove: remove the card when unsaved (favorites page)
 		---------------------------------------------------------------------- */
 	const initFavorites = () => {
-		document.addEventListener('click', (e) => {
+		const busy = new Set();
+
+		document.addEventListener('click', async (e) => {
 			const btn = e.target.closest('[data-fav]');
 			if (!btn) return;
 			e.preventDefault();
 
-			const saved = btn.getAttribute('aria-pressed') !== 'true';
+			const id = btn.dataset.fav;
+			if (busy.has(id)) return;
+			busy.add(id);
 
+			const saved = btn.getAttribute('aria-pressed') !== 'true';
 			// Sync every heart for the same listing on the page
-			$$(`[data-fav="${btn.dataset.fav}"]`).forEach((el) => el.setAttribute('aria-pressed', String(saved)));
+			const show = (state) => $$(`[data-fav="${id}"]`).forEach((el) => el.setAttribute('aria-pressed', String(state)));
+			show(saved);
+
+			try {
+				const data = await postJson(i18n.favoriteUrl, { id, on: saved ? 1 : 0, next: location.pathname + location.search });
+				if (data.login) {
+					show(!saved);
+					window.location.href = data.login;
+					return;
+				}
+			} catch (err) {
+				show(!saved);
+				toast(err.message, 'danger');
+				return;
+			} finally {
+				busy.delete(id);
+			}
+
 			toast(saved ? btn.dataset.toastOn : btn.dataset.toastOff);
 
 			if (!saved && btn.hasAttribute('data-fav-remove')) {
@@ -126,6 +170,30 @@
 					const count = $('[data-fav-count]');
 					if (count && grid) count.textContent = grid.querySelectorAll('[data-card]').length;
 				});
+			}
+		});
+	};
+
+	/* ----------------------------------------------------------------------
+		Saved searches: the alerts switch input[data-search-alerts="id"] saves
+		at once (saved-search.php); on failure it goes back.
+		data-toast-on / data-toast-off: messages
+		---------------------------------------------------------------------- */
+	const initSavedSearches = () => {
+		document.addEventListener('change', async (e) => {
+			const box = e.target.closest('[data-search-alerts]');
+			if (!box) return;
+
+			const on = box.checked;
+			box.disabled = true;
+			try {
+				await postJson(i18n.savedSearchUrl, { action: 'alerts', id: box.dataset.searchAlerts, on: on ? 1 : 0 });
+				toast(on ? box.dataset.toastOn : box.dataset.toastOff, 'info');
+			} catch (err) {
+				box.checked = !on;
+				toast(err.message, 'danger');
+			} finally {
+				box.disabled = false;
 			}
 		});
 	};
@@ -364,7 +432,7 @@
 
 		document.addEventListener('change', (e) => {
 			const box = e.target;
-			if (!box.matches('input[type="checkbox"][data-toast-on]')) return;
+			if (!box.matches('input[type="checkbox"][data-toast-on]:not([data-search-alerts])')) return;
 			toast(box.checked ? box.dataset.toastOn : box.dataset.toastOff, 'info');
 		});
 	};
@@ -505,22 +573,54 @@
 	};
 
 	/* ----------------------------------------------------------------------
-		Show phone: button[data-reveal-phone="+381 …"] turns into a tel: link
+		Show phone: button[data-reveal-phone="listing id"] gets the number from
+		  phone.php and turns into a tel: link ([data-reveal-call] also dials)
+		View: [data-listing-view="listing id"] is counted by view.php (beacon)
 		Share: [data-share] uses the system share sheet or copies the link
 		---------------------------------------------------------------------- */
 	const initContacts = () => {
+		// The number comes from phone.php on the first click (it is not in the page);
+		// every button of the listing then becomes a tel: link, "Call" dials right away
 		$$('[data-reveal-phone]').forEach((btn) => {
-			btn.addEventListener('click', () => {
-				const phone = btn.dataset.revealPhone;
-				const link = document.createElement('a');
-				link.className = btn.className;
-				link.href = 'tel:' + phone.replace(/\s+/g, '');
-				link.innerHTML = btn.querySelector('svg') ? btn.querySelector('svg').outerHTML : '';
-				link.append(phone);
-				btn.replaceWith(link);
-				link.focus();
+			btn.addEventListener('click', async () => {
+				const id = btn.dataset.revealPhone;
+				let data;
+				btn.disabled = true;
+				try {
+					data = await postJson(i18n.phoneUrl, { id });
+				} catch (err) {
+					btn.disabled = false;
+					toast(err.message, 'danger');
+					return;
+				}
+
+				let focused = null;
+				$$(`[data-reveal-phone="${id}"]`).forEach((el) => {
+					const link = document.createElement('a');
+					link.className = el.className;
+					link.href = 'tel:' + data.tel;
+					link.innerHTML = el.querySelector('svg') ? el.querySelector('svg').outerHTML : '';
+					link.append(el.hasAttribute('data-reveal-call') ? el.textContent.trim() : data.phone);
+					el.replaceWith(link);
+					if (el === btn) focused = link;
+				});
+				if (btn.hasAttribute('data-reveal-call')) window.location.href = 'tel:' + data.tel;
+				else if (focused) focused.focus();
 			});
 		});
+
+		// A view: sent once a day per listing from this browser (view.php also skips repeats)
+		const viewed = $('[data-listing-view]');
+		if (viewed && navigator.sendBeacon) {
+			const id = viewed.dataset.listingView;
+			const key = `p4m:view:${id}`;
+			const last = Number(store.get(key)) || 0;
+			if (Date.now() - last > 864e5) {
+				const body = new FormData();
+				body.append('id', id);
+				if (navigator.sendBeacon(i18n.viewUrl, body)) store.set(key, String(Date.now()));
+			}
+		}
 
 		$$('[data-share]').forEach((btn) => {
 			btn.addEventListener('click', async () => {
@@ -863,10 +963,14 @@
 	};
 
 	/* ----------------------------------------------------------------------
-		Messages: [data-chat]
-		- conversation buttons [data-conv="id"] open [data-thread="id"]
+		Messages: [data-chat] (data-chat-url = messages.php for "read")
+		- conversation buttons [data-conv="id"] open [data-thread="id"]; unread
+		  ones (.count-badge[data-unread]) are marked read when they are seen,
+		  the badges in the header and bottom nav ([data-unread-total]) go down
 		- [data-chat-back] returns to the list on phones
-		- form[data-composer] appends your message; Enter sends, Shift+Enter = new line
+		- form[data-composer] sends to messages.php and appends the message;
+		  Enter sends, Shift+Enter = new line. A new conversation (id 0) reloads
+		  into the created one
 		- [data-quick] buttons put a ready phrase into the input
 		- [data-chat-search] filters the list
 		---------------------------------------------------------------------- */
@@ -876,13 +980,30 @@
 
 		const convs = $$('[data-conv]', chat);
 		const empty = $('.chat__empty', chat);
+		const desktop = window.matchMedia('(min-width: 768px)');
 
 		const scrollDown = (thread) => {
 			const body = $('.thread__body', thread);
 			if (body) body.scrollTop = body.scrollHeight;
 		};
 
-		const open = (id, { focus = true } = {}) => {
+		// Seen on screen: the server marks it read (a failure only leaves it unread)
+		const markRead = (btn) => {
+			const badge = $('.count-badge[data-unread]', btn);
+			if (!badge) return;
+			const n = Number(badge.dataset.unread) || 0;
+			badge.remove();
+			btn.classList.remove('is-unread');
+			$$('[data-unread-total]').forEach((total) => {
+				const left = (Number(total.textContent) || 0) - n;
+				if (left > 0) total.textContent = left;
+				else total.remove();
+			});
+			postJson(chat.dataset.chatUrl, { action: 'read', conversation: btn.dataset.conv }).catch(() => {});
+		};
+
+		// seen = false: opened behind the list on a phone (first load without ?c=)
+		const open = (id, { focus = true, seen = true } = {}) => {
 			let opened = null;
 			$$('[data-thread]', chat).forEach((thread) => {
 				const active = thread.dataset.thread === id;
@@ -892,23 +1013,23 @@
 			$$('[data-conv]', chat).forEach((btn) => {
 				const active = btn.dataset.conv === id;
 				btn.setAttribute('aria-current', String(active));
-				if (active) {
-					btn.classList.remove('is-unread');
-					const badge = $('.count-badge', btn);
-					if (badge) badge.remove();
-				}
+				if (active && (seen || desktop.matches)) markRead(btn);
 			});
 			if (empty) empty.hidden = Boolean(opened);
 			if (!opened) return;
 
 			chat.classList.add('is-thread-open');
 			scrollDown(opened);
-			const params = new URLSearchParams(location.search);
-			params.set('c', id);
-			history.replaceState(null, '', '?' + params.toString());
+			// A new conversation keeps ?listing= in the address
+			if (id !== '0') {
+				const params = new URLSearchParams(location.search);
+				params.delete('listing');
+				params.set('c', id);
+				history.replaceState(null, '', '?' + params.toString());
+			}
 			if (focus) {
 				const field = $('textarea', opened);
-				if (field && window.matchMedia('(min-width: 768px)').matches) field.focus();
+				if (field && desktop.matches) field.focus();
 			}
 		};
 
@@ -923,31 +1044,65 @@
 		// Send a message
 		$$('form[data-composer]', chat).forEach((form) => {
 			const field = $('textarea', form);
+			const submit = $('[type="submit"]', form);
 			const thread = form.closest('[data-thread]');
 			const body = $('.thread__body', thread);
+			let sending = false;
 
-			const send = () => {
+			const send = async () => {
 				const text = field.value.trim();
-				if (!text) return;
-				const now = new Date();
+				if (!text || sending) return;
+				sending = true;
+				submit.disabled = true;
+
+				let data;
+				try {
+					// getAttribute: the hidden input named "action" shadows form.action
+					data = await postJson(form.getAttribute('action'), Object.fromEntries(new FormData(form)));
+				} catch (err) {
+					toast(err.message, 'danger');
+					return;
+				} finally {
+					sending = false;
+					submit.disabled = false;
+				}
+
+				if (data.created || thread.dataset.thread === '0') {
+					const params = new URLSearchParams(location.search);
+					params.delete('listing');
+					params.set('c', data.conversation);
+					window.location.href = '?' + params.toString();
+					return;
+				}
+
+				const { message } = data;
+				const days = $$('.day-sep', body);
+				if (!days.length || days[days.length - 1].textContent !== message.day) {
+					const sep = document.createElement('p');
+					sep.className = 'day-sep';
+					sep.textContent = message.day;
+					body.appendChild(sep);
+				}
 				const msg = document.createElement('div');
 				msg.className = 'msg msg--out';
-				msg.textContent = text;
+				msg.textContent = message.text;
 				const time = document.createElement('span');
 				time.className = 'msg__time';
-				time.textContent = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+				time.textContent = message.time;
 				msg.appendChild(time);
 				body.appendChild(msg);
 				field.value = '';
 				scrollDown(thread);
 
-				// Update the list item
+				// Update the list item and move it to the top
 				const conv = $(`[data-conv="${thread.dataset.thread}"]`, chat);
 				if (conv) {
 					const last = $('.conv__last', conv);
 					const when = $('.conv__time', conv);
-					if (last) last.textContent = text;
-					if (when) when.textContent = time.textContent;
+					if (last) last.textContent = `${i18n.you}: ${message.text}`;
+					if (when) when.textContent = message.time;
+					const item = conv.closest('li');
+					item.parentElement.prepend(item);
 				}
 			};
 
@@ -987,23 +1142,17 @@
 			});
 		}
 
-		// After deleting a conversation: back to the list
-		document.addEventListener('p4m:removed', () => {
-			if (!$('[data-thread]:not([hidden])', chat)) {
-				chat.classList.remove('is-thread-open');
-				if (empty) empty.hidden = false;
-			}
-		});
-
 		const active = $('[data-conv][aria-current="true"]', chat);
-		if (active) open(active.dataset.conv, { focus: false });
-		if (!chat.hasAttribute('data-open-on-load')) chat.classList.remove('is-thread-open');
+		const openOnLoad = chat.hasAttribute('data-open-on-load');
+		if (active) open(active.dataset.conv, { focus: false, seen: openOnLoad });
+		if (!openOnLoad) chat.classList.remove('is-thread-open');
 	};
 
 	/* ---------- Init ---------- */
 	window.P4M = { toast };
 
 	initFavorites();
+	initSavedSearches();
 	initTabs();
 	initPills();
 	initDrawers();
