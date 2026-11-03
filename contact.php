@@ -4,7 +4,8 @@
 	GET: topic, listing (prefill, e.g. contact.php?topic=fraud&listing=1048)
 	POST (+ csrf): name, email, topic, listing, message; "website" is a trap
 	for bots (hidden, a person leaves it empty). Saved to contact_messages and
-	emailed to support (config('mail')['support'], else the alerts address),
+	emailed to support (Settings → support email, else config('mail')['support'],
+	else the alerts address),
 	Reply-To = the visitor. Limit: RATE_LIMITS['contact_ip'].
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
@@ -45,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$id = create_contact_message(current_user_id(), $form['name'], $form['email'], $topic, $listingId !== '' ? (int) $listingId : null, $form['message'], lang());
 		log_action('contact.message', ['contact_id' => $id, 'topic' => $topic]);
 
-		$support = config('mail')['support'] ?? config('alerts')['email'] ?? null;
+		$support = setting('support_email') ?: config('mail')['support'] ?? config('alerts')['email'] ?? null;
 		if ($support) {
 			$body = t('contact.topic') . ': ' . t('contact.topic_' . $topic) . "\n"
 				. ($listingId !== '' ? t('contact.listing') . ': ' . $listingId . ' — ' . site_url(url('listing.php', ['id' => $listingId])) . "\n" : '')

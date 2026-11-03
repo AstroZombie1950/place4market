@@ -362,9 +362,7 @@
 	/* ----------------------------------------------------------------------
 		Confirm: [data-confirm="Question?"]
 		data-confirm-label: OK button text
-		data-done: toast after OK
-		data-remove-target: CSS selector(s) of elements to remove after OK
-		Otherwise follows the link or submits the form (a submit button is sent
+		After OK: follows the link or submits the form (a submit button is sent
 		as the submitter, with its name and value).
 		---------------------------------------------------------------------- */
 	const initConfirm = () => {
@@ -390,50 +388,12 @@
 			dialog.close();
 			if (!pending) return;
 
-			if (pending.dataset.removeTarget) {
-				$$(pending.dataset.removeTarget).forEach((el) => removeWithFade(el));
-			}
-
-			if (pending.dataset.done) {
-				toast(pending.dataset.done);
-			} else if (pending.tagName === 'A' && pending.getAttribute('href')) {
+			if (pending.tagName === 'A' && pending.getAttribute('href')) {
 				window.location.href = pending.href;
 			} else if (pending.form) {
 				pending.form.requestSubmit(pending.type === 'submit' ? pending : undefined);
 			}
 			pending = null;
-		});
-	};
-
-	/* ----------------------------------------------------------------------
-		Demo feedback until the backend is connected:
-		- button/link[data-toast="Message"] shows a toast
-		- form[data-demo="Message"] prevents submit, shows a toast,
-		  closes its dialog; data-demo-reset also resets the form
-		- checkbox[data-toast-on][data-toast-off] shows a toast on change
-		---------------------------------------------------------------------- */
-	const initDemo = () => {
-		document.addEventListener('click', (e) => {
-			const el = e.target.closest('[data-toast]:not([data-confirm])');
-			if (!el) return;
-			if (el.tagName === 'A' || el.type === 'submit') e.preventDefault();
-			toast(el.dataset.toast, el.dataset.toastType || 'success');
-		});
-
-		$$('form[data-demo]').forEach((form) => {
-			form.addEventListener('submit', (e) => {
-				e.preventDefault();
-				toast(form.dataset.demo);
-				const dialog = form.closest('dialog');
-				if (dialog) dialog.close();
-				if (form.hasAttribute('data-demo-reset')) form.reset();
-			});
-		});
-
-		document.addEventListener('change', (e) => {
-			const box = e.target;
-			if (!box.matches('input[type="checkbox"][data-toast-on]:not([data-search-alerts])')) return;
-			toast(box.checked ? box.dataset.toastOn : box.dataset.toastOff, 'info');
 		});
 	};
 
@@ -971,6 +931,8 @@
 		- form[data-composer] sends to messages.php and appends the message;
 		  Enter sends, Shift+Enter = new line. A new conversation (id 0) reloads
 		  into the created one
+		- the open thread asks for new messages (action poll) every 10 s while
+		  the tab is visible; they are read at once, the header badges follow
 		- [data-quick] buttons put a ready phrase into the input
 		- [data-chat-search] filters the list
 		---------------------------------------------------------------------- */
@@ -986,6 +948,69 @@
 			const body = $('.thread__body', thread);
 			if (body) body.scrollTop = body.scrollHeight;
 		};
+
+		// A message from messages.php ({id, mine, text, time, day}) at the end of the thread,
+		// and as the last one in the conversation list (moved to the top)
+		const appendMessage = (thread, message) => {
+			const body = $('.thread__body', thread);
+			if (!body || $(`[data-msg="${message.id}"]`, body)) return;
+
+			const days = $$('.day-sep', body);
+			if (!days.length || days[days.length - 1].textContent !== message.day) {
+				const sep = document.createElement('p');
+				sep.className = 'day-sep';
+				sep.textContent = message.day;
+				body.appendChild(sep);
+			}
+			const msg = document.createElement('div');
+			msg.className = `msg ${message.mine ? 'msg--out' : 'msg--in'}`;
+			msg.dataset.msg = message.id;
+			msg.textContent = message.text;
+			const time = document.createElement('span');
+			time.className = 'msg__time';
+			time.textContent = message.time;
+			msg.appendChild(time);
+			body.appendChild(msg);
+
+			const conv = $(`[data-conv="${thread.dataset.thread}"]`, chat);
+			if (conv) {
+				const last = $('.conv__last', conv);
+				const when = $('.conv__time', conv);
+				if (last) last.textContent = message.mine ? `${i18n.you}: ${message.text}` : message.text;
+				if (when) when.textContent = message.time;
+				const item = conv.closest('li');
+				item.parentElement.prepend(item);
+			}
+		};
+
+		// New messages of the open thread: every POLL_SECONDS while the tab is visible
+		const POLL_SECONDS = 10;
+		let polling = false;
+		const poll = async () => {
+			const thread = $('[data-thread]:not([hidden])', chat);
+			const shown = thread && thread.dataset.thread !== '0' && (desktop.matches || chat.classList.contains('is-thread-open'));
+			if (!shown || polling || document.hidden) return;
+
+			const ids = $$('[data-msg]', thread).map((el) => Number(el.dataset.msg));
+			polling = true;
+			try {
+				const data = await postJson(chat.dataset.chatUrl, { action: 'poll', conversation: thread.dataset.thread, after: Math.max(0, ...ids) });
+				const body = $('.thread__body', thread);
+				const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 80;
+				data.messages.forEach((message) => appendMessage(thread, message));
+				if (data.messages.length && atBottom) scrollDown(thread);
+				$$('[data-unread-total]').forEach((total) => {
+					if (data.unread > 0) total.textContent = data.unread;
+					else total.remove();
+				});
+			} catch (err) {
+				// Offline or logged out: the next round tries again
+			} finally {
+				polling = false;
+			}
+		};
+		setInterval(poll, POLL_SECONDS * 1000);
+		document.addEventListener('visibilitychange', poll);
 
 		// Seen on screen: the server marks it read (a failure only leaves it unread)
 		const markRead = (btn) => {
@@ -1046,7 +1071,6 @@
 			const field = $('textarea', form);
 			const submit = $('[type="submit"]', form);
 			const thread = form.closest('[data-thread]');
-			const body = $('.thread__body', thread);
 			let sending = false;
 
 			const send = async () => {
@@ -1075,35 +1099,9 @@
 					return;
 				}
 
-				const { message } = data;
-				const days = $$('.day-sep', body);
-				if (!days.length || days[days.length - 1].textContent !== message.day) {
-					const sep = document.createElement('p');
-					sep.className = 'day-sep';
-					sep.textContent = message.day;
-					body.appendChild(sep);
-				}
-				const msg = document.createElement('div');
-				msg.className = 'msg msg--out';
-				msg.textContent = message.text;
-				const time = document.createElement('span');
-				time.className = 'msg__time';
-				time.textContent = message.time;
-				msg.appendChild(time);
-				body.appendChild(msg);
+				appendMessage(thread, data.message);
 				field.value = '';
 				scrollDown(thread);
-
-				// Update the list item and move it to the top
-				const conv = $(`[data-conv="${thread.dataset.thread}"]`, chat);
-				if (conv) {
-					const last = $('.conv__last', conv);
-					const when = $('.conv__time', conv);
-					if (last) last.textContent = `${i18n.you}: ${message.text}`;
-					if (when) when.textContent = message.time;
-					const item = conv.closest('li');
-					item.parentElement.prepend(item);
-				}
 			};
 
 			form.addEventListener('submit', (e) => {
@@ -1158,7 +1156,6 @@
 	initDrawers();
 	initDialogs();
 	initConfirm();
-	initDemo();
 	initForms();
 	initViewToggle();
 	initGallery();

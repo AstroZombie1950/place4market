@@ -66,7 +66,8 @@ if (($_POST['action'] ?? '') === 'change_password') {
 		$passwordError = t('auth.err_password');
 	} else {
 		set_user_password($me['id'], password_hash($new, PASSWORD_DEFAULT));
-		delete_user_remember_tokens($me['id']);
+		// Other devices are logged out, this one stays
+		end_user_sessions($me['id']);
 		login_user($me['id'], isset($_COOKIE[REMEMBER_COOKIE]));
 		log_action('auth.password_changed');
 		flash('success', t('p.password_saved'));
@@ -177,8 +178,8 @@ $counts = ['' => count($myListings)] + array_fill_keys(array_keys($statusKeys), 
 foreach ($myListings as $item) {
 	$counts[$item['status']]++;
 }
-// Bump: once per RAISE_HOURS
-$raiseAfter = date('Y-m-d H:i:s', time() - RAISE_HOURS * 3600);
+// Bump: once per setting('raise_hours')
+$raiseAfter = date('Y-m-d H:i:s', time() - setting('raise_hours') * 3600);
 
 $page['title'] = t('p.title');
 $page['robots'] = 'noindex, follow';
@@ -232,7 +233,7 @@ require INC_DIR . '/header.php';
 					$itemTitle = listing_title($item) ?: t('p.untitled');
 					// A draft opens in the form, everything else on its page
 					$itemUrl = $item['status'] === 'draft' ? url('post.php', ['id' => $item['id']]) : listing_url($item);
-					$expires = $item['expires'] ?? date('Y-m-d H:i:s', strtotime($item['created'] . ' +' . LISTING_DAYS . ' days'));
+					$expires = $item['expires'] ?? date('Y-m-d H:i:s', strtotime($item['created'] . ' +' . setting('listing_days') . ' days'));
 				?>
 				<li class="mylist__item" id="listing-<?= (int) $item['id'] ?>" data-status="<?= e($item['status']) ?>">
 					<a class="mylist__thumb" href="<?= e($itemUrl) ?>" tabindex="-1" aria-hidden="true"><?= $item['images'] ? photo($item['images'][0], PHOTO_SIZES['row'], ['max' => PHOTO_MAX['row']]) : placeholder($item['category'], 32) ?></a>

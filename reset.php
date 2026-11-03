@@ -56,7 +56,7 @@ if ($token !== '' && $_SERVER['REQUEST_METHOD'] === 'POST' && $tokenUser !== nul
 		revoke_auth_tokens($tokenUser, 'reset_password');
 		// The link came to the mailbox, so the email is confirmed; other devices are logged out
 		mark_email_verified($tokenUser);
-		delete_user_remember_tokens($tokenUser);
+		end_user_sessions($tokenUser);
 		login_user($tokenUser);
 		log_action('auth.password_reset', ['user_id' => $tokenUser]);
 		flash('success', t('p.password_saved'));

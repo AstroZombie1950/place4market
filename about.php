@@ -11,8 +11,8 @@ $crumbs = info_crumbs($infoKey);
 
 $stats = [
 	['value' => format_number(count_listings([])), 'label' => t('about.stat_listings')],
-	['value' => count(categories()), 'label' => t('about.stat_categories')],
-	['value' => count(cities()), 'label' => t('about.stat_cities')],
+	['value' => count(visible_categories()), 'label' => t('about.stat_categories')],
+	['value' => count(active_cities()), 'label' => t('about.stat_cities')],
 	['value' => format_price(0), 'label' => t('about.stat_free_label')],
 ];
 

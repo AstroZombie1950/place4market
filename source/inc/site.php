@@ -35,6 +35,15 @@ function cat_name(array $category): string
 	return $category['names'][lang()] ?? $category['names']['en'];
 }
 
+// SEO title and description of a category page in the current language, null = default text.
+// Serbian is stored in Latin, the Cyrillic page gets it converted
+function category_seo(array $category): array
+{
+	$texts = $category['seo'][lang() === 'en' ? 'en' : 'sr'];
+
+	return array_map(fn($text) => $text === null || $text === '' ? null : (lang() === 'sr-cyrl' ? sr_cyr($text) : $text), $texts);
+}
+
 // All slugs inside a category (itself + children)
 function category_slugs(array $category): array
 {
@@ -70,7 +79,7 @@ function city_select_options(string $selected = '', bool $withAll = true): strin
 {
 	$html = $withAll ? '<option value="">' . e(t('search.all_cities')) . '</option>' : '';
 
-	foreach (cities() as $city) {
+	foreach (active_cities() as $city) {
 		$isSelected = $city['latn'] === $selected ? ' selected' : '';
 		$html .= '<option value="' . e($city['latn']) . '"' . $isSelected . '>' . e(city_name($city['latn'])) . '</option>';
 	}

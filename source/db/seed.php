@@ -83,7 +83,7 @@ foreach ($demo['listings'] as $l) {
 			$title, $description, $lang, sr_lat($title . "\n" . $description),
 			$l['price'], $l['currency'], (int) $l['negotiable'], $l['condition'], $l['attrs'] ? $json($l['attrs']) : null,
 			$l['views'], $l['favorites'], $l['messages'], $l['reject_reason'] ?? null, $l['reject_comment'] ?? null,
-			$created, $created, $published ? $created : null, $published ? db_utc($l['created'] . ' +' . LISTING_DAYS . ' days') : null,
+			$created, $created, $published ? $created : null, $published ? db_utc($l['created'] . ' +' . setting('listing_days') . ' days') : null,
 		]
 	);
 

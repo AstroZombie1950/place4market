@@ -1,21 +1,34 @@
 <?php
 /* ==========================================================================
-	Admin: Users (filter tabs, search, bulk actions)
+	Admin: Users (tabs, filters and pages on the server, bulk actions)
+	GET: tab (active | blocked | deleted | staff), q (id, name, e-mail, phone),
+	role, city, page.
 	========================================================================== */
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
 
 $pageTitle = 'Users';
 $activeNav = 'users';
 
-$users = users();
-
-// Tabs: [field, value, label, count]
+// Tabs: value => label
 $userTabs = [
-	['status', '', 'All', count($users)],
-	['status', 'active', 'Active', count_by($users, 'status', 'active')],
-	['status', 'blocked', 'Blocked', count_by($users, 'status', 'blocked')],
-	['staff', 'yes', 'Staff', count(array_filter($users, fn($u) => $u['role'] !== 'user'))],
+	'' => 'All',
+	'active' => 'Active',
+	'blocked' => 'Blocked',
+	'deleted' => 'Deleted',
+	'staff' => 'Staff',
 ];
+
+$f = [
+	'tab' => list_param('tab', array_keys($userTabs)),
+	'q' => list_param('q'),
+	'role' => list_param('role', ['user', 'moderator', 'admin']),
+	'city' => list_param('city'),
+];
+$counts = admin_user_counts($f);
+$total = count_admin_users($f);
+[$page, $offset] = list_page($total);
+$users = admin_users($f, ADMIN_PAGE_SIZE, $offset);
+$back = list_url('users.php', $f, ['page' => $page > 1 ? $page : null]);
 
 require ADMIN_INC . '/header.php';
 ?>
@@ -26,47 +39,55 @@ require ADMIN_INC . '/header.php';
 		<h1 class="page-head__title">Users</h1>
 		<p class="page-head__sub">Accounts, roles and blocking.</p>
 	</div>
+	<?php if (is_admin()): ?>
 	<div class="page-head__actions">
-		<button type="button" class="btn btn--secondary" data-toast="Export started, the file will download shortly" data-toast-type="info"><?= icon('download', 18) ?>Export CSV</button>
+		<a class="btn btn--secondary" href="<?= e(list_url('export.php', ['type' => 'users'] + $f)) ?>"><?= icon('download', 18) ?>Export CSV</a>
 	</div>
+	<?php endif; ?>
 </div>
 
 <section class="card" aria-label="Users table">
-	<!-- Filter tabs -->
-	<div class="tabs__list tabs__list--flush" role="group" aria-label="Filter users" data-filter-tabs="users-table">
-		<?php foreach ($userTabs as $i => [$field, $value, $label, $count]): ?>
-		<button type="button" class="tabs__tab" data-filter-field="<?= e($field) ?>" data-filter-value="<?= e($value) ?>" aria-pressed="<?= $i === 0 ? 'true' : 'false' ?>">
-			<?= e($label) ?> <span class="tabs__count"><?= (int) $count ?></span>
-		</button>
+	<!-- Tabs (keep the other filters) -->
+	<nav class="tabs__list tabs__list--flush" aria-label="Filter users">
+		<?php foreach ($userTabs as $value => $label): ?>
+		<a class="tabs__tab" href="<?= e(list_url('users.php', ['tab' => $value] + $f)) ?>"<?= $value === $f['tab'] ? ' aria-current="page"' : '' ?>>
+			<?= e($label) ?> <span class="tabs__count"><?= (int) $counts[$value] ?></span>
+		</a>
 		<?php endforeach; ?>
-	</div>
+	</nav>
 
-	<!-- Toolbar -->
-	<div class="toolbar">
+	<!-- Filters (GET; a select sends the form on change) -->
+	<form class="toolbar" method="get" action="users.php" data-autosubmit>
+		<input type="hidden" name="tab" value="<?= e($f['tab']) ?>">
 		<div class="input-icon toolbar__search">
 			<?= icon('search', 18) ?>
 			<label class="visually-hidden" for="users-search">Search users</label>
-			<input class="input" id="users-search" type="search" placeholder="Name, email, phone…" data-table-search="users-table">
+			<input class="input" id="users-search" name="q" type="search" placeholder="Name, email, phone, ID…" value="<?= e($f['q']) ?>">
 		</div>
 		<label class="visually-hidden" for="users-city">City</label>
-		<select class="select" id="users-city" data-table-filter="users-table" data-field="city">
-			<?= city_options('', true) ?>
+		<select class="select" id="users-city" name="city">
+			<?= city_options($f['city'], true) ?>
 		</select>
 		<label class="visually-hidden" for="users-role">Role</label>
-		<select class="select" id="users-role" data-table-filter="users-table" data-field="role">
-			<?= options(['' => 'All roles', 'user' => 'User', 'moderator' => 'Moderator', 'admin' => 'Admin']) ?>
+		<select class="select" id="users-role" name="role">
+			<?= options(['' => 'All roles', 'user' => 'User', 'moderator' => 'Moderator', 'admin' => 'Admin'], $f['role']) ?>
 		</select>
-		<button type="button" class="btn btn--ghost" data-table-reset="users-table"><?= icon('refresh', 18) ?>Reset</button>
-	</div>
+		<button type="submit" class="btn btn--primary"><?= icon('search', 18) ?>Show</button>
+		<a class="btn btn--ghost" href="<?= e(list_url('users.php', ['tab' => $f['tab']])) ?>"><?= icon('refresh', 18) ?>Reset</a>
+	</form>
 
-	<!-- Bulk actions -->
-	<div class="bulkbar" data-bulk="users-table" hidden>
+	<!-- Bulk actions (checked rows → ids[]): block / unblock → moderate.php, delete → user-actions.php -->
+	<form class="bulkbar" data-bulk="users-table" data-bulk-form="users-table" method="post" action="moderate.php" hidden>
+		<?= csrf_field() ?>
+		<input type="hidden" name="back" value="<?= e($back) ?>">
 		<span class="bulkbar__count"><span data-bulk-count>0</span> selected</span>
-		<button type="button" class="btn btn--secondary btn--sm" data-confirm="Block the selected users?" data-confirm-label="Block" data-toast="Selected users blocked"><?= icon('ban', 16) ?>Block</button>
-		<button type="button" class="btn btn--secondary btn--sm" data-toast="Selected users unblocked"><?= icon('check', 16) ?>Unblock</button>
-		<button type="button" class="btn btn--danger-ghost btn--sm" data-confirm="Delete the selected users and all their listings?" data-confirm-label="Delete" data-toast="Selected users deleted"><?= icon('trash', 16) ?>Delete</button>
+		<button type="submit" class="btn btn--secondary btn--sm" name="action" value="block" data-confirm="Block the selected users? They are logged out and their listings are hidden. Staff accounts are skipped." data-confirm-label="Block"><?= icon('ban', 16) ?>Block</button>
+		<button type="submit" class="btn btn--secondary btn--sm" name="action" value="unblock"><?= icon('check', 16) ?>Unblock</button>
+		<?php if (is_admin()): ?>
+		<button type="submit" class="btn btn--danger-ghost btn--sm" name="action" value="delete" formaction="user-actions.php" data-confirm="Delete the selected accounts? Their listings and photos are removed and personal data erased, this cannot be undone. Staff accounts are skipped." data-confirm-label="Delete"><?= icon('trash', 16) ?>Delete</button>
+		<?php endif; ?>
 		<button type="button" class="btn btn--ghost btn--sm" data-bulk-clear="users-table">Clear</button>
-	</div>
+	</form>
 
 	<!-- Table -->
 	<div class="table-wrap">
@@ -87,8 +108,8 @@ require ADMIN_INC . '/header.php';
 			</thead>
 			<tbody>
 				<?php foreach ($users as $user): $isStaff = $user['role'] !== 'user'; ?>
-				<tr data-row data-status="<?= e($user['status']) ?>" data-role="<?= e($user['role']) ?>" data-staff="<?= $isStaff ? 'yes' : 'no' ?>" data-city="<?= e($user['city']) ?>">
-					<td class="col-check"><input type="checkbox" data-row-check aria-label="Select <?= e($user['name']) ?>"></td>
+				<tr data-row data-id="<?= (int) $user['id'] ?>">
+					<td class="col-check"><?php if ($user['status'] !== 'deleted'): ?><input type="checkbox" data-row-check aria-label="Select <?= e($user['name']) ?>"><?php endif; ?></td>
 					<td>
 						<div class="cell-main">
 							<span class="avatar"><?= e(initials($user['name'])) ?></span>
@@ -98,50 +119,55 @@ require ADMIN_INC . '/header.php';
 							</div>
 						</div>
 					</td>
-					<td class="nowrap"><?= e($user['phone']) ?></td>
+					<td class="nowrap"><?= e($user['phone'] ?? '') ?></td>
 					<td class="nowrap"><?= e($user['city']) ?></td>
-					<td class="num"><?= count(user_listings($user['id'])) ?></td>
+					<td class="num"><?php if ($user['listings']): ?><a href="listings.php?user=<?= (int) $user['id'] ?>"><?= (int) $user['listings'] ?></a><?php else: ?>0<?php endif; ?></td>
 					<td><?= role_badge($user['role']) ?></td>
 					<td><?= status_badge($user['status']) ?></td>
 					<td class="nowrap muted"><?= e(format_date($user['registered'])) ?></td>
-					<td class="nowrap muted"><?= e(format_date($user['last_active'], true)) ?></td>
+					<td class="nowrap muted"><?= $user['last_active'] ? e(format_date($user['last_active'], true)) : 'Never' ?></td>
 					<td class="col-actions">
 						<div class="dropdown" data-dropdown>
 							<button type="button" class="btn btn--ghost btn--icon btn--sm" data-dropdown-toggle aria-expanded="false" aria-label="Actions for <?= e($user['name']) ?>"><?= icon('more', 18) ?></button>
-							<div class="dropdown__menu">
+							<form class="dropdown__menu" method="post" action="moderate.php">
+								<?= csrf_field() ?>
+								<input type="hidden" name="user_id" value="<?= (int) $user['id'] ?>">
+								<input type="hidden" name="id" value="<?= (int) $user['id'] ?>">
+								<input type="hidden" name="back" value="<?= e($back) ?>">
 								<a class="dropdown__item" href="user.php?id=<?= (int) $user['id'] ?>"><?= icon('user', 18) ?>Open profile</a>
+								<?php if ($user['status'] !== 'deleted'): ?>
 								<a class="dropdown__item" href="mailto:<?= e($user['email']) ?>"><?= icon('mail', 18) ?>Send email</a>
-								<?php if ($user['role'] === 'user'): ?>
-								<button type="button" class="dropdown__item" data-toast="Role changed to Moderator"><?= icon('shield', 18) ?>Make moderator</button>
+								<?php if (is_admin() && $user['id'] !== $currentAdmin['id']): ?>
+								<input type="hidden" name="role" value="<?= $isStaff ? 'user' : 'moderator' ?>">
+								<button type="submit" class="dropdown__item" name="action" value="role" formaction="user-actions.php"><?= icon('shield', 18) ?><?= $isStaff ? 'Make regular user' : 'Make moderator' ?></button>
 								<?php endif; ?>
+								<?php if (!$isStaff): ?>
 								<div class="dropdown__sep"></div>
 								<?php if ($user['status'] === 'blocked'): ?>
-								<button type="button" class="dropdown__item" data-toast="User unblocked"><?= icon('check', 18) ?>Unblock</button>
+								<button type="submit" class="dropdown__item" name="action" value="unblock"><?= icon('check', 18) ?>Unblock</button>
 								<?php else: ?>
-								<button type="button" class="dropdown__item dropdown__item--danger" data-confirm="Block <?= e($user['name']) ?>? All their listings will be hidden." data-confirm-label="Block" data-toast="User blocked"><?= icon('ban', 18) ?>Block</button>
+								<button type="submit" class="dropdown__item dropdown__item--danger" name="action" value="block" data-confirm="Block <?= e($user['name']) ?>? They are logged out and all their listings are hidden." data-confirm-label="Block"><?= icon('ban', 18) ?>Block</button>
 								<?php endif; ?>
-								<button type="button" class="dropdown__item dropdown__item--danger" data-confirm="Delete <?= e($user['name']) ?> and all their listings?" data-confirm-label="Delete" data-toast="User deleted"><?= icon('trash', 18) ?>Delete</button>
-							</div>
+								<?php if (is_admin()): ?>
+								<button type="submit" class="dropdown__item dropdown__item--danger" name="action" value="delete" formaction="user-actions.php" data-confirm="Delete <?= e($user['name']) ?>? Their listings and photos are removed and personal data erased, this cannot be undone." data-confirm-label="Delete"><?= icon('trash', 18) ?>Delete</button>
+								<?php endif; ?>
+								<?php endif; ?>
+								<?php endif; ?>
+							</form>
 						</div>
 					</td>
 				</tr>
 				<?php endforeach; ?>
-				<tr class="table__empty" data-empty hidden>
+				<?php if (!$users): ?>
+				<tr class="table__empty">
 					<td colspan="10">No users match the filters.</td>
 				</tr>
+				<?php endif; ?>
 			</tbody>
 		</table>
 	</div>
 
-	<!-- Pagination -->
-	<nav class="pagination" aria-label="Pagination">
-		<span>Showing <span data-table-count="users-table"><?= count($users) ?></span> of <?= count($users) ?></span>
-		<ul class="pagination__pages">
-			<li><a class="pagination__page" href="users.php" aria-label="Previous page" aria-disabled="true"><?= icon('chevron-left', 16) ?></a></li>
-			<li><a class="pagination__page" href="users.php" aria-current="page">1</a></li>
-			<li><a class="pagination__page" href="users.php" aria-label="Next page" aria-disabled="true"><?= icon('chevron-right', 16) ?></a></li>
-		</ul>
-	</nav>
+	<?= admin_pagination($total, $page, fn($n) => list_url('users.php', $f, ['page' => $n > 1 ? $n : null])) ?>
 </section>
 
 <?php require ADMIN_INC . '/footer.php'; ?>

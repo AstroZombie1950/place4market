@@ -1,8 +1,6 @@
 <?php
 /* ==========================================================================
-	Demo data: the source for the database seed (source/db/seed.php), plus
-	what is not in the database yet and is read through repo.php (mock()):
-	language settings (→ settings).
+	Demo data: the source for the database seed (source/db/seed.php).
 	Dates are relative to the moment of seeding.
 	User text is given in 'en' and 'sr' (Latin); the seed keeps one language
 	per listing, as a real author writes (see SEED_ENGLISH in seed.php).
@@ -95,13 +93,6 @@ $cities = [
 	['latn' => 'Zrenjanin', 'cyrl' => 'Зрењанин', 'active' => true],
 	['latn' => 'Čačak', 'cyrl' => 'Чачак', 'active' => true],
 	['latn' => 'Kraljevo', 'cyrl' => 'Краљево', 'active' => true],
-];
-
-// Site languages
-$languages = [
-	['code' => 'en', 'name' => 'English', 'native' => 'English', 'prefix' => 'en', 'enabled' => true, 'default' => true],
-	['code' => 'sr-latn', 'name' => 'Serbian (Latin)', 'native' => 'Srpski', 'prefix' => 'sr', 'enabled' => true, 'default' => false],
-	['code' => 'sr-cyrl', 'name' => 'Serbian (Cyrillic)', 'native' => 'Српски', 'prefix' => 'ср', 'enabled' => true, 'default' => false],
 ];
 
 // Users by id. role: user | moderator | admin; status: active | blocked
@@ -380,7 +371,6 @@ $reports = [
 return [
 	'categories' => $categories,
 	'cities' => $cities,
-	'languages' => $languages,
 	'users' => $users,
 	'listings' => $listings,
 	'favorites' => $favorites,

@@ -22,6 +22,7 @@ require INC_DIR . '/icons.php';
 require INC_DIR . '/i18n.php';
 require INC_DIR . '/site.php';
 require INC_DIR . '/seo.php';
+security_headers();
 
 // DEV-ONLY: closed from indexing while in development (duplicates .htaccess,
 // works on any server). Remove at launch together with the .htaccess block
@@ -38,6 +39,15 @@ require INC_DIR . '/repo.php';
 require INC_DIR . '/auth.php';
 require INC_DIR . '/mail.php';
 auth_init();
+
+// Maintenance mode (admin → Settings): visitors get 503, staff work as usual
+if (setting('maintenance') && !is_staff()) {
+	http_response_code(503);
+	header('Retry-After: 600');
+	header('Cache-Control: no-store');
+	require INC_DIR . '/partials/maintenance.php';
+	exit;
+}
 
 // Page settings; each page overrides what it needs before header.php
 function page_defaults(): array

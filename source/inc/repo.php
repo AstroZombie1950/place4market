@@ -3,8 +3,7 @@
 	Data access: the only place that knows where data lives (site + admin).
 	Pages and helpers get data through these functions and never query the
 	database themselves. Storage: MariaDB (db.php); the journal is written by
-	log.php and read here. Language settings still come from mock-data.php
-	until settings move to the database.
+	log.php and read here. Site settings: setting() (defaults in SETTINGS).
 
 	Shapes stay as in the mock: a listing is ['id', 'category' (slug),
 	'user_id', 'status', 'title', 'description', 'lang', 'price', 'currency',
@@ -15,39 +14,86 @@
 	an active listing past its expiry date reads as expired.
 	========================================================================== */
 
-// EUR → RSD rate for price filters and sorting (moves to settings with the backend)
-const EUR_RATE = 117;
-
-// Days a listing stays published; "bump to top" once per RAISE_HOURS (both move to settings)
-const LISTING_DAYS = 60;
-const RAISE_HOURS = 24;
-
 // Published: active and not past its expiry date (cron.php also marks such listings expired)
 const LISTING_LIVE = "l.status = 'active' AND (l.expires_at IS NULL OR l.expires_at > UTC_TIMESTAMP())";
 
-// Price in RSD inside SQL (filters and sorting across currencies)
-const LISTING_PRICE_RSD = "(CASE WHEN l.currency = 'EUR' THEN l.price * " . EUR_RATE . ' ELSE l.price END)';
 
-const LISTING_SELECT = 'SELECT l.*, c.slug AS category, ci.latn AS city
-	FROM listings l
+const LISTING_FROM = 'listings l
 	JOIN categories c ON c.id = l.category_id
 	JOIN cities ci ON ci.id = l.city_id
 	JOIN users u ON u.id = l.user_id';
 
+const LISTING_SELECT = 'SELECT l.*, c.slug AS category, ci.latn AS city FROM ' . LISTING_FROM;
+
+// The listing's category and its parent are switched on in the admin
+const CATEGORY_VISIBLE = 'c.active = 1 AND NOT EXISTS (SELECT 1 FROM categories pc WHERE pc.id = c.parent_id AND pc.active = 0)';
+
+// Status as shown: an active listing past its expiry date reads as expired
+const LISTING_SHOWN_STATUS = "IF(l.status = 'active' AND l.expires_at <= UTC_TIMESTAMP(), 'expired', l.status)";
+
 const USER_SELECT = 'SELECT u.*, ci.latn AS city FROM users u LEFT JOIN cities ci ON ci.id = u.city_id';
 
-// Mock storage for what is not in the database yet, loaded once per request
-function mock(string $key): array
-{
-	static $data = null;
-	$data ??= require SOURCE_DIR . '/inc/mock-data.php';
+/* ---------- Settings (admin → Settings) ---------- */
 
-	return $data[$key];
+// name => [default, type]: int [min, max], bool, text (max length), email, lines (one item a line)
+const SETTINGS = [
+	'eur_rate' => [117, 'int', 1, 1000],
+	'listing_days' => [60, 'int', 7, 365],
+	'raise_hours' => [24, 'int', 1, 720],
+	'max_photos' => [12, 'int', 1, 30],
+	'per_page' => [12, 'int', 4, 60],
+	'support_email' => ['', 'email'],
+	'premoderate_new' => [true, 'bool'],
+	'premoderate_edits' => [true, 'bool'],
+	'trust_verified' => [false, 'bool'],
+	'stop_words' => [[], 'lines'],
+	'maintenance' => [false, 'bool'],
+];
+
+// A setting's value, typed (default when it was never saved)
+function setting(string $name): mixed
+{
+	static $rows = null;
+	$rows ??= array_column(db_all('SELECT name, value FROM settings'), 'value', 'name');
+	[$default, $type] = SETTINGS[$name];
+
+	if (!isset($rows[$name])) {
+		return $default;
+	}
+
+	return match ($type) {
+		'int' => (int) $rows[$name],
+		'bool' => $rows[$name] === '1',
+		'lines' => array_values(array_filter(array_map('trim', explode("\n", $rows[$name])), 'strlen')),
+		default => $rows[$name],
+	};
+}
+
+// Saves checked values (as setting() returns them); the page reloads after it
+function save_settings(array $values, int $staffId): void
+{
+	foreach ($values as $name => $value) {
+		$text = match (SETTINGS[$name][1]) {
+			'bool' => $value ? '1' : '0',
+			'lines' => implode("\n", $value),
+			default => (string) $value,
+		};
+		db_exec('INSERT INTO settings (name, value, updated_by) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_by = VALUES(updated_by)',
+			[$name, $text, $staffId]);
+	}
+}
+
+// Price in RSD inside SQL (filters and sorting across currencies)
+function listing_price_rsd(): string
+{
+	return "(CASE WHEN l.currency = 'EUR' THEN l.price * " . (int) setting('eur_rate') . ' ELSE l.price END)';
 }
 
 /* ---------- Dictionaries ---------- */
 
-// Category tree: parents (with 'icon' and 'children'), sorted
+// Category tree, every category (admin): parents (with 'icon' and 'children'), sorted.
+// 'active' is the category's own switch, 'visible' = it and its parent are on;
+// 'seo' => ['en' => [title, description], 'sr' => […]] (null = default text)
 function categories(): array
 {
 	static $tree = null;
@@ -60,12 +106,13 @@ function categories(): array
 			$category = [
 				'id' => $r['id'], 'slug' => $r['slug'], 'sort' => $r['sort'], 'active' => (bool) $r['active'],
 				'names' => ['en' => $r['name_en'], 'sr-latn' => $r['name_sr_latn'], 'sr-cyrl' => $r['name_sr_cyrl']],
+				'seo' => ['en' => [$r['seo_title_en'], $r['meta_en']], 'sr' => [$r['seo_title_sr'], $r['meta_sr']]],
 			];
 
 			if ($r['parent_id'] === null) {
-				$tree[$r['id']] = $category + ['icon' => $r['icon'], 'children' => []];
+				$tree[$r['id']] = $category + ['icon' => $r['icon'], 'visible' => $category['active'], 'children' => []];
 			} elseif (isset($tree[$r['parent_id']])) {
-				$tree[$r['parent_id']]['children'][] = $category;
+				$tree[$r['parent_id']]['children'][] = $category + ['visible' => $category['active'] && $tree[$r['parent_id']]['active']];
 			}
 		}
 
@@ -75,21 +122,99 @@ function categories(): array
 	return $tree;
 }
 
-// Cities: ['latn', 'cyrl', 'active'], sorted
+// Categories shown on the site: visible parents with their visible children
+function visible_categories(): array
+{
+	return array_values(array_map(
+		fn($parent) => ['children' => array_values(array_filter($parent['children'], fn($child) => $child['visible']))] + $parent,
+		array_filter(categories(), fn($parent) => $parent['visible'])
+	));
+}
+
+// New category or changes to one. $f: parent_id (null = top level), slug, icon, names (en,
+// sr-latn, sr-cyrl), seo (as in categories()), sort, active. Returns the id
+function save_category(?int $id, array $f): int
+{
+	$values = [
+		$f['parent_id'], $f['slug'], $f['icon'], $f['names']['en'], $f['names']['sr-latn'], $f['names']['sr-cyrl'],
+		$f['seo']['en'][0], $f['seo']['sr'][0], $f['seo']['en'][1], $f['seo']['sr'][1], $f['sort'], (int) $f['active'],
+	];
+	$set = 'parent_id = ?, slug = ?, icon = ?, name_en = ?, name_sr_latn = ?, name_sr_cyrl = ?,
+		seo_title_en = ?, seo_title_sr = ?, meta_en = ?, meta_sr = ?, sort = ?, active = ?';
+
+	if ($id === null) {
+		db_exec('INSERT INTO categories SET ' . $set, $values);
+
+		return (int) db()->lastInsertId();
+	}
+
+	db_exec('UPDATE categories SET ' . $set . ' WHERE id = ?', [...$values, $id]);
+
+	return $id;
+}
+
+function set_category_active(int $id, bool $active): bool
+{
+	return db_exec('UPDATE categories SET active = ? WHERE id = ?', [(int) $active, $id]) > 0;
+}
+
+// Slug used by another category
+function category_slug_taken(string $slug, ?int $exceptId): bool
+{
+	return (bool) db_value('SELECT 1 FROM categories WHERE slug = ? AND id <> ?', [$slug, $exceptId ?? 0]);
+}
+
+// Deleted only when nothing refers to it: no subcategories, no listings in any status
+function delete_category(int $id): bool
+{
+	if (db_value('SELECT 1 FROM categories WHERE parent_id = ?', [$id]) || db_value('SELECT 1 FROM listings WHERE category_id = ?', [$id])) {
+		return false;
+	}
+
+	return db_exec('DELETE FROM categories WHERE id = ?', [$id]) > 0;
+}
+
+// Cities, every one (admin): ['id', 'latn', 'cyrl', 'active'], sorted
 function cities(): array
 {
 	static $cities = null;
 
 	return $cities ??= array_map(
-		fn($r) => ['latn' => $r['latn'], 'cyrl' => $r['cyrl'], 'active' => (bool) $r['active']],
-		db_all('SELECT latn, cyrl, active FROM cities ORDER BY sort, id')
+		fn($r) => ['id' => $r['id'], 'latn' => $r['latn'], 'cyrl' => $r['cyrl'], 'active' => (bool) $r['active']],
+		db_all('SELECT id, latn, cyrl, active FROM cities ORDER BY sort, id')
 	);
 }
 
-// Language settings for the admin (enabled, default, URL prefix); UI languages are in i18n.php
-function language_settings(): array
+// Cities offered on the site (selects, filters, home); a switched-off one keeps its listings
+function active_cities(): array
 {
-	return mock('languages');
+	return array_values(array_filter(cities(), fn($city) => $city['active']));
+}
+
+// New city at the end of the list; false when the name is taken
+function add_city(string $latn, string $cyrl): bool
+{
+	if (db_value('SELECT 1 FROM cities WHERE latn = ?', [$latn])) {
+		return false;
+	}
+	db_exec('INSERT INTO cities (latn, cyrl, sort) SELECT ?, ?, COALESCE(MAX(sort), 0) + 1 FROM cities', [$latn, $cyrl]);
+
+	return true;
+}
+
+function set_city_active(int $id, bool $active): bool
+{
+	return db_exec('UPDATE cities SET active = ? WHERE id = ?', [(int) $active, $id]) > 0;
+}
+
+// Deleted only without listings (any status); users of the city keep an empty city
+function delete_city(int $id): bool
+{
+	if (db_value('SELECT 1 FROM listings WHERE city_id = ?', [$id])) {
+		return false;
+	}
+
+	return db_exec('DELETE FROM cities WHERE id = ?', [$id]) > 0;
 }
 
 /* ---------- Users ---------- */
@@ -103,6 +228,7 @@ function user_from_row(array $r): array
 		'email_verified' => $r['email_verified_at'] !== null, 'new_email' => $r['new_email'], 'lang' => $r['lang'],
 		'notify' => ['messages' => (bool) $r['notify_messages'], 'saved' => (bool) $r['notify_saved'], 'price' => (bool) $r['notify_price'], 'news' => (bool) $r['notify_news']],
 		'registered' => db_local($r['created_at']), 'last_active' => db_local($r['last_active_at']),
+		'session_version' => $r['session_version'], 'note' => $r['staff_note'],
 	];
 }
 
@@ -116,11 +242,6 @@ function user(int $id): ?array
 	}
 
 	return $cache[$id];
-}
-
-function users(): array
-{
-	return array_map('user_from_row', db_all(USER_SELECT . ' ORDER BY u.id'));
 }
 
 /* ---------- Listings ---------- */
@@ -138,7 +259,7 @@ function listing_from_row(array $r): array
 		'views' => $r['views'], 'favorites' => $r['favorites_count'], 'messages' => $r['messages_count'],
 		'condition' => $r['item_condition'],
 		'attrs' => $r['attrs'] !== null ? json_decode($r['attrs'], true) : [],
-		'reject_reason' => $r['reject_reason'], 'reject_comment' => $r['reject_comment'], 'expires' => $expires, 'sorted' => db_local($r['sorted_at']),
+		'reject_reason' => $r['reject_reason'], 'reject_comment' => $r['reject_comment'], 'moderation_note' => $r['moderation_note'], 'expires' => $expires, 'sorted' => db_local($r['sorted_at']),
 		'phone' => $r['phone'], 'show_phone' => (bool) $r['show_phone'],
 		'images' => [], 'videos' => [], 'photos' => 0,
 	];
@@ -180,12 +301,6 @@ function find_listing(int $id): ?array
 	return listings_query(LISTING_SELECT . ' WHERE l.id = ?', [$id])[0] ?? null;
 }
 
-// Every listing in any status (admin)
-function all_listings(): array
-{
-	return listings_query(LISTING_SELECT . ' ORDER BY l.created_at DESC, l.id DESC');
-}
-
 // Listings of a user in any status but deleted ("My listings", admin user page)
 function user_listings(int $userId): array
 {
@@ -208,7 +323,7 @@ function listing_status_counts(): array
 // $f: cat, q, city, price_from, price_to, currency, condition, negotiable, photos, user, exclude (ids), since
 function listing_search_where(array $f): array
 {
-	$where = [LISTING_LIVE, "u.status = 'active'"];
+	$where = [LISTING_LIVE, "u.status = 'active'", CATEGORY_VISIBLE];
 	$params = [];
 
 	// Category (parent includes children)
@@ -232,13 +347,13 @@ function listing_search_where(array $f): array
 	}
 
 	// Price range, compared in RSD
-	$rate = ($f['currency'] ?? 'RSD') === 'EUR' ? EUR_RATE : 1;
+	$rate = ($f['currency'] ?? 'RSD') === 'EUR' ? (int) setting('eur_rate') : 1;
 	if (!empty($f['price_from'])) {
-		$where[] = LISTING_PRICE_RSD . ' >= ?';
+		$where[] = listing_price_rsd() . ' >= ?';
 		$params[] = (int) $f['price_from'] * $rate;
 	}
 	if (!empty($f['price_to'])) {
-		$where[] = LISTING_PRICE_RSD . ' <= ?';
+		$where[] = listing_price_rsd() . ' <= ?';
 		$params[] = (int) $f['price_to'] * $rate;
 	}
 
@@ -278,8 +393,8 @@ function search_listings(array $f, ?int $limit = null, int $offset = 0): array
 	[$where, $params] = listing_search_where($f);
 
 	$order = match ($f['sort'] ?? 'new') {
-		'cheap' => 'l.price IS NULL, ' . LISTING_PRICE_RSD . ' ASC, l.created_at DESC',
-		'expensive' => 'l.price IS NULL, ' . LISTING_PRICE_RSD . ' DESC, l.created_at DESC',
+		'cheap' => 'l.price IS NULL, ' . listing_price_rsd() . ' ASC, l.created_at DESC',
+		'expensive' => 'l.price IS NULL, ' . listing_price_rsd() . ' DESC, l.created_at DESC',
 		default => 'l.sorted_at DESC, l.id DESC',
 	};
 	$page = $limit !== null ? ' LIMIT ' . max(0, $limit) . ' OFFSET ' . max(0, $offset) : '';
@@ -292,11 +407,7 @@ function count_listings(array $f): int
 {
 	[$where, $params] = listing_search_where($f);
 
-	return (int) db_value('SELECT COUNT(*) FROM listings l
-		JOIN categories c ON c.id = l.category_id
-		JOIN cities ci ON ci.id = l.city_id
-		JOIN users u ON u.id = l.user_id
-		WHERE ' . $where, $params);
+	return (int) db_value('SELECT COUNT(*) FROM ' . LISTING_FROM . ' WHERE ' . $where, $params);
 }
 
 // Sitemap: published listings [id, created]
@@ -304,8 +415,8 @@ function sitemap_listings(): array
 {
 	return array_map(
 		fn($r) => ['id' => $r['id'], 'created' => db_local($r['created_at'])],
-		db_all('SELECT l.id, l.created_at FROM listings l JOIN users u ON u.id = l.user_id
-			WHERE ' . LISTING_LIVE . " AND u.status = 'active' ORDER BY l.created_at DESC, l.id DESC")
+		db_all('SELECT l.id, l.created_at FROM listings l JOIN users u ON u.id = l.user_id JOIN categories c ON c.id = l.category_id
+			WHERE ' . LISTING_LIVE . " AND u.status = 'active' AND " . CATEGORY_VISIBLE . ' ORDER BY l.created_at DESC, l.id DESC')
 	);
 }
 
@@ -339,27 +450,38 @@ function postable_photos(int $userId, array $ids, ?int $listingId): array
 
 // New listing or changes to one. $f: user_id, status (pending = to moderation, draft), category
 // (slug), city (Latin name), title, description, lang, price (null = by agreement), currency,
-// negotiable, condition (null when the category has none), attrs, phone, show_phone.
+// negotiable, condition (null when the category has none), attrs, phone, show_phone,
+// moderation_note (why it waits for a moderator, optional).
 // Returns the listing id
 function save_listing(array $f, ?int $id = null): int
 {
-	$values = [
-		$f['status'], $f['title'], $f['description'], $f['lang'], sr_lat($f['title'] . "\n" . $f['description']),
-		$f['price'], $f['currency'], (int) $f['negotiable'], $f['condition'], $f['attrs'] ? json_encode($f['attrs'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
-		$f['phone'], (int) $f['show_phone'], $f['category'], $f['city'],
-	];
-	$set = 'status = ?, title = ?, description = ?, lang = ?, search_text = ?, price = ?, currency = ?, negotiable = ?, item_condition = ?, attrs = ?,
-		phone = ?, show_phone = ?, category_id = (SELECT id FROM categories WHERE slug = ?), city_id = (SELECT id FROM cities WHERE latn = ?)';
+	[$set, $values] = listing_set($f);
+
+	$note = $f['moderation_note'] ?? null;
 
 	if ($id === null) {
-		db_exec('INSERT INTO listings SET user_id = ?, ' . $set, [$f['user_id'], ...$values]);
+		db_exec('INSERT INTO listings SET user_id = ?, status = ?, moderation_note = ?, ' . $set, [$f['user_id'], $f['status'], $note, ...$values]);
 
 		return (int) db()->lastInsertId();
 	}
 
-	db_exec('UPDATE listings SET ' . $set . ', reject_reason = NULL, reject_comment = NULL WHERE id = ? AND user_id = ?', [...$values, $id, $f['user_id']]);
+	db_exec('UPDATE listings SET status = ?, moderation_note = ?, ' . $set . ', reject_reason = NULL, reject_comment = NULL WHERE id = ? AND user_id = ?', [$f['status'], $note, ...$values, $id, $f['user_id']]);
 
 	return $id;
+}
+
+// SET of the listing's own fields for save_listing() and staff_save_listing(): [sql, values]
+function listing_set(array $f): array
+{
+	return [
+		'title = ?, description = ?, lang = ?, search_text = ?, price = ?, currency = ?, negotiable = ?, item_condition = ?, attrs = ?,
+		phone = ?, show_phone = ?, category_id = (SELECT id FROM categories WHERE slug = ?), city_id = (SELECT id FROM cities WHERE latn = ?)',
+		[
+			$f['title'], $f['description'], $f['lang'], sr_lat($f['title'] . "\n" . $f['description']),
+			$f['price'], $f['currency'], (int) $f['negotiable'], $f['condition'], $f['attrs'] ? json_encode($f['attrs'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+			$f['phone'], (int) $f['show_phone'], $f['category'], $f['city'],
+		],
+	];
 }
 
 // The listing's photos become exactly $ids in this order; photos taken out are deleted.
@@ -392,11 +514,11 @@ function photos_by_ids(array $ids): array
 /* ---------- Author's actions in "My listings" ---------- */
 // Each changes only the author's own listing in the right status; false = nothing changed
 
-// Back to the top of the feed, at most once per RAISE_HOURS
+// Back to the top of the feed, at most once per setting('raise_hours')
 function raise_listing(int $id, int $userId): bool
 {
 	return db_exec('UPDATE listings l SET l.sorted_at = UTC_TIMESTAMP() WHERE l.id = ? AND l.user_id = ? AND ' . LISTING_LIVE . '
-		AND l.sorted_at < UTC_TIMESTAMP() - INTERVAL ' . RAISE_HOURS . ' HOUR', [$id, $userId]) > 0;
+		AND l.sorted_at < UTC_TIMESTAMP() - INTERVAL ' . (int) setting('raise_hours') . ' HOUR', [$id, $userId]) > 0;
 }
 
 // Taken off by the author; stays inactive until activated again
@@ -411,10 +533,10 @@ function activate_listing(int $id, int $userId): bool
 	return db_exec("UPDATE listings SET status = 'active' WHERE id = ? AND user_id = ? AND status = 'inactive'", [$id, $userId]) > 0;
 }
 
-// Expired → published for LISTING_DAYS more, at the top of the feed
+// Expired → published for setting('listing_days') more, at the top of the feed
 function renew_listing(int $id, int $userId): bool
 {
-	return db_exec('UPDATE listings SET status = \'active\', expires_at = UTC_TIMESTAMP() + INTERVAL ' . LISTING_DAYS . ' DAY, sorted_at = UTC_TIMESTAMP()
+	return db_exec('UPDATE listings SET status = \'active\', expires_at = UTC_TIMESTAMP() + INTERVAL ' . (int) setting('listing_days') . ' DAY, sorted_at = UTC_TIMESTAMP()
 		WHERE id = ? AND user_id = ? AND published_at IS NOT NULL
 		AND (status = \'expired\' OR (status = \'active\' AND expires_at <= UTC_TIMESTAMP()))', [$id, $userId]) > 0;
 }
@@ -490,12 +612,46 @@ function favorite_listings(): array
 // favorites_count follows, the listing's updated_at stays
 function add_favorite(int $userId, int $listingId): bool
 {
-	$added = db_exec('INSERT IGNORE INTO favorites (user_id, listing_id) SELECT ?, l.id FROM listings l WHERE l.id = ? AND ' . LISTING_LIVE, [$userId, $listingId]) > 0;
+	// The price now: a later drop is reported (cron.php, price_drops())
+	$added = db_exec('INSERT IGNORE INTO favorites (user_id, listing_id, price, currency) SELECT ?, l.id, l.price, l.currency FROM listings l WHERE l.id = ? AND ' . LISTING_LIVE, [$userId, $listingId]) > 0;
 	if ($added) {
 		db_exec('UPDATE listings SET favorites_count = favorites_count + 1, updated_at = updated_at WHERE id = ?', [$listingId]);
 	}
 
 	return $added;
+}
+
+// Favorites whose published listing got cheaper (same currency) for users with price alerts on,
+// at most $limit users: ['user_id', 'email', 'name', 'lang', 'drops' => [['listing' (array), 'was' (price)], …]]
+function price_drops(int $limit): array
+{
+	$rows = db_all('SELECT f.user_id, f.listing_id, f.price AS was, u.email, u.name, u.lang FROM favorites f
+		JOIN users u ON u.id = f.user_id AND u.status = \'active\' AND u.notify_price = 1
+		JOIN listings l ON l.id = f.listing_id
+		JOIN categories c ON c.id = l.category_id
+		JOIN users s ON s.id = l.user_id AND s.status = \'active\'
+		WHERE ' . LISTING_LIVE . ' AND ' . CATEGORY_VISIBLE . ' AND l.price < f.price AND l.currency = f.currency
+		ORDER BY f.user_id, f.listing_id');
+
+	$users = [];
+	foreach ($rows as $r) {
+		if (!isset($users[$r['user_id']]) && count($users) >= $limit) {
+			break;
+		}
+		$users[$r['user_id']] ??= ['user_id' => $r['user_id'], 'email' => $r['email'], 'name' => $r['name'], 'lang' => $r['lang'], 'drops' => []];
+		$users[$r['user_id']]['drops'][] = ['listing' => find_listing($r['listing_id']), 'was' => $r['was']];
+	}
+
+	return array_values($users);
+}
+
+// The user's favorites remember the current prices (after a letter, or when a price went up / changed
+// currency: the next drop is counted from there)
+function remember_favorite_prices(?int $userId = null): int
+{
+	return db_exec('UPDATE favorites f JOIN listings l ON l.id = f.listing_id SET f.price = l.price, f.currency = l.currency
+		WHERE (f.price IS NULL OR l.price IS NULL OR l.currency <> f.currency OR l.price > f.price' . ($userId ? ' OR f.user_id = ?' : '') . ')
+		AND (l.price IS NOT NULL OR f.price IS NOT NULL)', $userId ? [$userId] : []);
 }
 
 function remove_favorite(int $userId, int $listingId): bool
@@ -630,12 +786,12 @@ function conversations(?int $include = null): array
 	}
 
 	$ids = array_keys($list);
-	foreach (db_all('SELECT conversation_id, sender_id, body, lang, created_at, read_at FROM messages WHERE conversation_id IN (' . db_in($ids) . ') ORDER BY created_at, id', $ids) as $m) {
+	foreach (db_all('SELECT id, conversation_id, sender_id, body, lang, created_at, read_at FROM messages WHERE conversation_id IN (' . db_in($ids) . ') ORDER BY created_at, id', $ids) as $m) {
 		$cid = $m['conversation_id'];
 		if ($hidden[$cid] !== null && $m['created_at'] <= $hidden[$cid]) {
 			continue;
 		}
-		$list[$cid]['messages'][] = ['from' => $m['sender_id'], 'at' => db_local($m['created_at']), 'text' => $m['body'], 'lang' => $m['lang']];
+		$list[$cid]['messages'][] = ['id' => $m['id'], 'from' => $m['sender_id'], 'at' => db_local($m['created_at']), 'text' => $m['body'], 'lang' => $m['lang']];
 		if ($m['sender_id'] !== $me && $m['read_at'] === null) {
 			$list[$cid]['unread']++;
 		}
@@ -670,10 +826,22 @@ function start_conversation(int $listingId, int $buyerId, int $sellerId): array
 	return ['id' => buyer_conversation($listingId, $buyerId), 'created' => $created];
 }
 
-function add_message(int $conversationId, int $senderId, string $body, string $lang): void
+// Returns the message id
+function add_message(int $conversationId, int $senderId, string $body, string $lang): int
 {
 	db_exec('INSERT INTO messages (conversation_id, sender_id, body, lang) VALUES (?, ?, ?, ?)', [$conversationId, $senderId, $body, $lang]);
+	$id = (int) db()->lastInsertId();
 	db_exec('UPDATE conversations SET last_message_at = UTC_TIMESTAMP() WHERE id = ?', [$conversationId]);
+
+	return $id;
+}
+
+// Messages of a conversation after a message id (the open thread asks for new ones):
+// [['id', 'from', 'at', 'text', 'lang'], …], oldest first
+function messages_after(int $conversationId, int $afterId): array
+{
+	return array_map(fn($m) => ['id' => $m['id'], 'from' => $m['sender_id'], 'at' => db_local($m['created_at']), 'text' => $m['body'], 'lang' => $m['lang']],
+		db_all('SELECT id, sender_id, body, lang, created_at FROM messages WHERE conversation_id = ? AND id > ? ORDER BY id LIMIT 100', [$conversationId, $afterId]));
 }
 
 // Unread messages to the user in one conversation
@@ -818,6 +986,40 @@ function delete_account(int $id): array
 	return $paths;
 }
 
+// Current session version (not cached: login_user() may follow end_user_sessions() in one request)
+function user_session_version(int $id): int
+{
+	return (int) db_value('SELECT session_version FROM users WHERE id = ?', [$id]);
+}
+
+// Every session of the user ends on its next request (auth_init), "remember me" too
+function end_user_sessions(int $id): void
+{
+	db_exec('UPDATE users SET session_version = session_version + 1 WHERE id = ?', [$id]);
+	db_exec('DELETE FROM remember_tokens WHERE user_id = ?', [$id]);
+}
+
+// Account data changed by an admin. $f: name, email, phone (null), city, role, email_verified,
+// phone_verified (bool). A new e-mail replaces a pending change
+function staff_update_user(int $id, array $f): void
+{
+	db_exec('UPDATE users SET name = ?, email = ?, new_email = IF(email = ?, new_email, NULL), phone = ?, city_id = (SELECT id FROM cities WHERE latn = ?), role = ?,
+		email_verified_at = IF(?, COALESCE(email_verified_at, UTC_TIMESTAMP()), NULL),
+		phone_verified_at = IF(?, COALESCE(phone_verified_at, UTC_TIMESTAMP()), NULL)
+		WHERE id = ? AND status <> \'deleted\'',
+		[$f['name'], $f['email'], $f['email'], $f['phone'], $f['city'], $f['role'], (int) $f['email_verified'], (int) $f['phone_verified'], $id]);
+}
+
+function set_user_role(int $id, string $role): bool
+{
+	return db_exec("UPDATE users SET role = ? WHERE id = ? AND status <> 'deleted'", [$role, $id]) > 0;
+}
+
+function set_staff_note(int $id, ?string $note): void
+{
+	db_exec('UPDATE users SET staff_note = ?, updated_at = updated_at WHERE id = ?', [$note, $id]);
+}
+
 // "Last seen": written at most every 5 minutes per user
 function touch_user(int $id): void
 {
@@ -876,12 +1078,6 @@ function delete_remember_token(string $selector): void
 	db_exec('DELETE FROM remember_tokens WHERE selector = ?', [$selector]);
 }
 
-// Log out everywhere: password change or reset
-function delete_user_remember_tokens(int $userId): void
-{
-	db_exec('DELETE FROM remember_tokens WHERE user_id = ?', [$userId]);
-}
-
 // Rate limits: attempts of an action by a key (sha256 of IP or email) in the last $seconds
 function rate_count(string $action, string $keyHash, int $seconds): int
 {
@@ -902,13 +1098,13 @@ function rate_add(string $action, string $keyHash): void
 /* ---------- Moderation (admin) ---------- */
 // Staff actions; each returns false (or null) when the listing is not in a status it applies to
 
-// Pending → published. First approval: published now for LISTING_DAYS, at the top of the feed.
+// Pending → published. First approval: published now for setting('listing_days'), at the top of the feed.
 // Approval after an edit: place and date stay, the term is renewed only if it has run out
 function approve_listing(int $id): bool
 {
 	return db_exec("UPDATE listings SET status = 'active', reject_reason = NULL, reject_comment = NULL,
 		sorted_at = IF(published_at IS NULL, UTC_TIMESTAMP(), sorted_at),
-		expires_at = IF(expires_at IS NULL OR expires_at <= UTC_TIMESTAMP(), UTC_TIMESTAMP() + INTERVAL " . LISTING_DAYS . " DAY, expires_at),
+		expires_at = IF(expires_at IS NULL OR expires_at <= UTC_TIMESTAMP(), UTC_TIMESTAMP() + INTERVAL " . (int) setting('listing_days') . " DAY, expires_at),
 		published_at = COALESCE(published_at, UTC_TIMESTAMP())
 		WHERE id = ? AND status IN ('pending', 'rejected')", [$id]) > 0;
 }
@@ -928,6 +1124,57 @@ function staff_delete_listing(int $id): ?array
 	return $userId === false ? null : delete_listing($id, (int) $userId);
 }
 
+// Changes by staff: the fields of save_listing() without status and author. Status, place in
+// the feed, term and the reject note stay (it is a correction, not a new version from the seller)
+function staff_save_listing(int $id, array $f): void
+{
+	[$set, $values] = listing_set($f);
+	db_exec("UPDATE listings SET " . $set . " WHERE id = ? AND status <> 'deleted'", [...$values, $id]);
+}
+
+// A photo processed for a listing by staff, added at the end; stored as the author's photo. Returns its id
+function add_listing_photo(int $listingId, int $authorId, array $photo): int
+{
+	$id = create_photo($authorId, $photo);
+	db_exec('UPDATE listing_photos SET listing_id = ?, sort = (SELECT n FROM (SELECT COUNT(*) AS n FROM listing_photos WHERE listing_id = ?) t) WHERE id = ?', [$listingId, $listingId, $id]);
+
+	return $id;
+}
+
+// The photo becomes the cover (sort 0), the others keep their order after it
+function set_listing_cover(int $listingId, int $photoId): bool
+{
+	$ids = db_column('SELECT id FROM listing_photos WHERE listing_id = ? ORDER BY sort, id', [$listingId]);
+
+	if (!in_array($photoId, $ids, true)) {
+		return false;
+	}
+
+	foreach ([$photoId, ...array_diff($ids, [$photoId])] as $sort => $id) {
+		db_exec('UPDATE listing_photos SET sort = ? WHERE id = ?', [$sort, $id]);
+	}
+
+	return true;
+}
+
+// A photo taken out of a listing; returns its path (the caller removes the files), null when not there
+function delete_listing_photo(int $listingId, int $photoId): ?string
+{
+	$path = db_value('SELECT path FROM listing_photos WHERE id = ? AND listing_id = ?', [$photoId, $listingId]);
+
+	if ($path === false) {
+		return null;
+	}
+
+	db_exec('DELETE FROM listing_photos WHERE id = ?', [$photoId]);
+	$ids = db_column('SELECT id FROM listing_photos WHERE listing_id = ? ORDER BY sort, id', [$listingId]);
+	foreach ($ids as $sort => $id) {
+		db_exec('UPDATE listing_photos SET sort = ? WHERE id = ?', [$sort, $id]);
+	}
+
+	return $path;
+}
+
 // Blocked user: logged out on the next request (auth_init), listings hidden from everyone
 function block_user(int $id): bool
 {
@@ -941,6 +1188,141 @@ function unblock_user(int $id): bool
 	return db_exec("UPDATE users SET status = 'active' WHERE id = ? AND status = 'blocked'", [$id]) > 0;
 }
 
+/* ---------- Admin lists (filters, pages, CSV) ---------- */
+
+// WHERE for the admin listings. $f: status (as shown), q (#id or id, text, seller name or e-mail),
+// cat (slug; a parent includes its children), city (Latin name), user (id)
+function admin_listing_where(array $f): array
+{
+	$where = ['1'];
+	$params = [];
+
+	if (!empty($f['status'])) {
+		$where[] = LISTING_SHOWN_STATUS . ' = ?';
+		$params[] = $f['status'];
+	}
+	if (!empty($f['cat'])) {
+		[$parent, $child] = find_category($f['cat']);
+		$slugs = $child ? [$child['slug']] : ($parent ? category_slugs($parent) : [$f['cat']]);
+		$where[] = 'c.slug IN (' . db_in($slugs) . ')';
+		array_push($params, ...$slugs);
+	}
+	if (!empty($f['city'])) {
+		$where[] = 'ci.latn = ?';
+		$params[] = $f['city'];
+	}
+	if (!empty($f['user'])) {
+		$where[] = 'l.user_id = ?';
+		$params[] = (int) $f['user'];
+	}
+	if (!empty($f['q'])) {
+		$id = ltrim($f['q'], '#');
+		if (ctype_digit($id)) {
+			$where[] = 'l.id = ?';
+			$params[] = (int) $id;
+		} else {
+			$like = '%' . addcslashes($f['q'], '%_\\') . '%';
+			$where[] = '(l.search_text LIKE ? OR u.name LIKE ? OR u.email LIKE ?)';
+			array_push($params, '%' . addcslashes(sr_lat($f['q']), '%_\\') . '%', $like, $like);
+		}
+	}
+
+	return [implode(' AND ', $where), $params];
+}
+
+// A page of listings in any status; the moderation queue (pending) oldest first, the rest newest first
+function admin_listings(array $f, int $limit, int $offset = 0): array
+{
+	[$where, $params] = admin_listing_where($f);
+	$order = ($f['status'] ?? '') === 'pending' ? 'l.created_at ASC, l.id ASC' : 'l.created_at DESC, l.id DESC';
+
+	return listings_query(LISTING_SELECT . ' WHERE ' . $where . ' ORDER BY ' . $order . ' LIMIT ' . max(1, $limit) . ' OFFSET ' . max(0, $offset), $params);
+}
+
+function count_admin_listings(array $f): int
+{
+	[$where, $params] = admin_listing_where($f);
+
+	return (int) db_value('SELECT COUNT(*) FROM ' . LISTING_FROM . ' WHERE ' . $where, $params);
+}
+
+// Number per shown status with the other filters: ['active' => 15, 'expired' => 2, …]
+function admin_listing_counts(array $f): array
+{
+	[$where, $params] = admin_listing_where(['status' => ''] + $f);
+
+	return array_column(db_all('SELECT ' . LISTING_SHOWN_STATUS . ' AS shown, COUNT(*) AS n FROM ' . LISTING_FROM . ' WHERE ' . $where . ' GROUP BY shown', $params), 'n', 'shown');
+}
+
+// Rows for the CSV export, a chunk at a time, without photos: listing + 'seller', 'seller_email', 'published'
+function admin_listing_rows(array $f, int $limit, int $offset): array
+{
+	[$where, $params] = admin_listing_where($f);
+
+	return array_map(fn($r) => ['seller' => $r['seller_name'], 'seller_email' => $r['seller_email'], 'published' => db_local($r['published_at'])] + listing_from_row($r),
+		db_all('SELECT l.*, c.slug AS category, ci.latn AS city, u.name AS seller_name, u.email AS seller_email FROM ' . LISTING_FROM
+			. ' WHERE ' . $where . ' ORDER BY l.id LIMIT ' . max(1, $limit) . ' OFFSET ' . max(0, $offset), $params));
+}
+
+// WHERE for the admin users. $f: tab (active | blocked | deleted | staff), role, city (Latin name),
+// q (id, name, e-mail, phone)
+function admin_user_where(array $f): array
+{
+	$where = ['1'];
+	$params = [];
+
+	if (($f['tab'] ?? '') === 'staff') {
+		$where[] = "u.role <> 'user'";
+	} elseif (!empty($f['tab'])) {
+		$where[] = 'u.status = ?';
+		$params[] = $f['tab'];
+	}
+	if (!empty($f['role'])) {
+		$where[] = 'u.role = ?';
+		$params[] = $f['role'];
+	}
+	if (!empty($f['city'])) {
+		$where[] = 'ci.latn = ?';
+		$params[] = $f['city'];
+	}
+	if (!empty($f['q'])) {
+		$id = ltrim($f['q'], '#');
+		$like = '%' . addcslashes($f['q'], '%_\\') . '%';
+		$where[] = '(u.id = ? OR u.name LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)';
+		array_push($params, ctype_digit($id) ? (int) $id : 0, $like, $like, $like);
+	}
+
+	return [implode(' AND ', $where), $params];
+}
+
+// A page of users, newest first, with 'listings' (how many they have, deleted not counted)
+function admin_users(array $f, int $limit, int $offset = 0): array
+{
+	[$where, $params] = admin_user_where($f);
+
+	return array_map(fn($r) => user_from_row($r) + ['listings' => $r['listings_count']],
+		db_all("SELECT u.*, ci.latn AS city, (SELECT COUNT(*) FROM listings l WHERE l.user_id = u.id AND l.status <> 'deleted') AS listings_count
+			FROM users u LEFT JOIN cities ci ON ci.id = u.city_id WHERE " . $where . ' ORDER BY u.id DESC LIMIT ' . max(1, $limit) . ' OFFSET ' . max(0, $offset), $params));
+}
+
+function count_admin_users(array $f): int
+{
+	[$where, $params] = admin_user_where($f);
+
+	return (int) db_value('SELECT COUNT(*) FROM users u LEFT JOIN cities ci ON ci.id = u.city_id WHERE ' . $where, $params);
+}
+
+// Number per tab with the other filters: ['' => all, 'active', 'blocked', 'deleted', 'staff']
+function admin_user_counts(array $f): array
+{
+	[$where, $params] = admin_user_where(['tab' => ''] + $f);
+	$r = db_one("SELECT COUNT(*) AS total, SUM(u.status = 'active') AS active, SUM(u.status = 'blocked') AS blocked,
+		SUM(u.status = 'deleted') AS deleted, SUM(u.role <> 'user') AS staff
+		FROM users u LEFT JOIN cities ci ON ci.id = u.city_id WHERE " . $where, $params);
+
+	return ['' => (int) $r['total'], 'active' => (int) $r['active'], 'blocked' => (int) $r['blocked'], 'deleted' => (int) $r['deleted'], 'staff' => (int) $r['staff']];
+}
+
 /* ---------- Reports ---------- */
 
 function report_from_row(array $r): array
@@ -952,11 +1334,59 @@ function report_from_row(array $r): array
 	];
 }
 
-// ['id', 'listing_id', 'reason' (key r.<reason>), 'reporter_id', 'comment', 'created', 'status',
-// 'resolution', 'note', 'resolved_by', 'resolved'], newest first
-function reports(): array
+// WHERE for reports. $f: status, reason, seller (author of the listing), q (#id or id of the
+// report or listing, listing text, reporter name or e-mail)
+function report_where(array $f): array
 {
-	return array_map('report_from_row', db_all('SELECT * FROM reports ORDER BY id DESC'));
+	$where = ['1'];
+	$params = [];
+
+	foreach (['status' => 'r.status', 'reason' => 'r.reason', 'seller' => 'l.user_id'] as $key => $column) {
+		if (!empty($f[$key])) {
+			$where[] = $column . ' = ?';
+			$params[] = $f[$key];
+		}
+	}
+	if (!empty($f['q'])) {
+		$id = ltrim($f['q'], '#');
+		if (ctype_digit($id)) {
+			$where[] = '(r.id = ? OR r.listing_id = ?)';
+			array_push($params, (int) $id, (int) $id);
+		} else {
+			$like = '%' . addcslashes($f['q'], '%_\\') . '%';
+			$where[] = '(l.search_text LIKE ? OR u.name LIKE ? OR u.email LIKE ?)';
+			array_push($params, '%' . addcslashes(sr_lat($f['q']), '%_\\') . '%', $like, $like);
+		}
+	}
+
+	return [implode(' AND ', $where), $params];
+}
+
+const REPORT_FROM = 'reports r JOIN listings l ON l.id = r.listing_id LEFT JOIN users u ON u.id = r.reporter_id';
+
+// ['id', 'listing_id', 'reason' (key r.<reason>), 'reporter_id', 'comment', 'created', 'status',
+// 'resolution', 'note', 'resolved_by', 'resolved'], newest first; a page when $limit is given
+function reports(array $f = [], ?int $limit = null, int $offset = 0): array
+{
+	[$where, $params] = report_where($f);
+	$page = $limit !== null ? ' LIMIT ' . max(1, $limit) . ' OFFSET ' . max(0, $offset) : '';
+
+	return array_map('report_from_row', db_all('SELECT r.* FROM ' . REPORT_FROM . ' WHERE ' . $where . ' ORDER BY r.id DESC' . $page, $params));
+}
+
+function count_reports(array $f): int
+{
+	[$where, $params] = report_where($f);
+
+	return (int) db_value('SELECT COUNT(*) FROM ' . REPORT_FROM . ' WHERE ' . $where, $params);
+}
+
+// Number per status with the other filters: ['open' => 3, 'review' => 1, 'resolved' => 9]
+function report_counts(array $f): array
+{
+	[$where, $params] = report_where(['status' => ''] + $f);
+
+	return array_column(db_all('SELECT r.status, COUNT(*) AS n FROM ' . REPORT_FROM . ' WHERE ' . $where . ' GROUP BY r.status', $params), 'n', 'status');
 }
 
 function find_report(int $id): ?array
@@ -1073,9 +1503,9 @@ function count_log_problems(string $since): int
 	return (int) db_value("SELECT COUNT(*) FROM log_entries WHERE level IN ('error', 'critical') AND created_at >= ?", [db_utc($since)]);
 }
 
-// Audit records (who did what): latest first, optionally about one listing.
-// ['time', 'action', 'user_id', 'role', 'context']
-function audit_entries(int $limit, ?int $listingId = null): array
+// Audit records (who did what): latest first, about one listing, by or about one user, or
+// the dashboard feed. ['time', 'action', 'user_id', 'role', 'context']
+function audit_entries(int $limit, ?int $listingId = null, ?int $userId = null): array
 {
 	$sql = "SELECT created_at, message, user_id, user_role, context FROM log_entries WHERE channel = 'audit'";
 	$params = [];
@@ -1083,6 +1513,9 @@ function audit_entries(int $limit, ?int $listingId = null): array
 	if ($listingId !== null) {
 		$sql .= " AND JSON_VALUE(context, '$.listing_id') = ?";
 		$params[] = $listingId;
+	} elseif ($userId !== null) {
+		$sql .= " AND (user_id = ? OR JSON_VALUE(context, '$.user_id') = ?)";
+		array_push($params, $userId, $userId);
 	} else {
 		$sql .= " AND (message LIKE 'listing.%' OR message LIKE 'admin.user_%' OR message LIKE 'report.%' OR message = 'auth.register')";
 	}
@@ -1109,4 +1542,63 @@ function create_contact_message(?int $userId, string $name, string $email, strin
 		[$userId, $name, $email, $topic, $listingId, $message, $lang]);
 
 	return (int) db()->lastInsertId();
+}
+
+/* ---------- Inbox: messages from the contact form (admin) ---------- */
+
+// WHERE for the inbox. $f: status (new | answered), topic, q (#id or id, name, e-mail, text)
+function contact_where(array $f): array
+{
+	$where = ['1'];
+	$params = [];
+
+	foreach (['status', 'topic'] as $key) {
+		if (!empty($f[$key])) {
+			$where[] = $key . ' = ?';
+			$params[] = $f[$key];
+		}
+	}
+	if (!empty($f['q'])) {
+		$id = ltrim($f['q'], '#');
+		$like = '%' . addcslashes($f['q'], '%_\\') . '%';
+		$where[] = '(id = ? OR name LIKE ? OR email LIKE ? OR message LIKE ?)';
+		array_push($params, ctype_digit($id) ? (int) $id : 0, $like, $like, $like);
+	}
+
+	return [implode(' AND ', $where), $params];
+}
+
+// A page of messages, newest first: ['id', 'user_id', 'name', 'email', 'topic', 'listing_id',
+// 'message', 'lang', 'status', 'answered_by', 'answered', 'created']
+function contact_messages(array $f, int $limit, int $offset = 0): array
+{
+	[$where, $params] = contact_where($f);
+
+	return array_map(fn($r) => [
+		'id' => $r['id'], 'user_id' => $r['user_id'], 'name' => $r['name'], 'email' => $r['email'], 'topic' => $r['topic'],
+		'listing_id' => $r['listing_id'], 'message' => $r['message'], 'lang' => $r['lang'], 'status' => $r['status'],
+		'answered_by' => $r['answered_by'], 'answered' => db_local($r['answered_at']), 'created' => db_local($r['created_at']),
+	], db_all('SELECT * FROM contact_messages WHERE ' . $where . ' ORDER BY id DESC LIMIT ' . max(1, $limit) . ' OFFSET ' . max(0, $offset), $params));
+}
+
+function count_contact_messages(array $f): int
+{
+	[$where, $params] = contact_where($f);
+
+	return (int) db_value('SELECT COUNT(*) FROM contact_messages WHERE ' . $where, $params);
+}
+
+// Number per status with the other filters: ['new' => 2, 'answered' => 5]
+function contact_counts(array $f = []): array
+{
+	[$where, $params] = contact_where(['status' => ''] + $f);
+
+	return array_column(db_all('SELECT status, COUNT(*) AS n FROM contact_messages WHERE ' . $where . ' GROUP BY status', $params), 'n', 'status');
+}
+
+// Answered (by whom) or back to new
+function set_contact_status(int $id, string $status, int $staffId): bool
+{
+	return db_exec('UPDATE contact_messages SET status = ?, answered_by = IF(? = \'answered\', ?, NULL), answered_at = IF(? = \'answered\', UTC_TIMESTAMP(), NULL)
+		WHERE id = ? AND status <> ?', [$status, $status, $staffId, $status, $id, $status]) > 0;
 }

@@ -4,7 +4,7 @@
 	users), then back to the page they came from (back) with a message.
 	action:
 	  approve | reject | delete   ids[] (or id); reject: reason, comment, notify
-	  block | unblock             user_id
+	  block | unblock             user_id, or ids[] (users)
 	  report_review               report_id
 	  report_resolve              report_id, resolution, note, message (to the seller on "edit")
 	Every change is in the audit log; the seller gets a letter on approve and
@@ -105,12 +105,14 @@ switch ($action) {
 
 	case 'block':
 	case 'unblock':
-		$userId = (int) ($_POST['user_id'] ?? 0);
-		$done = $action === 'block' ? block_user($userId) : unblock_user($userId);
-		if ($done) {
+		// user_id from a profile, ids[] from the bulk bar of users.php
+		$userIds = $ids ?: [(int) ($_POST['user_id'] ?? 0)];
+		$done = array_values(array_filter($userIds, fn($userId) => $action === 'block' ? block_user($userId) : unblock_user($userId)));
+		foreach ($done as $userId) {
 			log_action('admin.user_' . $action, ['user_id' => $userId]);
 		}
-		flash($done ? 'success' : 'info', $done ? user_name($userId) . ($action === 'block' ? ' blocked: logged out, listings hidden' : ' unblocked') : 'Nothing changed (staff accounts cannot be blocked).');
+		$who = count($done) === 1 ? user_name($done[0]) : plural(count($done), 'user', 'users');
+		flash($done ? 'success' : 'info', $done ? $who . ($action === 'block' ? ' blocked: logged out, listings hidden' : ' unblocked') : 'Nothing changed (staff and deleted accounts cannot be blocked).');
 		break;
 
 	case 'report_review':

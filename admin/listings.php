@@ -1,15 +1,14 @@
 <?php
 /* ==========================================================================
-	Admin: Listings (filter tabs, search, bulk moderation)
+	Admin: Listings (status tabs, filters and pages on the server, bulk moderation)
+	GET: status, q (#id, text, seller name or e-mail), cat, city, user, page.
 	Actions go to moderate.php: row menu (approve, reject, delete) and the bulk
-	bar (checked rows → ids[]).
+	bar (checked rows → ids[]), then back to this page with the same filters.
 	========================================================================== */
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
 
 $pageTitle = 'Listings';
 $activeNav = 'listings';
-
-$listings = all_listings();
 
 // Status tabs: value => label
 $statusTabs = [
@@ -23,6 +22,19 @@ $statusTabs = [
 	'deleted' => 'Deleted',
 ];
 
+$f = [
+	'status' => list_param('status', array_keys($statusTabs)),
+	'q' => list_param('q'),
+	'cat' => list_param('cat'),
+	'city' => list_param('city'),
+	'user' => ctype_digit(list_param('user')) ? list_param('user') : '',
+];
+$counts = admin_listing_counts($f);
+$total = count_admin_listings($f);
+[$page, $offset] = list_page($total);
+$listings = admin_listings($f, ADMIN_PAGE_SIZE, $offset);
+$back = list_url('listings.php', $f, ['page' => $page > 1 ? $page : null]);
+
 require ADMIN_INC . '/header.php';
 ?>
 
@@ -33,44 +45,50 @@ require ADMIN_INC . '/header.php';
 		<p class="page-head__sub">Moderate, edit and remove listings.</p>
 	</div>
 	<div class="page-head__actions">
-		<button type="button" class="btn btn--secondary" data-toast="Export started, the file will download shortly" data-toast-type="info"><?= icon('download', 18) ?>Export CSV</button>
+		<a class="btn btn--secondary" href="<?= e(list_url('export.php', ['type' => 'listings'] + $f)) ?>"><?= icon('download', 18) ?>Export CSV</a>
 	</div>
 </div>
 
 <section class="card" aria-label="Listings table">
-	<!-- Status tabs (filter the table) -->
-	<div class="tabs__list tabs__list--flush" role="group" aria-label="Filter by status" data-filter-tabs="listings-table">
+	<!-- Status tabs (keep the other filters) -->
+	<nav class="tabs__list tabs__list--flush" aria-label="Filter by status">
 		<?php foreach ($statusTabs as $value => $label): ?>
-		<button type="button" class="tabs__tab" data-filter-field="status" data-filter-value="<?= e($value) ?>" aria-pressed="<?= $value === '' ? 'true' : 'false' ?>">
+		<a class="tabs__tab" href="<?= e(list_url('listings.php', ['status' => $value] + $f)) ?>"<?= $value === $f['status'] ? ' aria-current="page"' : '' ?>>
 			<?= e($label) ?>
-			<span class="tabs__count"><?= $value === '' ? count($listings) : count_by($listings, 'status', $value) ?></span>
-		</button>
+			<span class="tabs__count"><?= (int) ($value === '' ? array_sum($counts) : ($counts[$value] ?? 0)) ?></span>
+		</a>
 		<?php endforeach; ?>
-	</div>
+	</nav>
 
-	<!-- Toolbar: search + filters -->
-	<div class="toolbar">
+	<!-- Filters (GET; a select sends the form on change) -->
+	<form class="toolbar" method="get" action="listings.php" data-autosubmit>
+		<input type="hidden" name="status" value="<?= e($f['status']) ?>">
+		<?php if ($f['user']): ?><input type="hidden" name="user" value="<?= e($f['user']) ?>"><?php endif; ?>
 		<div class="input-icon toolbar__search">
 			<?= icon('search', 18) ?>
 			<label class="visually-hidden" for="listings-search">Search listings</label>
-			<input class="input" id="listings-search" type="search" placeholder="Title, ID, seller…" data-table-search="listings-table">
+			<input class="input" id="listings-search" name="q" type="search" placeholder="Title, #ID, seller name or email…" value="<?= e($f['q']) ?>">
 		</div>
 		<label class="visually-hidden" for="listings-category">Category</label>
-		<select class="select" id="listings-category" data-table-filter="listings-table" data-field="category">
+		<select class="select" id="listings-category" name="cat">
 			<option value="">All categories</option>
-			<?= category_options() ?>
+			<?= category_options($f['cat'], true) ?>
 		</select>
 		<label class="visually-hidden" for="listings-city">City</label>
-		<select class="select" id="listings-city" data-table-filter="listings-table" data-field="city">
-			<?= city_options('', true) ?>
+		<select class="select" id="listings-city" name="city">
+			<?= city_options($f['city'], true) ?>
 		</select>
-		<button type="button" class="btn btn--ghost" data-table-reset="listings-table"><?= icon('refresh', 18) ?>Reset</button>
-	</div>
+		<button type="submit" class="btn btn--primary"><?= icon('search', 18) ?>Show</button>
+		<a class="btn btn--ghost" href="<?= e(list_url('listings.php', ['status' => $f['status']])) ?>"><?= icon('refresh', 18) ?>Reset</a>
+		<?php if ($f['user']): ?>
+		<span class="muted">Seller: <a href="user.php?id=<?= (int) $f['user'] ?>"><?= e(user_name((int) $f['user'])) ?></a></span>
+		<?php endif; ?>
+	</form>
 
 	<!-- Bulk actions (visible when rows are selected; checked rows go as ids[]) -->
 	<form class="bulkbar" data-bulk="listings-table" data-bulk-form="listings-table" method="post" action="moderate.php" hidden>
 		<?= csrf_field() ?>
-		<input type="hidden" name="back" value="listings.php">
+		<input type="hidden" name="back" value="<?= e($back) ?>">
 		<span class="bulkbar__count"><span data-bulk-count>0</span> selected</span>
 		<button type="submit" class="btn btn--success btn--sm" name="action" value="approve"><?= icon('check', 16) ?>Approve</button>
 		<button type="button" class="btn btn--secondary btn--sm" data-modal-open="reject-dialog" data-bulk-ids="listings-table" data-payload="<?= attr_json(['title' => 'Selected listings']) ?>"><?= icon('ban', 16) ?>Reject</button>
@@ -96,7 +114,7 @@ require ADMIN_INC . '/header.php';
 			</thead>
 			<tbody>
 				<?php foreach ($listings as $listing): ?>
-				<tr data-row data-id="<?= (int) $listing['id'] ?>" data-status="<?= e($listing['status']) ?>" data-category="<?= e($listing['category']) ?>" data-city="<?= e($listing['city']) ?>">
+				<tr data-row data-id="<?= (int) $listing['id'] ?>">
 					<td class="col-check"><input type="checkbox" data-row-check aria-label="Select “<?= e($listing['title']) ?>”"></td>
 					<td>
 						<div class="cell-main">
@@ -104,6 +122,7 @@ require ADMIN_INC . '/header.php';
 							<div class="cell-main__text">
 								<a class="cell-main__title" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= e($listing['title']) ?></a>
 								<div class="cell-main__sub">#<?= (int) $listing['id'] ?><?= $listing['negotiable'] ? ' · Negotiable' : '' ?></div>
+								<?php if ($listing['moderation_note'] && $listing['status'] === 'pending'): ?><div class="cell-main__sub text-danger"><?= e($listing['moderation_note']) ?></div><?php endif; ?>
 							</div>
 						</div>
 					</td>
@@ -128,7 +147,7 @@ require ADMIN_INC . '/header.php';
 							<form class="dropdown__menu" method="post" action="moderate.php">
 								<?= csrf_field() ?>
 								<input type="hidden" name="id" value="<?= (int) $listing['id'] ?>">
-								<input type="hidden" name="back" value="listings.php">
+								<input type="hidden" name="back" value="<?= e($back) ?>">
 								<a class="dropdown__item" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= icon('edit', 18) ?>Edit</a>
 								<a class="dropdown__item" href="<?= SITE_URL ?>listing.php?id=<?= (int) $listing['id'] ?>" target="_blank" rel="noopener"><?= icon('external', 18) ?>View on site</a>
 								<?php if (in_array($listing['status'], ['pending', 'rejected'], true)): ?>
@@ -146,25 +165,17 @@ require ADMIN_INC . '/header.php';
 					</td>
 				</tr>
 				<?php endforeach; ?>
-				<tr class="table__empty" data-empty hidden>
+				<?php if (!$listings): ?>
+				<tr class="table__empty">
 					<td colspan="9">No listings match the filters.</td>
 				</tr>
+				<?php endif; ?>
 			</tbody>
 		</table>
 	</div>
 
-	<!-- Pagination (static for now) -->
-	<nav class="pagination" aria-label="Pagination">
-		<span>Showing <span data-table-count="listings-table"><?= count($listings) ?></span> of <?= count($listings) ?></span>
-		<ul class="pagination__pages">
-			<li><a class="pagination__page" href="listings.php" aria-label="Previous page" aria-disabled="true"><?= icon('chevron-left', 16) ?></a></li>
-			<li><a class="pagination__page" href="listings.php" aria-current="page">1</a></li>
-			<li><a class="pagination__page" href="listings.php?page=2">2</a></li>
-			<li><a class="pagination__page" href="listings.php?page=3">3</a></li>
-			<li><a class="pagination__page" href="listings.php?page=2" aria-label="Next page"><?= icon('chevron-right', 16) ?></a></li>
-		</ul>
-	</nav>
+	<?= admin_pagination($total, $page, fn($n) => list_url('listings.php', $f, ['page' => $n > 1 ? $n : null])) ?>
 </section>
 
-<?php $rejectBack = 'listings.php'; require ADMIN_INC . '/reject-dialog.php'; ?>
+<?php $rejectBack = $back; require ADMIN_INC . '/reject-dialog.php'; ?>
 <?php require ADMIN_INC . '/footer.php'; ?>

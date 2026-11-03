@@ -1,6 +1,8 @@
 <?php
 /* ==========================================================================
 	Admin: Reports (complaints about listings from the site, report.php)
+	GET: status (open by default, "all"), reason, q (#id of the report or
+	listing, listing text, reporter), page.
 	Review dialog → moderate.php: "Mark in review" or resolve; the resolution
 	also acts on the listing (edit request = rejected with a message, remove,
 	remove and block the seller).
@@ -10,15 +12,25 @@ require __DIR__ . '/../source/inc/admin/bootstrap.php';
 $pageTitle = 'Reports';
 $activeNav = 'reports';
 
-$reports = reports();
-
-// Filter tabs: value => label (Open is selected by default)
+// Filter tabs: value => label (Open when none is given)
 $reportTabs = [
 	'open' => 'Open',
 	'review' => 'In review',
 	'resolved' => 'Resolved',
-	'' => 'All',
+	'all' => 'All',
 ];
+
+$f = [
+	'status' => list_param('status', array_keys($reportTabs)) ?: 'open',
+	'reason' => list_param('reason', array_keys(report_reasons())),
+	'q' => list_param('q'),
+];
+$query = ['status' => $f['status'] === 'all' ? '' : $f['status']] + $f;
+$counts = report_counts($query);
+$total = count_reports($query);
+[$page, $offset] = list_page($total);
+$reports = reports($query, ADMIN_PAGE_SIZE, $offset);
+$back = list_url('reports.php', $f, ['status' => $f['status'] === 'open' ? null : $f['status'], 'page' => $page > 1 ? $page : null]);
 
 require ADMIN_INC . '/header.php';
 ?>
@@ -32,36 +44,35 @@ require ADMIN_INC . '/header.php';
 </div>
 
 <section class="card" aria-label="Reports table">
-	<!-- Filter tabs -->
-	<div class="tabs__list tabs__list--flush" role="group" aria-label="Filter by status" data-filter-tabs="reports-table">
+	<!-- Status tabs (keep the other filters) -->
+	<nav class="tabs__list tabs__list--flush" aria-label="Filter by status">
 		<?php foreach ($reportTabs as $value => $label): ?>
-		<button type="button" class="tabs__tab" data-filter-field="status" data-filter-value="<?= e($value) ?>" aria-pressed="<?= $value === 'open' ? 'true' : 'false' ?>">
+		<a class="tabs__tab" href="<?= e(list_url('reports.php', ['status' => $value === 'open' ? null : $value] + $f)) ?>"<?= $value === $f['status'] ? ' aria-current="page"' : '' ?>>
 			<?= e($label) ?>
-			<span class="tabs__count"><?= $value === '' ? count($reports) : count_by($reports, 'status', $value) ?></span>
-		</button>
+			<span class="tabs__count"><?= (int) ($value === 'all' ? array_sum($counts) : ($counts[$value] ?? 0)) ?></span>
+		</a>
 		<?php endforeach; ?>
-	</div>
+	</nav>
 
-	<!-- Toolbar -->
-	<div class="toolbar">
+	<!-- Filters (GET; a select sends the form on change) -->
+	<form class="toolbar" method="get" action="reports.php" data-autosubmit>
+		<input type="hidden" name="status" value="<?= e($f['status']) ?>">
 		<div class="input-icon toolbar__search">
 			<?= icon('search', 18) ?>
 			<label class="visually-hidden" for="reports-search">Search reports</label>
-			<input class="input" id="reports-search" type="search" placeholder="Listing, reporter, reason…" data-table-search="reports-table">
+			<input class="input" id="reports-search" name="q" type="search" placeholder="#ID, listing, reporter…" value="<?= e($f['q']) ?>">
 		</div>
 		<label class="visually-hidden" for="reports-reason">Reason</label>
-		<select class="select" id="reports-reason" data-table-filter="reports-table" data-field="reason">
-			<option value="">All reasons</option>
-			<?php foreach (report_reasons() as $reason => $label): ?>
-			<option value="<?= e($reason) ?>"><?= e($label) ?></option>
-			<?php endforeach; ?>
+		<select class="select" id="reports-reason" name="reason">
+			<?= options(['' => 'All reasons'] + report_reasons(), $f['reason']) ?>
 		</select>
-		<button type="button" class="btn btn--ghost" data-table-reset="reports-table"><?= icon('refresh', 18) ?>Reset</button>
-	</div>
+		<button type="submit" class="btn btn--primary"><?= icon('search', 18) ?>Show</button>
+		<a class="btn btn--ghost" href="<?= e(list_url('reports.php', ['status' => $f['status'] === 'open' ? null : $f['status']])) ?>"><?= icon('refresh', 18) ?>Reset</a>
+	</form>
 
 	<!-- Table -->
 	<div class="table-wrap">
-		<table class="table" id="reports-table" data-table>
+		<table class="table">
 			<thead>
 				<tr>
 					<th>Report</th>
@@ -88,7 +99,7 @@ require ADMIN_INC . '/header.php';
 						'r_comment' => $report['comment'] !== '' ? $report['comment'] : 'No comment.',
 					];
 				?>
-				<tr data-row data-status="<?= e($report['status']) ?>" data-reason="<?= e($report['reason']) ?>">
+				<tr>
 					<td class="nowrap">
 						<strong>#<?= (int) $report['id'] ?></strong>
 						<div class="cell-main__sub"><?= e($reasonLabel) ?></div>
@@ -119,12 +130,16 @@ require ADMIN_INC . '/header.php';
 					</td>
 				</tr>
 				<?php endforeach; ?>
-				<tr class="table__empty" data-empty hidden>
+				<?php if (!$reports): ?>
+				<tr class="table__empty">
 					<td colspan="7">No reports here. All clear.</td>
 				</tr>
+				<?php endif; ?>
 			</tbody>
 		</table>
 	</div>
+
+	<?= admin_pagination($total, $page, fn($n) => list_url('reports.php', $f, ['status' => $f['status'] === 'open' ? null : $f['status'], 'page' => $n > 1 ? $n : null])) ?>
 </section>
 
 <!-- Review dialog -->
@@ -132,7 +147,7 @@ require ADMIN_INC . '/header.php';
 	<form class="modal__inner" method="post" action="moderate.php">
 		<?= csrf_field() ?>
 		<input type="hidden" name="report_id" value="" data-fill="report_id">
-		<input type="hidden" name="back" value="reports.php">
+		<input type="hidden" name="back" value="<?= e($back) ?>">
 		<div class="modal__head">
 			<h2 class="modal__title" id="report-title">Report <span data-fill="r_id"></span></h2>
 			<button type="button" class="btn btn--ghost btn--icon" data-modal-close aria-label="Close"><?= icon('x') ?></button>

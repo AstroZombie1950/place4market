@@ -20,8 +20,10 @@ define('SITE_URL', '../');
 
 // Shared helpers and icons; site texts and links for letters to users (in their language)
 require SOURCE_DIR . '/inc/helpers.php';
+security_headers();
 require SOURCE_DIR . '/inc/icons.php';
 require SOURCE_DIR . '/inc/i18n.php';
+i18n_use('en');
 require SOURCE_DIR . '/inc/site.php';
 require SOURCE_DIR . '/inc/seo.php';
 

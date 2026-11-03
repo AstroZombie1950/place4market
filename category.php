@@ -12,14 +12,14 @@ $f = search_filters($_GET);
 [$parentCat, $childCat] = find_category($f['cat']);
 $currentCat = $childCat ?? $parentCat;
 
-// Unknown category → 404
-if ($f['cat'] !== '' && !$currentCat) {
+// Unknown or hidden in the admin → 404
+if ($f['cat'] !== '' && (!$currentCat || !$currentCat['visible'])) {
 	require ROOT_DIR . '/404.php';
 	exit;
 }
 
 // Results + pagination
-$perPage = 12;
+$perPage = setting('per_page');
 $total = count_listings($f);
 $pageNum = max(1, min((int) ($_GET['page'] ?? 1), max(1, (int) ceil($total / $perPage))));
 $pageItems = search_listings($f, $perPage, ($pageNum - 1) * $perPage);
@@ -67,8 +67,10 @@ if (!$parentCat) {
 $isFiltered = $f['q'] !== '' || $f['city'] !== '' || $f['price_from'] !== '' || $f['price_to'] !== ''
 	|| $f['condition'] !== '' || $f['negotiable'] || $f['photos'] || $f['sort'] !== 'new';
 
-$page['title'] = $title . ($pageNum > 1 ? ' · ' . t('meta.page', ['n' => $pageNum]) : '');
-$page['description'] = $currentCat ? t('meta.category', ['name' => cat_name($currentCat)]) : t('meta.all_listings');
+// Title and description of a category from the admin (empty = default texts)
+[$seoTitle, $seoDescription] = $currentCat ? category_seo($currentCat) : [null, null];
+$page['title'] = ($f['q'] === '' && $seoTitle ? $seoTitle : $title) . ($pageNum > 1 ? ' · ' . t('meta.page', ['n' => $pageNum]) : '');
+$page['description'] = $currentCat ? ($seoDescription ?? t('meta.category', ['name' => cat_name($currentCat)])) : t('meta.all_listings');
 $page['nav'] = 'home';
 $page['canonical'] = ['category.php', ['cat' => $currentCat['slug'] ?? null, 'page' => $pageNum > 1 ? $pageNum : null]];
 $page['robots'] = $isFiltered ? 'noindex, follow' : 'index, follow';
@@ -131,7 +133,7 @@ require INC_DIR . '/header.php';
 							<li><a class="filters__link" href="<?= e($linkWith(['cat' => $child['slug']])) ?>"<?= $childCat && $childCat['slug'] === $child['slug'] ? ' aria-current="page"' : '' ?>><span>— <?= e(cat_name($child)) ?></span><span class="muted"><?= count_listings(array_merge($f, ['cat' => $child['slug']])) ?></span></a></li>
 							<?php endforeach; ?>
 							<?php else: ?>
-							<?php foreach (categories() as $category): ?>
+							<?php foreach (visible_categories() as $category): ?>
 							<li><a class="filters__link" href="<?= e($linkWith(['cat' => $category['slug']])) ?>"><span><?= e(cat_name($category)) ?></span><span class="muted"><?= count_listings(array_merge($f, ['cat' => $category['slug']])) ?></span></a></li>
 							<?php endforeach; ?>
 							<?php endif; ?>

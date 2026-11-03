@@ -63,7 +63,9 @@ $openReportsCount = report_status_counts()['open'] ?? 0;
 					</button>
 					<div class="dropdown__menu">
 						<a class="dropdown__item" href="user.php?id=<?= (int) $currentAdmin['id'] ?>"><?= icon('user', 18) ?>My profile</a>
+						<?php if (is_admin()): ?>
 						<a class="dropdown__item" href="settings.php"><?= icon('settings', 18) ?>Settings</a>
+						<?php endif; ?>
 						<div class="dropdown__sep"></div>
 						<a class="dropdown__item dropdown__item--danger" href="logout.php?csrf=<?= e(csrf_token()) ?>"><?= icon('logout', 18) ?>Log out</a>
 					</div>
@@ -73,6 +75,9 @@ $openReportsCount = report_status_counts()['open'] ?? 0;
 
 		<!-- Page content -->
 		<main class="content" id="content" tabindex="-1">
+			<?php if (setting('maintenance')): ?>
+			<p class="notice notice--flash notice--danger" role="status"><?= icon('alert', 20) ?><span class="notice__text">Maintenance mode is on: visitors see “We’ll be back soon”.<?php if (is_admin()): ?> <a href="settings.php">Turn it off in Settings</a><?php endif; ?></span></p>
+			<?php endif; ?>
 			<?php if ($flash = take_flash()): ?>
 			<p class="notice notice--flash notice--<?= e(['success' => 'success', 'danger' => 'danger'][$flash['type']] ?? 'info') ?>" role="status"><?= icon($flash['type'] === 'success' ? 'check' : 'alert', 20) ?><span class="notice__text"><?= e($flash['text']) ?></span></p>
 			<?php endif; ?>

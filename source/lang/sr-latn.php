@@ -20,6 +20,8 @@ return [
 	'404.home' => 'Na početnu stranu',
 	'404.browse' => 'Pogledajte sve oglase',
 	'500.title' => 'Nešto nije u redu',
+	'maint.title' => 'Uskoro se vraćamo',
+	'maint.text' => 'Place4Market se ažurira. Vratite se za nekoliko minuta.',
 	'500.text' => 'Grešku smo već zabeležili i pogledaćemo je. Pokušajte ponovo za nekoliko minuta.',
 	'500.code' => 'Kod greške: {code}',
 	'a11y.skip' => 'Pređi na sadržaj',
@@ -71,6 +73,7 @@ return [
 	'home.cta_text' => 'Postavite oglas za dva minuta. Besplatno je.',
 
 	// Listing card
+	'card.video' => 'Video',
 	'card.negotiable' => 'Moguć dogovor',
 	'card.save' => 'Sačuvaj u omiljeno',
 	'card.photo' => 'Fotografija: {title}',
@@ -303,8 +306,8 @@ return [
 	'post.f_attrs' => 'Karakteristike',
 	'post.s_photos' => 'Fotografije',
 	'post.photos_drop' => 'Prevucite fotografije ovde ili kliknite za izbor',
-	'post.photos_hint' => 'Do 12 fotografija, JPG, PNG ili WebP. Prva fotografija je naslovna.',
-	'post.photos_limit' => 'Možete dodati najviše 12 fotografija',
+	'post.photos_hint' => ['one' => 'Do {n} fotografije, JPG, PNG ili WebP.', 'few' => 'Do {n} fotografije, JPG, PNG ili WebP. Prva fotografija je naslovna.', 'many' => 'Do {n} fotografija, JPG, PNG ili WebP. Prva fotografija je naslovna.'],
+	'post.photos_limit' => ['one' => 'Možete dodati najviše {n} fotografiju', 'few' => 'Možete dodati najviše {n} fotografije', 'many' => 'Možete dodati najviše {n} fotografija'],
 	'post.photo_too_big' => 'Ova fotografija je veća od 30 MB',
 	'post.photo_unreadable' => 'Ova fotografija ne može da se otvori. Koristite JPG, PNG ili WebP.',
 	'post.photo_cover' => 'Naslovna',
@@ -330,12 +333,13 @@ return [
 	'post.edit_title' => 'Izmena oglasa',
 	'post.edit_submit' => 'Sačuvaj i pošalji na proveru',
 	'post.updated' => 'Izmene su sačuvane. Oglas će ponovo biti vidljiv posle moderacije.',
+	'post.published' => 'Vaš oglas je objavljen.',
 	'post.err_category' => 'Izaberite kategoriju i potkategoriju.',
 	'post.err_title' => 'Unesite naslov (od 3 do 80 znakova).',
 	'post.err_description' => 'Opišite predmet (od 10 do 3000 znakova).',
 	'post.err_condition' => 'Izaberite stanje.',
 	'post.err_price' => 'Unesite cenu ili izaberite „po dogovoru“.',
-	'post.err_photos' => 'Najviše 12 fotografija po oglasu.',
+	'post.err_photos' => ['one' => 'Najviše {n} fotografija po oglasu.', 'few' => 'Najviše {n} fotografije po oglasu.', 'many' => 'Najviše {n} fotografija po oglasu.'],
 	'post.err_attr' => 'Proverite polje „{field}“.',
 	'post.err_draft_category' => 'Za čuvanje nacrta izaberite kategoriju i potkategoriju.',
 	'post.photos_busy' => 'Sačekajte da se fotografije otpreme.',
@@ -391,7 +395,7 @@ return [
 	'auth.benefit_2' => 'Čuvajte oglase i pretrage',
 	'auth.benefit_2_text' => 'Dobićete e-poruku kada se pojavi nešto novo.',
 	'auth.benefit_3' => 'Postavljajte oglase besplatno',
-	'auth.benefit_3_text' => 'Do 12 fotografija, izmene u bilo kom trenutku.',
+	'auth.benefit_3_text' => ['one' => 'Do {n} fotografije, izmene u bilo kom trenutku.', 'few' => 'Do {n} fotografije, izmene u bilo kom trenutku.', 'many' => 'Do {n} fotografija, izmene u bilo kom trenutku.'],
 	'auth.err_csrf' => 'Forma je istekla. Pokušajte ponovo.',
 	'auth.err_credentials' => 'Pogrešna e-pošta ili lozinka.',
 	'auth.err_blocked' => 'Ovaj nalog je blokiran. Obratite se podršci.',
@@ -512,7 +516,6 @@ return [
 	'm.send' => 'Pošalji',
 	'm.you' => 'Vi',
 	'm.back' => 'Nazad na razgovore',
-	'm.attach' => 'Priloži fotografiju',
 	'm.unread' => 'Nepročitano: {n}',
 	'm.view_listing' => 'Pogledaj oglas',
 	'm.delete_chat' => 'Obriši razgovor',
@@ -650,6 +653,17 @@ stigli su novi oglasi za vaše sačuvane pretrage:
 {list}
 
 Ovakvu poruku šaljemo najviše jednom dnevno. Obaveštenja možete isključiti u sačuvanim pretragama:
+{link}
+
+Place4Market',
+	'mail.price_drop_subject' => 'Sniženje cene na sačuvanim oglasima',
+	'mail.price_drop_body' => 'Zdravo, {name},
+
+oglasi iz vaših omiljenih su pojeftinili:
+
+{list}
+
+Ove poruke možete isključiti u profilu:
 {link}
 
 Place4Market',

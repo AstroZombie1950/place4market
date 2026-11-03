@@ -191,7 +191,7 @@ require INC_DIR . '/header.php';
 				</li>
 				<li>
 					<span class="benefits__icon"><?= icon('camera', 22) ?></span>
-					<span><span class="benefits__title"><?= e(t('auth.benefit_3')) ?></span><br><span class="benefits__text"><?= e(t('auth.benefit_3_text')) ?></span></span>
+					<span><span class="benefits__title"><?= e(t('auth.benefit_3')) ?></span><br><span class="benefits__text"><?= e(tp('auth.benefit_3_text', setting('max_photos'))) ?></span></span>
 				</li>
 			</ul>
 		</aside>

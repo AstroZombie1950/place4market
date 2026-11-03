@@ -757,7 +757,8 @@ button {
 	gap: var(--space-4);
 }
 
-.form-section + .form-section {
+.form-section + .form-section,
+.form-section--split {
 	margin-top: var(--space-6);
 	padding-top: var(--space-6);
 	border-top: 1px solid var(--color-border);
@@ -998,15 +999,18 @@ button {
 
 .tabs__tab:hover {
 	color: var(--color-text);
+	text-decoration: none;
 }
 
 .tabs__tab[aria-selected="true"],
-.tabs__tab[aria-pressed="true"] {
+.tabs__tab[aria-pressed="true"],
+.tabs__tab[aria-current="page"] {
 	color: var(--color-accent);
 }
 
 .tabs__tab[aria-selected="true"]::after,
-.tabs__tab[aria-pressed="true"]::after {
+.tabs__tab[aria-pressed="true"]::after,
+.tabs__tab[aria-current="page"]::after {
 	content: "";
 	position: absolute;
 	left: var(--space-2);
@@ -1030,13 +1034,22 @@ button {
 }
 
 .tabs__tab[aria-selected="true"] .tabs__count,
-.tabs__tab[aria-pressed="true"] .tabs__count {
+.tabs__tab[aria-pressed="true"] .tabs__count,
+.tabs__tab[aria-current="page"] .tabs__count {
 	background: var(--color-accent-soft);
 	color: var(--color-accent-ink);
 }
 
 .tabs__panel:focus-visible {
 	outline-offset: 4px;
+}
+
+/* Fieldset as a plain box (disabled switches off all its fields) */
+.fieldset {
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
 }
 
 /* ---------- Toolbar, bulk bar ---------- */
@@ -1249,6 +1262,13 @@ a.cell-main__title:hover {
 .pagination__page[aria-disabled="true"] {
 	opacity: 0.45;
 	pointer-events: none;
+}
+
+.pagination__gap {
+	display: inline-flex;
+	align-items: center;
+	height: 100%;
+	padding: 0 var(--space-1);
 }
 
 /* ---------- Thumbnails & avatars ---------- */
@@ -1551,6 +1571,17 @@ a.list__title:hover {
 	gap: var(--space-1);
 }
 
+/* Long content (inbox messages): top-aligned, text keeps its line breaks */
+.list__item--top {
+	align-items: flex-start;
+}
+
+.message-text {
+	margin: var(--space-2) 0 var(--space-1);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
 /* ---------- Timeline ---------- */
 .timeline {
 	margin: 0;
@@ -1686,7 +1717,9 @@ a.list__title:hover {
 	border-radius: var(--radius);
 }
 
-.photo img {
+.photo img,
+.photo video {
+	display: block;
 	width: 100%;
 	/* auto: the height attribute of a real photo would win over aspect-ratio */
 	height: auto;
@@ -1747,9 +1780,10 @@ a.list__title:hover {
 	transform: rotate(90deg);
 }
 
-.tree__grip {
-	color: var(--color-border-strong);
-	cursor: grab;
+/* Hidden on the site (it or its parent is switched off) */
+.tree__row.is-hidden .tree__name,
+.tree__row.is-hidden .tree__icon {
+	opacity: 0.5;
 }
 
 .tree__icon {
@@ -1838,6 +1872,7 @@ a.list__title:hover {
 
 /* ---------- Utilities ---------- */
 .muted { color: var(--color-text-muted); }
+.text-danger { color: var(--color-danger); }
 .text-sm { font-size: var(--fs-sm); }
 .text-right { text-align: right; }
 .nowrap { white-space: nowrap; }
@@ -1863,6 +1898,16 @@ a.list__title:hover {
 /* Two layouts only: desktop ≥1024 (base styles) and mobile ≤1023
    (off-canvas sidebar, one-column grids). Tablet and laptop tuning on request. */
 @media (max-width: 1023px) {
+	.list__item--top {
+		flex-wrap: wrap;
+	}
+
+	.list__item--top .list__aside {
+		flex-basis: 100%;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+	}
+
 	.sidebar {
 		position: fixed;
 		inset: 0 auto 0 0;
@@ -1947,7 +1992,6 @@ a.list__title:hover {
 		padding-right: var(--space-3);
 	}
 
-	.tree__grip,
 	.tree__meta {
 		display: none;
 	}
@@ -2087,6 +2131,7 @@ code {
 }
 
 .tabs__tab[aria-selected="true"],
-.tabs__tab[aria-pressed="true"] {
+.tabs__tab[aria-pressed="true"],
+.tabs__tab[aria-current="page"] {
 	color: var(--color-accent-ink);
 }

@@ -3,6 +3,36 @@
 	Shared helpers (site + admin)
 	========================================================================== */
 
+/* ---------- Security headers (site and admin, sent from both bootstraps) ---------- */
+
+// Content Security Policy: our own files only. Inline style attributes stay allowed (photo()
+// paints the average colour), scripts never inline: JSON in <script type="application/json">
+// is data, not code. blob: is the photo preview in the post form. A new integration (maps,
+// analytics) adds its origin here
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+	. "media-src 'self' blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; "
+	. "form-action 'self'; frame-ancestors 'self'";
+
+// Sent by PHP: the hosting ignores Header in .htaccess
+function security_headers(): void
+{
+	if (headers_sent() || PHP_SAPI === 'cli') {
+		return;
+	}
+
+	$https = ($_SERVER['HTTPS'] ?? '') === 'on' || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+
+	header('Content-Security-Policy: ' . CSP . ($https ? '; upgrade-insecure-requests' : ''));
+	header('X-Content-Type-Options: nosniff');
+	header('X-Frame-Options: SAMEORIGIN');
+	header('Referrer-Policy: strict-origin-when-cross-origin');
+	header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+	header('Cross-Origin-Opener-Policy: same-origin');
+	if ($https) {
+		header('Strict-Transport-Security: max-age=31536000');
+	}
+}
+
 // Escape any value for HTML output
 function e($value): string
 {

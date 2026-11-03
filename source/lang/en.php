@@ -19,6 +19,8 @@ return [
 	'404.home' => 'Go to the home page',
 	'404.browse' => 'Browse all listings',
 	'500.title' => 'Something went wrong',
+	'maint.title' => 'We’ll be back soon',
+	'maint.text' => 'Place4Market is being updated. Please come back in a few minutes.',
 	'500.text' => 'We have already logged the error and will look into it. Please try again in a few minutes.',
 	'500.code' => 'Error code: {code}',
 	'a11y.skip' => 'Skip to content',
@@ -71,6 +73,7 @@ return [
 
 	// Listing card
 	'card.negotiable' => 'Negotiable',
+	'card.video' => 'Video',
 	'card.save' => 'Save to favorites',
 	'card.photo' => 'Photo: {title}',
 	'price.agreement' => 'By agreement',
@@ -302,8 +305,8 @@ return [
 	'post.f_attrs' => 'Details',
 	'post.s_photos' => 'Photos',
 	'post.photos_drop' => 'Drag photos here or click to choose',
-	'post.photos_hint' => 'Up to 12 photos, JPG, PNG or WebP. The first photo is the cover.',
-	'post.photos_limit' => 'You can add up to 12 photos',
+	'post.photos_hint' => ['one' => 'Up to {n} photo, JPG, PNG or WebP.', 'other' => 'Up to {n} photos, JPG, PNG or WebP. The first photo is the cover.'],
+	'post.photos_limit' => ['one' => 'You can add up to {n} photo', 'other' => 'You can add up to {n} photos'],
 	'post.photo_too_big' => 'This photo is larger than 30 MB',
 	'post.photo_unreadable' => 'This photo could not be opened. Please use JPG, PNG or WebP.',
 	'post.photo_cover' => 'Cover',
@@ -329,12 +332,13 @@ return [
 	'post.edit_title' => 'Edit ad',
 	'post.edit_submit' => 'Save and send for review',
 	'post.updated' => 'Changes saved. The ad will be visible again after moderation.',
+	'post.published' => 'Your ad is published.',
 	'post.err_category' => 'Choose a category and a subcategory.',
 	'post.err_title' => 'Enter a title (3 to 80 characters).',
 	'post.err_description' => 'Describe the item (10 to 3000 characters).',
 	'post.err_condition' => 'Choose the condition.',
 	'post.err_price' => 'Enter a price or choose “by agreement”.',
-	'post.err_photos' => 'Up to 12 photos per ad.',
+	'post.err_photos' => ['one' => 'Up to {n} photo per ad.', 'other' => 'Up to {n} photos per ad.'],
 	'post.err_attr' => 'Check the “{field}” field.',
 	'post.err_draft_category' => 'To save a draft, choose a category and a subcategory.',
 	'post.photos_busy' => 'Please wait until the photos are uploaded.',
@@ -390,7 +394,7 @@ return [
 	'auth.benefit_2' => 'Save listings and searches',
 	'auth.benefit_2_text' => 'Get an email when something new matches.',
 	'auth.benefit_3' => 'Post ads for free',
-	'auth.benefit_3_text' => 'Up to 12 photos, edit any time.',
+	'auth.benefit_3_text' => ['one' => 'Up to {n} photo, edit any time.', 'other' => 'Up to {n} photos, edit any time.'],
 	'auth.err_csrf' => 'The form has expired. Please try again.',
 	'auth.err_credentials' => 'Wrong email or password.',
 	'auth.err_blocked' => 'This account is blocked. Please contact support.',
@@ -511,7 +515,6 @@ return [
 	'm.send' => 'Send',
 	'm.you' => 'You',
 	'm.back' => 'Back to conversations',
-	'm.attach' => 'Attach photo',
 	'm.unread' => 'Unread: {n}',
 	'm.view_listing' => 'View listing',
 	'm.delete_chat' => 'Delete conversation',
@@ -649,6 +652,17 @@ new ads have appeared for your saved searches:
 {list}
 
 We send such an email at most once a day. You can turn alerts off in your saved searches:
+{link}
+
+Place4Market',
+	'mail.price_drop_subject' => 'Price drop on ads you saved',
+	'mail.price_drop_body' => 'Hello {name},
+
+ads in your favorites got cheaper:
+
+{list}
+
+You can turn these emails off in your profile:
 {link}
 
 Place4Market',

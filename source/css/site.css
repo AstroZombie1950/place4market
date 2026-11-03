@@ -1214,6 +1214,22 @@ button {
 	top: var(--space-3);
 }
 
+/* "Has a video": play icon and length, bottom left of the photo */
+.card__video {
+	position: absolute;
+	left: var(--space-3);
+	bottom: var(--space-3);
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 8px;
+	border-radius: var(--radius-xs);
+	background: var(--color-scrim);
+	color: var(--color-on-scrim);
+	font-size: var(--fs-xs);
+	font-weight: var(--fw-semibold);
+}
+
 /* Heart: 44px tap area, 36px visual square */
 .card__fav {
 	position: absolute;

@@ -190,34 +190,28 @@
 	};
 
 	/* ----------------------------------------------------------------------
-		Data tables: filters, search, selection, bulk bar
-		table[data-table] id="x"
-		- rows: tr[data-row] with data-status / data-category / data-city ...
-		- filter tabs: [data-filter-tabs="x"] > button[data-filter-field][data-filter-value]
-		- search: input[data-table-search="x"]
-		- selects: select[data-table-filter="x"][data-field="city"]
-		- reset: [data-table-reset="x"]
-		- empty row: tr[data-empty]
+		Data tables: selection and bulk bar (filters and pages are on the server)
+		table[data-table] id="x", rows tr[data-row][data-id]
 		- selection: [data-check-all], [data-row-check]; bulk bar: [data-bulk="x"]
-		- bulk actions: form[data-bulk-form="x"] sends ids[] of the checked visible
-		  rows (tr[data-id]); [data-bulk-ids="x"] on a dialog opener puts them,
-		  comma-separated, into the dialog's [name="id_list"]
+		- bulk actions: form[data-bulk-form="x"] sends ids[] of the checked rows;
+		  [data-bulk-ids="x"] on a dialog opener puts them, comma-separated,
+		  into the dialog's [name="id_list"]; [data-bulk-clear="x"] unchecks all
+		- form[data-autosubmit] is sent when a select, file input or checkbox
+		  changes (filters, photo upload, category switches)
 		---------------------------------------------------------------------- */
-	const tableState = new WeakMap();
-
 	const checkedIds = (tableId) => {
 		const table = document.getElementById(tableId);
-		return table ? $$('tbody tr[data-row]:not([hidden])', table).filter((row) => $('[data-row-check]', row)?.checked).map((row) => row.dataset.id) : [];
+		return table ? $$('tbody tr[data-row]', table).filter((row) => $('[data-row-check]', row)?.checked).map((row) => row.dataset.id) : [];
 	};
 
 	const updateBulk = (table) => {
-		const visibleChecks = $$('tbody tr[data-row]:not([hidden]) [data-row-check]', table);
-		const checked = visibleChecks.filter((cb) => cb.checked);
+		const checks = $$('tbody tr[data-row] [data-row-check]', table);
+		const checked = checks.filter((cb) => cb.checked);
 		const all = $('[data-check-all]', table);
 
 		if (all) {
-			all.checked = visibleChecks.length > 0 && checked.length === visibleChecks.length;
-			all.indeterminate = checked.length > 0 && checked.length < visibleChecks.length;
+			all.checked = checks.length > 0 && checked.length === checks.length;
+			all.indeterminate = checked.length > 0 && checked.length < checks.length;
 		}
 
 		$$('tbody tr[data-row]', table).forEach((row) => {
@@ -233,117 +227,21 @@
 		}
 	};
 
-	const applyFilters = (table) => {
-		const state = tableState.get(table);
-		const rows = $$('tbody tr[data-row]', table);
-		let visible = 0;
-
-		rows.forEach((row) => {
-			let show = Object.entries(state.fields).every(([field, value]) => !value || row.dataset[field] === value);
-			if (show && state.query) show = row.textContent.toLowerCase().includes(state.query);
-
-			row.hidden = !show;
-			if (!show) {
-				const cb = $('[data-row-check]', row);
-				if (cb) cb.checked = false;
-			}
-			if (show) visible += 1;
-		});
-
-		const empty = $('[data-empty]', table);
-		if (empty) empty.hidden = visible > 0;
-
-		const counter = document.querySelector(`[data-table-count="${table.id}"]`);
-		if (counter) counter.textContent = visible;
-
-		updateBulk(table);
-	};
-
 	const initTables = () => {
 		$$('table[data-table]').forEach((table) => {
-			tableState.set(table, { fields: {}, query: '' });
-
-			// Row and "select all" checkboxes
 			table.addEventListener('change', (e) => {
 				if (e.target.matches('[data-check-all]')) {
-					$$('tbody tr[data-row]:not([hidden]) [data-row-check]', table).forEach((cb) => {
+					$$('tbody tr[data-row] [data-row-check]', table).forEach((cb) => {
 						cb.checked = e.target.checked;
 					});
 				}
 				if (e.target.matches('[data-check-all], [data-row-check]')) updateBulk(table);
 			});
+
+			// Checkboxes the browser restored after "Back"
+			updateBulk(table);
 		});
 
-		// Filter tabs (buttons with aria-pressed)
-		$$('[data-filter-tabs]').forEach((group) => {
-			const table = document.getElementById(group.dataset.filterTabs);
-			if (!table || !tableState.has(table)) return;
-
-			const buttons = $$('[data-filter-field]', group);
-			const groupFields = [...new Set(buttons.map((b) => b.dataset.filterField))];
-			const params = new URLSearchParams(location.search);
-
-			const pick = (button) => {
-				const state = tableState.get(table);
-				groupFields.forEach((field) => { state.fields[field] = ''; });
-				state.fields[button.dataset.filterField] = button.dataset.filterValue;
-				buttons.forEach((b) => b.setAttribute('aria-pressed', String(b === button)));
-				applyFilters(table);
-			};
-
-			buttons.forEach((button) => button.addEventListener('click', () => pick(button)));
-
-			// Preselect from URL (?status=pending) or aria-pressed="true"
-			const fromUrl = buttons.find((b) => params.get(b.dataset.filterField) === b.dataset.filterValue && b.dataset.filterValue);
-			pick(fromUrl || buttons.find((b) => b.getAttribute('aria-pressed') === 'true') || buttons[0]);
-		});
-
-		// Search inputs (prefilled from ?q=)
-		$$('[data-table-search]').forEach((input) => {
-			const table = document.getElementById(input.dataset.tableSearch);
-			if (!table || !tableState.has(table)) return;
-
-			const q = new URLSearchParams(location.search).get('q');
-			if (q && !input.value) input.value = q;
-
-			const run = () => {
-				tableState.get(table).query = input.value.trim().toLowerCase();
-				applyFilters(table);
-			};
-			input.addEventListener('input', run);
-			run();
-		});
-
-		// Select filters
-		$$('[data-table-filter]').forEach((select) => {
-			const table = document.getElementById(select.dataset.tableFilter);
-			if (!table || !tableState.has(table)) return;
-
-			select.addEventListener('change', () => {
-				tableState.get(table).fields[select.dataset.field] = select.value;
-				applyFilters(table);
-			});
-		});
-
-		// Reset toolbar filters (search + selects, tabs stay)
-		$$('[data-table-reset]').forEach((btn) => {
-			const id = btn.dataset.tableReset;
-			const table = document.getElementById(id);
-			if (!table || !tableState.has(table)) return;
-
-			btn.addEventListener('click', () => {
-				const state = tableState.get(table);
-				$$(`[data-table-search="${id}"]`).forEach((input) => { input.value = ''; });
-				$$(`[data-table-filter="${id}"]`).forEach((select) => {
-					select.value = '';
-					state.fields[select.dataset.field] = '';
-				});
-				state.query = '';
-				applyFilters(table);
-			});
-		});
-
-		// Clear selection from bulk bar
 		$$('[data-bulk-clear]').forEach((btn) => {
 			btn.addEventListener('click', () => {
 				const table = document.getElementById(btn.dataset.bulkClear);
@@ -367,8 +265,9 @@
 			});
 		});
 
-		// Final pass for tables without filters
-		$$('table[data-table]').forEach(applyFilters);
+		$$('form[data-autosubmit] select, form[data-autosubmit] input[type="file"], form[data-autosubmit] input[type="checkbox"]').forEach((field) => {
+			field.addEventListener('change', () => field.form.requestSubmit());
+		});
 	};
 
 	/* ----------------------------------------------------------------------
@@ -475,8 +374,8 @@
 
 	/* ----------------------------------------------------------------------
 		Confirm before destructive actions: [data-confirm="Question?"]
-		Optional: data-confirm-label="Delete", data-toast="Deleted"
-		After OK: shows toast, or follows link, or submits the form
+		Optional: data-confirm-label="Delete"
+		After OK: follows the link or submits the form (with the button as submitter)
 		---------------------------------------------------------------------- */
 	const initConfirm = () => {
 		const dialog = $('#confirm-dialog');
@@ -502,35 +401,12 @@
 			if (!pending) return;
 
 			const form = pending.closest('form');
-			if (pending.dataset.toast) {
-				toast(pending.dataset.toast, pending.dataset.toastType || 'success');
-			} else if (pending.tagName === 'A' && pending.getAttribute('href')) {
+			if (pending.tagName === 'A' && pending.getAttribute('href')) {
 				window.location.href = pending.href;
 			} else if (form) {
 				form.requestSubmit(pending.matches('button[type="submit"]') ? pending : undefined);
 			}
 			pending = null;
-		});
-	};
-
-	/* ----------------------------------------------------------------------
-		Demo feedback (remove when backend is wired):
-		- [data-toast="Message"] on buttons/links shows a toast
-		- form[data-demo-submit="Message"] prevents submit and shows a toast
-		---------------------------------------------------------------------- */
-	const initDemo = () => {
-		document.addEventListener('click', (e) => {
-			const el = e.target.closest('[data-toast]:not([data-confirm])');
-			if (!el) return;
-			if (el.tagName === 'A' || el.type === 'submit') e.preventDefault();
-			toast(el.dataset.toast, el.dataset.toastType || 'success');
-		});
-
-		$$('form[data-demo-submit]').forEach((form) => {
-			form.addEventListener('submit', (e) => {
-				e.preventDefault();
-				toast(form.dataset.demoSubmit);
-			});
 		});
 	};
 
@@ -580,8 +456,7 @@
 		Small form helpers
 		- [data-password-toggle] aria-controls="input-id": show/hide password
 		- textarea/input[maxlength][data-counter]: live "12 / 80"
-		- input[type=file][data-preview="container-id"]: image previews
-		- [data-slug-source="input-name"] on slug input: auto slug while empty
+		- [data-slug-source="input-name"] on slug input: auto slug for a new record
 		---------------------------------------------------------------------- */
 	const slugify = (text) => text
 		.toLowerCase()
@@ -610,33 +485,15 @@
 			update();
 		});
 
-		$$('input[type="file"][data-preview]').forEach((input) => {
-			const container = document.getElementById(input.dataset.preview);
-			if (!container) return;
-			input.addEventListener('change', () => {
-				Array.from(input.files || []).forEach((file) => {
-					if (!file.type.startsWith('image/')) return;
-					const figure = document.createElement('figure');
-					figure.className = 'photo';
-					const img = document.createElement('img');
-					img.src = URL.createObjectURL(file);
-					img.alt = file.name;
-					img.addEventListener('load', () => URL.revokeObjectURL(img.src));
-					figure.appendChild(img);
-					container.appendChild(figure);
-				});
-				if (input.files && input.files.length) toast(`${input.files.length} photo(s) added`, 'info');
-			});
-		});
-
 		$$('[data-slug-source]').forEach((slugInput) => {
 			const form = slugInput.form;
 			const source = form ? form.elements[slugInput.dataset.slugSource] : null;
 			if (!source) return;
 			let touched = false;
 			slugInput.addEventListener('input', (e) => { if (e.isTrusted) touched = slugInput.value !== ''; });
+			// Only for a new record (empty id): an existing slug is an address, it changes by hand
 			source.addEventListener('input', () => {
-				if (!touched) slugInput.value = slugify(source.value);
+				if (!touched && !(form.elements.id && form.elements.id.value)) slugInput.value = slugify(source.value);
 			});
 		});
 	};
@@ -650,7 +507,6 @@
 	initDropdowns();
 	initModals();
 	initConfirm();
-	initDemo();
 	initTree();
 	initForms();
 })();

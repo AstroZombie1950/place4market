@@ -62,6 +62,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		'photos' => postable_photos($me['id'], (array) ($_POST['photo_ids'] ?? []), $editId),
 	];
 	[$parent, $child] = find_category($v['subcategory']);
+	// A category hidden in the admin takes no ads
+	if ($child && !$child['visible']) {
+		[$parent, $child] = [null, null];
+	}
 	$price = (int) $v['price'];
 	$isDraft = ($_POST['action'] ?? '') === 'draft' && $isNew;
 	$hasCondition = $child && category_has_condition($child['slug']);
@@ -79,9 +83,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				'price' => !$v['agreement'] && $price >= 1 && $price <= 2_000_000_000 ? $price : null,
 				'condition' => $hasCondition && in_array($v['condition'], ['new', 'like_new', 'used'], true) ? $v['condition'] : null,
 				'attrs' => $attrs,
-				'city' => in_array($v['city'], array_column(cities(), 'latn'), true) ? $v['city'] : $me['city'],
+				'city' => in_array($v['city'], array_column(active_cities(), 'latn'), true) ? $v['city'] : $me['city'],
 				'phone' => preg_match('/^\+?[0-9 ()\-]{6,20}$/', $v['phone']) ? $v['phone'] : null,
-				'photos' => array_slice($v['photos'], 0, 12),
+				'photos' => array_slice($v['photos'], 0, setting('max_photos')),
 			]);
 			log_action('listing.draft', ['listing_id' => $id, 'photos' => min(12, count($v['photos']))]);
 			flash('success', t('post.draft_saved'));
@@ -99,29 +103,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$error = $attrError;
 	} elseif (!$v['agreement'] && ($price < 1 || $price > 2_000_000_000)) {
 		$error = t('post.err_price');
-	} elseif (!in_array($v['city'], array_column(cities(), 'latn'), true)) {
+	} elseif (!in_array($v['city'], array_column(active_cities(), 'latn'), true)) {
 		$error = t('auth.err_city');
 	} elseif ($v['phone'] !== '' && !preg_match('/^\+?[0-9 ()\-]{6,20}$/', $v['phone'])) {
 		$error = t('auth.err_phone');
-	} elseif (count($v['photos']) > 12) {
-		$error = t('post.err_photos');
+	} elseif (count($v['photos']) > setting('max_photos')) {
+		$error = tp('post.err_photos', setting('max_photos'));
 	} elseif (empty($_POST['terms'])) {
 		$error = t('auth.err_terms');
 	} else {
+		[$publish, $note] = post_route($me, $editing, $v['title'] . "\n" . $v['description']);
 		$id = post_save($me, $v, $editId, [
 			'status' => 'pending', 'title' => $v['title'], 'description' => $v['description'],
 			'price' => $v['agreement'] ? null : $price, 'condition' => $hasCondition ? $v['condition'] : null,
-			'attrs' => $attrs, 'city' => $v['city'], 'phone' => $v['phone'] ?: null, 'photos' => $v['photos'],
-		]);
-		log_action($isNew ? 'listing.create' : 'listing.update', ['listing_id' => $id, 'photos' => count($v['photos'])]);
-		flash('success', t($isNew ? 'post.submitted' : 'post.updated'));
+			'attrs' => $attrs, 'city' => $v['city'], 'phone' => $v['phone'] ?: null, 'photos' => $v['photos'], 'moderation_note' => $note,
+		], $publish);
+		log_action($isNew ? 'listing.create' : 'listing.update', ['listing_id' => $id, 'photos' => count($v['photos'])]
+			+ ($publish ? ['published' => true] : []) + ($note ? ['note' => $note] : []));
+		flash('success', t($publish ? 'post.published' : ($isNew ? 'post.submitted' : 'post.updated')));
 		redirect(url('profile.php'));
 	}
 }
 
+// Published at once, or to moderation (admin → Settings → Moderation): [publish, note for the moderator].
+// A stop word always stops it (the note says which); a pending or rejected ad waits for a moderator;
+// otherwise the rule for new ads or for edits, and verified users (e-mail and phone) may skip it
+function post_route(array $me, ?array $editing, string $text): array
+{
+	$latin = sr_lat($text);
+	foreach (setting('stop_words') as $word) {
+		if (preg_match('/(?<![\p{L}\p{N}])' . preg_quote(sr_lat($word), '/') . '(?![\p{L}\p{N}])/iu', $latin)) {
+			return [false, 'Stop word: ' . $word];
+		}
+	}
+
+	if ($editing && in_array($editing['status'], ['pending', 'rejected'], true)) {
+		return [false, null];
+	}
+
+	$isNew = !$editing || $editing['status'] === 'draft';
+	$trusted = setting('trust_verified') && $me['email_verified'] && $me['verified'];
+
+	return [!setting($isNew ? 'premoderate_new' : 'premoderate_edits') || $trusted, null];
+}
+
 // Saves the ad and its photos in one transaction, then removes the files of photos taken out.
-// $v: the sent form, $f: checked values (status, title, description, price, condition, attrs, city, phone, photos)
-function post_save(array $me, array $v, ?int $editId, array $f): int
+// $v: the sent form, $f: checked values (status, title, description, price, condition, attrs, city, phone, photos,
+// moderation_note); $publish: approved right away (like a moderator's approval: term, place in the feed)
+function post_save(array $me, array $v, ?int $editId, array $f, bool $publish = false): int
 {
 	db()->beginTransaction();
 	try {
@@ -130,8 +159,12 @@ function post_save(array $me, array $v, ?int $editId, array $f): int
 			'title' => $f['title'], 'description' => $f['description'], 'lang' => detect_text_lang($f['title'] . ' ' . $f['description']),
 			'price' => $f['price'], 'currency' => $v['currency'], 'negotiable' => $v['negotiable'] && $f['price'] !== null,
 			'condition' => $f['condition'], 'attrs' => $f['attrs'], 'phone' => $f['phone'], 'show_phone' => $v['show_phone'],
+			'moderation_note' => $f['moderation_note'] ?? null,
 		], $editId);
 		$removed = set_listing_photos($id, $me['id'], $f['photos']);
+		if ($publish) {
+			approve_listing($id);
+		}
 		db()->commit();
 	} catch (Throwable $e) {
 		db()->rollBack();
@@ -151,7 +184,7 @@ $formPhotos = array_map(fn($photo) => [
 
 // Subcategories for JS: {"vehicles": [{"slug": "cars", "name": "Cars"}, …]}
 $subcats = [];
-foreach (categories() as $category) {
+foreach (visible_categories() as $category) {
 	$subcats[$category['slug']] = array_map(fn($child) => ['slug' => $child['slug'], 'name' => cat_name($child)], $category['children']);
 }
 
@@ -186,7 +219,7 @@ require INC_DIR . '/header.php';
 						<label class="field__label" for="p-category"><?= e(t('post.category')) ?></label>
 						<select class="select" id="p-category" name="category" required data-category-select data-subcats="<?= attr_json($subcats) ?>">
 							<option value=""><?= e(t('post.choose')) ?></option>
-							<?php foreach (categories() as $category): ?>
+							<?php foreach (visible_categories() as $category): ?>
 							<option value="<?= e($category['slug']) ?>"<?= $category['slug'] === $v['category'] ? ' selected' : '' ?>><?= e(cat_name($category)) ?></option>
 							<?php endforeach; ?>
 						</select>
@@ -270,8 +303,8 @@ require INC_DIR . '/header.php';
 				<label class="dropzone" data-dropzone>
 					<?= icon('camera', 32) ?>
 					<span class="dropzone__title"><?= e(t('post.photos_drop')) ?></span>
-					<span><?= e(t('post.photos_hint')) ?></span>
-					<input type="file" accept="image/jpeg,image/png,image/webp" multiple data-photo-input data-max="12">
+					<span><?= e(tp('post.photos_hint', setting('max_photos'))) ?></span>
+					<input type="file" accept="image/jpeg,image/png,image/webp" multiple data-photo-input data-max="<?= (int) setting('max_photos') ?>">
 				</label>
 				<ul class="photo-grid" data-photo-list data-photos="<?= attr_json($formPhotos) ?>" aria-live="polite"></ul>
 			</section>
@@ -337,7 +370,7 @@ require INC_DIR . '/header.php';
 					<div class="card__media preview__media" data-preview="media">
 						<span class="ph tint--neutral">
 							<span data-preview-icon="default"><?= icon('image', 64) ?></span>
-							<?php foreach (categories() as $category): ?>
+							<?php foreach (visible_categories() as $category): ?>
 							<span data-preview-icon="<?= e($category['slug']) ?>" hidden><?= icon($category['icon'], 64) ?></span>
 							<?php endforeach; ?>
 						</span>

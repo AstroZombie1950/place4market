@@ -58,8 +58,8 @@ function auth_init(): void
 
 	$user = $id !== null ? user((int) $id) : null;
 
-	// Deleted or blocked since the login: out
-	if ($id !== null && (!$user || $user['status'] !== 'active')) {
+	// Deleted or blocked since the login, or all sessions ended (session_version went up): out
+	if ($id !== null && (!$user || $user['status'] !== 'active' || (int) ($_SESSION['sv'] ?? 0) !== $user['session_version'])) {
 		logout_user();
 		$user = null;
 	}
@@ -99,6 +99,7 @@ function login_user(int $userId, bool $remember = false): void
 	session_boot(true);
 	session_regenerate_id(true);
 	$_SESSION['uid'] = $userId;
+	$_SESSION['sv'] = user_session_version($userId);
 	unset($_SESSION['csrf']);
 
 	if ($remember) {
@@ -250,7 +251,7 @@ function account_data_error(array $f): string
 		mb_strlen($f['name']) < 2 || mb_strlen($f['name']) > 100 => t('auth.err_name'),
 		!filter_var($f['email'], FILTER_VALIDATE_EMAIL) || mb_strlen($f['email']) > 190 => t('auth.err_email'),
 		$f['phone'] !== '' && !preg_match('/^\+?[0-9 ()\-]{6,20}$/', $f['phone']) => t('auth.err_phone'),
-		!in_array($f['city'], array_column(cities(), 'latn'), true) => t('auth.err_city'),
+		!in_array($f['city'], array_column(active_cities(), 'latn'), true) => t('auth.err_city'),
 		default => '',
 	};
 }

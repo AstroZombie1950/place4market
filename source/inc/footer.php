@@ -11,7 +11,7 @@ $footerLink = fn(string $path, string $label, array $params = []) => ['href' => 
 $footerCols = [
 	'categories' => array_map(
 		fn($c) => $footerLink('category.php', cat_name($c), ['cat' => $c['slug']]),
-		array_filter(categories(), fn($c) => $c['active'])
+		visible_categories()
 	),
 	'users' => [
 		$footerLink('post.php', t('nav.post_ad')),
@@ -99,7 +99,7 @@ $footerCols = [
 	'viewUrl' => url('view.php'),
 	'actionFailed' => t('common.failed'),
 	'linkCopied' => t('l.link_copied'),
-	'photosLimit' => t('post.photos_limit'),
+	'photosLimit' => tp('post.photos_limit', setting('max_photos')),
 	'photoTooBig' => t('post.photo_too_big'),
 	'photoUnreadable' => t('post.photo_unreadable'),
 	'photoUploadFailed' => t('post.photo_err_failed'),

@@ -9,7 +9,7 @@
 $cardTitle = listing_title($listing);
 ?>
 <article class="card" data-card>
-	<!-- Cover photo (or placeholder) + tag + heart -->
+	<!-- Cover photo (or placeholder) + tag + video mark + heart -->
 	<div class="card__media">
 		<?php if ($listing['images']): ?>
 		<?= photo($listing['images'][0], PHOTO_SIZES['card'], ['alt' => t('card.photo', ['title' => $cardTitle]), 'lazy' => empty($cardEager), 'priority' => !empty($cardPriority), 'max' => PHOTO_MAX['card']]) ?>
@@ -18,6 +18,9 @@ $cardTitle = listing_title($listing);
 		<?php endif; ?>
 		<?php if ($listing['negotiable']): ?>
 		<span class="tag card__tag"><?= e(t('card.negotiable')) ?></span>
+		<?php endif; ?>
+		<?php if ($listing['videos']): ?>
+		<span class="card__video"><?= icon('play', 14) ?><span class="visually-hidden"><?= e(t('card.video')) ?>, </span><?= e(video_time($listing['videos'][0]['duration'])) ?></span>
 		<?php endif; ?>
 		<?= fav_button($listing['id'], 'card__fav', !empty($cardRemoveOnUnsave)) ?>
 	</div>

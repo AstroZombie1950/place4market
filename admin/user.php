@@ -1,7 +1,9 @@
 <?php
 /* ==========================================================================
 	Admin: User profile (tabs: Profile, Listings, Reports, Activity)
-	Block / unblock → moderate.php; the profile form and other buttons are a demo.
+	Account actions → user-actions.php (profile and role: admins; note, reset
+	link, end sessions: staff; delete: admins), block / unblock → moderate.php.
+	Activity: the audit log by and about this user.
 	========================================================================== */
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
 
@@ -14,8 +16,13 @@ if (!$user) {
 }
 
 $userListings = user_listings($user['id']);
-$listingIds = array_column($userListings, 'id');
-$userReports = array_values(array_filter(reports(), fn($r) => in_array($r['listing_id'], $listingIds, true)));
+$userReports = reports(['seller' => $user['id']]);
+$activity = audit_entries(30, null, $user['id']);
+$back = 'user.php?id=' . $user['id'];
+$isSelf = $user['id'] === $currentAdmin['id'];
+$isDeleted = $user['status'] === 'deleted';
+// Profile fields: admins edit, moderators see
+$canEdit = is_admin() && !$isDeleted;
 
 $pageTitle = $user['name'];
 $activeNav = 'users';
@@ -32,9 +39,11 @@ require ADMIN_INC . '/header.php';
 		</ol>
 		<h1 class="page-head__title">User profile</h1>
 	</div>
+	<?php if ($canEdit): ?>
 	<div class="page-head__actions">
 		<button type="submit" class="btn btn--primary" form="user-form"><?= icon('check', 18) ?>Save changes</button>
 	</div>
+	<?php endif; ?>
 </div>
 
 <!-- Profile summary -->
@@ -45,18 +54,20 @@ require ADMIN_INC . '/header.php';
 			<div class="profile__name"><?= e($user['name']) ?> <?= status_badge($user['status']) ?> <?= role_badge($user['role']) ?></div>
 			<div class="profile__meta">
 				<span><?= icon('mail', 16) ?><?= e($user['email']) ?></span>
-				<span><?= icon('phone', 16) ?><?= e($user['phone']) ?></span>
-				<span><?= icon('map-pin', 16) ?><?= e($user['city']) ?></span>
+				<?php if ($user['phone']): ?><span><?= icon('phone', 16) ?><?= e($user['phone']) ?></span><?php endif; ?>
+				<?php if ($user['city']): ?><span><?= icon('map-pin', 16) ?><?= e($user['city']) ?></span><?php endif; ?>
 				<span><?= icon('calendar', 16) ?>Joined <?= e(format_date($user['registered'])) ?></span>
 			</div>
 		</div>
 		<div class="profile__actions">
+			<?php if (!$isDeleted): ?>
 			<a class="btn btn--secondary" href="mailto:<?= e($user['email']) ?>"><?= icon('mail', 18) ?>Email</a>
-			<?php if ($user['role'] === 'user'): ?>
+			<?php endif; ?>
+			<?php if ($user['role'] === 'user' && !$isDeleted): ?>
 			<form method="post" action="moderate.php">
 				<?= csrf_field() ?>
 				<input type="hidden" name="user_id" value="<?= (int) $user['id'] ?>">
-				<input type="hidden" name="back" value="user.php?id=<?= (int) $user['id'] ?>">
+				<input type="hidden" name="back" value="<?= e($back) ?>">
 				<?php if ($user['status'] === 'blocked'): ?>
 				<button type="submit" class="btn btn--secondary" name="action" value="unblock"><?= icon('check', 18) ?>Unblock</button>
 				<?php else: ?>
@@ -77,75 +88,110 @@ require ADMIN_INC . '/header.php';
 		<button type="button" class="tabs__tab" role="tab" id="tab-activity" aria-controls="panel-activity" aria-selected="false">Activity</button>
 	</div>
 
-	<!-- Profile form -->
+	<!-- Profile -->
 	<div class="tabs__panel card__body" role="tabpanel" id="panel-profile" aria-labelledby="tab-profile" tabindex="0">
-		<form id="user-form" method="post" data-demo-submit="Profile saved">
+		<?php if ($isDeleted): ?>
+		<p class="muted">The account was deleted: personal data erased, the row stays for conversations and history.</p>
+		<?php else: ?>
+		<form id="user-form" method="post" action="user-actions.php">
+			<?= csrf_field() ?>
+			<input type="hidden" name="action" value="save">
 			<input type="hidden" name="id" value="<?= (int) $user['id'] ?>">
-
-			<div class="form-section">
-				<h2 class="form-section__title">Account</h2>
-				<div class="form-grid">
-					<div class="field">
-						<label class="field__label" for="u-name">Full name</label>
-						<input class="input" id="u-name" name="name" type="text" required value="<?= e($user['name']) ?>">
-					</div>
-					<div class="field">
-						<label class="field__label" for="u-email">Email</label>
-						<input class="input" id="u-email" name="email" type="email" required value="<?= e($user['email']) ?>">
-					</div>
-					<div class="field">
-						<label class="field__label" for="u-phone">Phone</label>
-						<input class="input" id="u-phone" name="phone" type="tel" value="<?= e($user['phone']) ?>">
-					</div>
-					<div class="field">
-						<label class="field__label" for="u-city">City</label>
-						<select class="select" id="u-city" name="city"><?= city_options($user['city']) ?></select>
+			<input type="hidden" name="back" value="<?= e($back) ?>">
+			<fieldset class="fieldset"<?= $canEdit ? '' : ' disabled' ?>>
+				<div class="form-section">
+					<h2 class="form-section__title">Account</h2>
+					<div class="form-grid">
+						<div class="field">
+							<label class="field__label" for="u-name">Full name</label>
+							<input class="input" id="u-name" name="name" type="text" minlength="2" maxlength="100" required value="<?= e($user['name']) ?>">
+						</div>
+						<div class="field">
+							<label class="field__label" for="u-email">Email</label>
+							<input class="input" id="u-email" name="email" type="email" maxlength="190" required value="<?= e($user['email']) ?>">
+							<?php if ($user['new_email']): ?><span class="field__hint">Waiting for confirmation: <?= e($user['new_email']) ?> (a new address here replaces it).</span><?php endif; ?>
+						</div>
+						<div class="field">
+							<label class="field__label" for="u-phone">Phone</label>
+							<input class="input" id="u-phone" name="phone" type="tel" value="<?= e($user['phone'] ?? '') ?>">
+						</div>
+						<div class="field">
+							<label class="field__label" for="u-city">City</label>
+							<select class="select" id="u-city" name="city"><?= city_options($user['city']) ?></select>
+						</div>
 					</div>
 				</div>
+
+				<div class="form-section">
+					<h2 class="form-section__title">Access</h2>
+					<div class="form-grid">
+						<div class="field">
+							<label class="field__label" for="u-role">Role</label>
+							<select class="select" id="u-role" name="role"<?= $isSelf ? ' disabled' : '' ?>><?= options(['user' => 'User', 'moderator' => 'Moderator', 'admin' => 'Admin'], $user['role']) ?></select>
+							<?php if ($isSelf): ?><input type="hidden" name="role" value="<?= e($user['role']) ?>"><?php endif; ?>
+							<span class="field__hint"><?= $isSelf ? 'Your own role is changed by another administrator.' : 'Moderators review listings, reports and users. Admins also manage accounts, settings and the journal.' ?></span>
+						</div>
+						<div class="field">
+							<span class="field__label">Language of emails</span>
+							<span><?= e(languages()[$user['lang'] ?? '']['name'] ?? 'Not chosen (Serbian Latin)') ?></span>
+						</div>
+						<div class="field">
+							<label class="switch">
+								<input type="checkbox" role="switch" name="email_verified"<?= $user['email_verified'] ? ' checked' : '' ?>>
+								<span class="switch__text"><span class="switch__title">Email verified</span><span class="switch__hint">Set by the link from the confirmation email</span></span>
+							</label>
+						</div>
+						<div class="field">
+							<label class="switch">
+								<input type="checkbox" role="switch" name="phone_verified"<?= $user['verified'] ? ' checked' : '' ?>>
+								<span class="switch__text"><span class="switch__title">Phone verified</span><span class="switch__hint">No SMS check yet: set after a call</span></span>
+							</label>
+						</div>
+					</div>
+				</div>
+			</fieldset>
+		</form>
+
+		<div class="form-section form-section--split">
+			<h2 class="form-section__title">Security</h2>
+			<form class="row" method="post" action="user-actions.php">
+				<?= csrf_field() ?>
+				<input type="hidden" name="id" value="<?= (int) $user['id'] ?>">
+				<input type="hidden" name="back" value="<?= e($back) ?>">
+				<button type="submit" class="btn btn--secondary" name="action" value="reset_link" data-confirm="Send a password reset link to <?= e($user['email']) ?>? It works for 1 hour." data-confirm-label="Send"<?= $user['status'] !== 'active' ? ' disabled' : '' ?>><?= icon('lock', 18) ?>Send password reset link</button>
+				<?php if (!$isSelf): ?>
+				<button type="submit" class="btn btn--secondary" name="action" value="end_sessions" data-confirm="Log <?= e($user['name']) ?> out of all devices?" data-confirm-label="Log out"><?= icon('logout', 18) ?>End all sessions</button>
+				<?php endif; ?>
+			</form>
+		</div>
+		<?php endif; ?>
+
+		<form class="form-section" method="post" action="user-actions.php">
+			<?= csrf_field() ?>
+			<input type="hidden" name="action" value="note">
+			<input type="hidden" name="id" value="<?= (int) $user['id'] ?>">
+			<input type="hidden" name="back" value="<?= e($back) ?>">
+			<div class="field">
+				<label class="field__label" for="u-note">Internal note</label>
+				<textarea class="textarea" id="u-note" name="note" rows="3" maxlength="2000" placeholder="Visible to staff only"><?= e($user['note'] ?? '') ?></textarea>
 			</div>
-
-			<div class="form-section">
-				<h2 class="form-section__title">Access</h2>
-				<div class="form-grid">
-					<div class="field">
-						<label class="field__label" for="u-role">Role</label>
-						<select class="select" id="u-role" name="role"><?= options(['user' => 'User', 'moderator' => 'Moderator', 'admin' => 'Admin'], $user['role']) ?></select>
-						<span class="field__hint">Moderators can review listings and reports. Admins have full access.</span>
-					</div>
-					<div class="field">
-						<label class="field__label" for="u-status">Status</label>
-						<select class="select" id="u-status" name="status"><?= options(['active' => 'Active', 'blocked' => 'Blocked'], $user['status']) ?></select>
-					</div>
-					<div class="field">
-						<label class="switch">
-							<input type="checkbox" role="switch" name="email_verified"<?= $user['verified'] ? ' checked' : '' ?>>
-							<span class="switch__text"><span class="switch__title">Email verified</span><span class="switch__hint">Verified users skip pre-moderation if enabled in settings</span></span>
-						</label>
-					</div>
-					<div class="field">
-						<label class="switch">
-							<input type="checkbox" role="switch" name="phone_verified"<?= $user['verified'] ? ' checked' : '' ?>>
-							<span class="switch__text"><span class="switch__title">Phone verified</span><span class="switch__hint">Confirmed by SMS code</span></span>
-						</label>
-					</div>
-				</div>
-			</div>
-
-			<div class="form-section">
-				<h2 class="form-section__title">Security</h2>
-				<div class="row">
-					<button type="button" class="btn btn--secondary" data-toast="Password reset link sent"><?= icon('lock', 18) ?>Send password reset link</button>
-					<button type="button" class="btn btn--secondary" data-confirm="Log this user out of all devices?" data-confirm-label="Log out" data-toast="All sessions ended"><?= icon('logout', 18) ?>End all sessions</button>
-				</div>
-			</div>
-
-			<div class="form-section">
-				<div class="field">
-					<label class="field__label" for="u-note">Internal note</label>
-					<textarea class="textarea" id="u-note" name="note" rows="3" placeholder="Visible to staff only"></textarea>
-				</div>
+			<div class="form-actions">
+				<button type="submit" class="btn btn--secondary"><?= icon('check', 18) ?>Save note</button>
 			</div>
 		</form>
+
+		<?php if (is_admin() && !$isDeleted && $user['role'] === 'user'): ?>
+		<form class="form-section" method="post" action="user-actions.php">
+			<?= csrf_field() ?>
+			<input type="hidden" name="id" value="<?= (int) $user['id'] ?>">
+			<input type="hidden" name="back" value="<?= e($back) ?>">
+			<h2 class="form-section__title">Delete account</h2>
+			<p class="muted">Like deleting by the owner: listings and photos are removed, favorites and saved searches cleared, name, email and phone erased. Conversations stay with “Deleted user”.</p>
+			<div class="form-actions">
+				<button type="submit" class="btn btn--danger-ghost" name="action" value="delete" data-confirm="Delete <?= e($user['name']) ?>? This cannot be undone." data-confirm-label="Delete"><?= icon('trash', 18) ?>Delete account</button>
+			</div>
+		</form>
+		<?php endif; ?>
 	</div>
 
 	<!-- User listings -->
@@ -210,17 +256,19 @@ require ADMIN_INC . '/header.php';
 		<?php endif; ?>
 	</div>
 
-	<!-- Activity -->
+	<!-- Activity: audit log by and about this user -->
 	<div class="tabs__panel card__body" role="tabpanel" id="panel-activity" aria-labelledby="tab-activity" tabindex="0" hidden>
 		<ol class="timeline">
+			<?php if ($user['last_active']): ?>
 			<li class="timeline__item">
 				<span class="timeline__icon timeline__icon--user"><?= icon('user', 16) ?></span>
 				<div><div>Last seen online</div><time class="timeline__time" datetime="<?= e($user['last_active']) ?>"><?= e(format_date($user['last_active'], true)) ?></time></div>
 			</li>
-			<?php foreach ($userListings as $listing): ?>
+			<?php endif; ?>
+			<?php foreach ($activity as $entry): [$type, $iconName, $text] = audit_line($entry); ?>
 			<li class="timeline__item">
-				<span class="timeline__icon timeline__icon--listing"><?= icon('tag', 16) ?></span>
-				<div><div>Posted “<?= e($listing['title']) ?>”</div><time class="timeline__time" datetime="<?= e($listing['created']) ?>"><?= e(format_date($listing['created'], true)) ?></time></div>
+				<span class="timeline__icon timeline__icon--<?= e($type) ?>"><?= icon($iconName, 16) ?></span>
+				<div><div><?= e($text) ?></div><time class="timeline__time" datetime="<?= e($entry['time']) ?>"><?= e(format_date($entry['time'], true)) ?></time></div>
 			</li>
 			<?php endforeach; ?>
 			<li class="timeline__item">
@@ -228,9 +276,7 @@ require ADMIN_INC . '/header.php';
 				<div><div>Account created</div><time class="timeline__time" datetime="<?= e($user['registered']) ?>"><?= e(format_date($user['registered'])) ?></time></div>
 			</li>
 		</ol>
-		<?php if (is_admin()): ?>
-		<p class="mt-4"><a href="logs.php?user=<?= (int) $user['id'] ?>"><?= icon('list', 16) ?> All records of this user in the journal</a></p>
-		<?php endif; ?>
+		<p class="muted mt-4">The last <?= count($activity) ?> actions of the journal (kept <?= LOG_RETENTION_DAYS ?> days).<?php if (is_admin()): ?> <a href="logs.php?user=<?= (int) $user['id'] ?>">All records of this user</a><?php endif; ?></p>
 	</div>
 </section>
 

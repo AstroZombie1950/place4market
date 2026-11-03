@@ -37,6 +37,13 @@ function i18n_init(): void
 		$lang = $_COOKIE[LANG_COOKIE];
 	}
 
+	i18n_use($lang);
+}
+
+// Strings of a language (the admin is always in English: i18n_use('en'))
+function i18n_use(string $lang): void
+{
+	$lang = isset(languages()[$lang]) ? $lang : DEFAULT_LANG;
 	$GLOBALS['__lang'] = $lang;
 	$GLOBALS['__strings'] = require SOURCE_DIR . '/lang/' . $lang . '.php';
 	$GLOBALS['__fallback'] = $lang === DEFAULT_LANG ? [] : require SOURCE_DIR . '/lang/' . DEFAULT_LANG . '.php';
@@ -46,10 +53,7 @@ function i18n_init(): void
 function in_lang(string $lang, callable $fn): mixed
 {
 	$saved = [$GLOBALS['__lang'] ?? null, $GLOBALS['__strings'] ?? [], $GLOBALS['__fallback'] ?? []];
-	$lang = isset(languages()[$lang]) ? $lang : DEFAULT_LANG;
-	$GLOBALS['__lang'] = $lang;
-	$GLOBALS['__strings'] = require SOURCE_DIR . '/lang/' . $lang . '.php';
-	$GLOBALS['__fallback'] = $lang === DEFAULT_LANG ? [] : require SOURCE_DIR . '/lang/' . DEFAULT_LANG . '.php';
+	i18n_use($lang);
 
 	try {
 		return $fn();

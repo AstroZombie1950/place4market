@@ -14,14 +14,14 @@ $navGroups = [
 	],
 	'People' => [
 		['key' => 'users', 'href' => 'users.php', 'icon' => 'users', 'label' => 'Users'],
+		['key' => 'inbox', 'href' => 'inbox.php', 'icon' => 'mail', 'label' => 'Inbox', 'count' => contact_counts()['new'] ?? 0],
 	],
-	'System' => [
-		['key' => 'settings', 'href' => 'settings.php', 'icon' => 'settings', 'label' => 'Settings'],
-	],
+	'System' => [],
 ];
 
-// Journal: admins only, with errors of the last 24 hours
+// Settings and the journal (with errors of the last 24 hours): admins only
 if (is_admin()) {
+	$navGroups['System'][] = ['key' => 'settings', 'href' => 'settings.php', 'icon' => 'settings', 'label' => 'Settings'];
 	$navGroups['System'][] = ['key' => 'logs', 'href' => 'logs.php?level=warning', 'icon' => 'list', 'label' => 'Journal',
 		'count' => count_log_problems(date('Y-m-d H:i:s', strtotime('-1 day'))), 'alert' => true];
 }
@@ -35,7 +35,7 @@ if (is_admin()) {
 
 	<!-- Navigation groups -->
 	<nav class="sidebar__nav" aria-label="Sections">
-		<?php foreach ($navGroups as $groupLabel => $items): ?>
+		<?php foreach (array_filter($navGroups) as $groupLabel => $items): ?>
 		<div class="sidebar__group">
 			<div class="sidebar__label"><?= e($groupLabel) ?></div>
 			<ul class="sidebar__list">

@@ -1,24 +1,26 @@
 <?php
 /* ==========================================================================
-	Admin: Dashboard
+	Admin: Dashboard (counters, the oldest listings waiting for moderation,
+	open reports, new users, recent actions from the journal)
+	Approve / reject in the queue → moderate.php, back here.
 	========================================================================== */
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
 
 $pageTitle = 'Dashboard';
 $activeNav = 'dashboard';
 
-// Counters and short lists
-$listings = all_listings();
-$reports = reports();
-$users = users();
-$pendingListings = filter_by($listings, 'status', 'pending');
-$openReports = filter_by($reports, 'status', 'open');
-$activeCount = count_by($listings, 'status', 'active');
-$blockedCount = count_by($users, 'status', 'blocked');
+// Rows in each short list
+const DASHBOARD_ROWS = 6;
 
-$recentUsers = $users;
-usort($recentUsers, fn($a, $b) => strcmp($b['registered'], $a['registered']));
-$recentUsers = array_slice($recentUsers, 0, 5);
+// Counters and short lists
+$listingCounts = admin_listing_counts([]);
+$reportCounts = report_status_counts();
+$userCounts = admin_user_counts([]);
+$pendingCount = $listingCounts['pending'] ?? 0;
+$openCount = $reportCounts['open'] ?? 0;
+$pendingListings = admin_listings(['status' => 'pending'], DASHBOARD_ROWS);
+$openReports = reports(['status' => 'open'], DASHBOARD_ROWS);
+$recentUsers = admin_users([], 5);
 
 require ADMIN_INC . '/header.php';
 ?>
@@ -39,23 +41,23 @@ require ADMIN_INC . '/header.php';
 <div class="stats">
 	<a class="stat" href="listings.php?status=pending">
 		<span class="stat__top">Pending moderation <span class="stat__icon stat__icon--warning"><?= icon('clock') ?></span></span>
-		<span class="stat__value"><?= count($pendingListings) ?></span>
+		<span class="stat__value"><?= (int) $pendingCount ?></span>
 		<span class="stat__meta">Waiting for review</span>
 	</a>
 	<a class="stat" href="listings.php?status=active">
 		<span class="stat__top">Active listings <span class="stat__icon stat__icon--success"><?= icon('tag') ?></span></span>
-		<span class="stat__value"><?= $activeCount ?></span>
-		<span class="stat__meta">of <?= count($listings) ?> total</span>
+		<span class="stat__value"><?= (int) ($listingCounts['active'] ?? 0) ?></span>
+		<span class="stat__meta">of <?= (int) array_sum($listingCounts) ?> total</span>
 	</a>
-	<a class="stat" href="users.php">
+	<a class="stat" href="users.php?tab=active">
 		<span class="stat__top">Users <span class="stat__icon"><?= icon('users') ?></span></span>
-		<span class="stat__value"><?= count($users) ?></span>
-		<span class="stat__meta"><?= $blockedCount ?> blocked</span>
+		<span class="stat__value"><?= $userCounts[''] - $userCounts['deleted'] ?></span>
+		<span class="stat__meta"><?= $userCounts['blocked'] ?> blocked</span>
 	</a>
 	<a class="stat" href="reports.php">
 		<span class="stat__top">Open reports <span class="stat__icon stat__icon--danger"><?= icon('flag') ?></span></span>
-		<span class="stat__value"><?= count($openReports) ?></span>
-		<span class="stat__meta"><?= count_by($reports, 'status', 'review') ?> in review</span>
+		<span class="stat__value"><?= (int) $openCount ?></span>
+		<span class="stat__meta"><?= (int) ($reportCounts['review'] ?? 0) ?> in review</span>
 	</a>
 </div>
 
@@ -64,7 +66,7 @@ require ADMIN_INC . '/header.php';
 	<section class="card" aria-labelledby="queue-title">
 		<div class="card__head">
 			<h2 class="card__title" id="queue-title">Waiting for moderation</h2>
-			<span class="badge badge--warning"><?= count($pendingListings) ?></span>
+			<span class="badge badge--warning"><?= (int) $pendingCount ?></span>
 		</div>
 		<?php if ($pendingListings): ?>
 		<ul class="list">
@@ -75,10 +77,13 @@ require ADMIN_INC . '/header.php';
 					<a class="list__title" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= e($listing['title']) ?></a>
 					<div class="list__meta"><?= e(user_name($listing['user_id'])) ?> · <?= e($listing['city']) ?> · <?= e(format_date($listing['created'], true)) ?></div>
 				</div>
-				<div class="list__aside">
-					<button type="button" class="btn btn--success btn--sm btn--icon" aria-label="Approve “<?= e($listing['title']) ?>”" data-toast="Listing approved"><?= icon('check', 18) ?></button>
-					<button type="button" class="btn btn--danger-ghost btn--sm btn--icon" aria-label="Reject “<?= e($listing['title']) ?>”" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => $listing['title']]) ?>"><?= icon('x', 18) ?></button>
-				</div>
+				<form class="list__aside" method="post" action="moderate.php">
+					<?= csrf_field() ?>
+					<input type="hidden" name="id" value="<?= (int) $listing['id'] ?>">
+					<input type="hidden" name="back" value="index.php">
+					<button type="submit" class="btn btn--success btn--sm btn--icon" name="action" value="approve" aria-label="Approve “<?= e($listing['title']) ?>”"><?= icon('check', 18) ?></button>
+					<button type="button" class="btn btn--danger-ghost btn--sm btn--icon" aria-label="Reject “<?= e($listing['title']) ?>”" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => $listing['title'], 'id_list' => (string) $listing['id']]) ?>"><?= icon('x', 18) ?></button>
+				</form>
 			</li>
 			<?php endforeach; ?>
 		</ul>
@@ -94,22 +99,26 @@ require ADMIN_INC . '/header.php';
 	<section class="card" aria-labelledby="reports-title">
 		<div class="card__head">
 			<h2 class="card__title" id="reports-title">Open reports</h2>
-			<span class="badge badge--danger"><?= count($openReports) ?></span>
+			<span class="badge badge--danger"><?= (int) $openCount ?></span>
 		</div>
+		<?php if ($openReports): ?>
 		<ul class="list">
 			<?php foreach ($openReports as $report): $listing = find_listing($report['listing_id']); ?>
 			<li class="list__item">
 				<span class="stat__icon stat__icon--danger"><?= icon('flag', 18) ?></span>
 				<div class="list__main">
-					<span class="list__title"><?= e($report['reason']) ?></span>
-					<div class="list__meta">“<?= e($listing['title'] ?? '—') ?>” · by <?= e(user_name($report['reporter_id'])) ?></div>
+					<span class="list__title"><?= e(report_reasons()[$report['reason']] ?? $report['reason']) ?></span>
+					<div class="list__meta">“<?= e($listing['title'] ?? '—') ?>” · by <?= e(user_name($report['reporter_id'])) ?> · <?= e(format_date($report['created'], true)) ?></div>
 				</div>
 				<div class="list__aside">
-					<a class="btn btn--secondary btn--sm" href="reports.php">Review</a>
+					<a class="btn btn--secondary btn--sm" href="reports.php?q=%23<?= (int) $report['id'] ?>">Review</a>
 				</div>
 			</li>
 			<?php endforeach; ?>
 		</ul>
+		<?php else: ?>
+		<div class="card__body muted">No open reports.</div>
+		<?php endif; ?>
 		<div class="card__foot">
 			<a href="reports.php">All reports</a>
 		</div>
@@ -126,7 +135,7 @@ require ADMIN_INC . '/header.php';
 				<span class="avatar"><?= e(initials($user['name'])) ?></span>
 				<div class="list__main">
 					<a class="list__title" href="user.php?id=<?= (int) $user['id'] ?>"><?= e($user['name']) ?></a>
-					<div class="list__meta"><?= e($user['city']) ?> · joined <?= e(format_date($user['registered'])) ?></div>
+					<div class="list__meta"><?= e(implode(' · ', array_filter([$user['city'], 'joined ' . format_date($user['registered'])]))) ?></div>
 				</div>
 				<div class="list__aside"><?= status_badge($user['status']) ?></div>
 			</li>
@@ -165,5 +174,5 @@ require ADMIN_INC . '/header.php';
 	</section>
 </div>
 
-<?php require ADMIN_INC . '/reject-dialog.php'; ?>
+<?php $rejectBack = 'index.php'; require ADMIN_INC . '/reject-dialog.php'; ?>
 <?php require ADMIN_INC . '/footer.php'; ?>

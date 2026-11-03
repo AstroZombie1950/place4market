@@ -7,6 +7,8 @@
 	POST (+ csrf), action:
 	  send    conversation (or listing for a new one) + text
 	  read    conversation (opened in the browser without a reload)
+	  poll    conversation, after (last message id shown): newer messages of the
+	          open thread (main.js asks every few seconds); they become read
 	  delete  conversation: hidden for this user only
 	main.js sends with Accept: application/json and gets JSON; without JS the
 	form posts here and comes back to the thread.
@@ -78,6 +80,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		messages_answer(200, ['read' => mark_conversation_read($cid, $me['id'])], $back);
 	}
 
+	if ($action === 'poll' && $conversation) {
+		$new = messages_after($cid, (int) ($_POST['after'] ?? 0));
+		if ($new) {
+			mark_conversation_read($cid, $me['id']);
+		}
+		messages_answer(200, [
+			'messages' => array_map(fn($m) => [
+				'id' => $m['id'], 'mine' => $m['from'] === $me['id'], 'text' => user_text($m['text'], $m['lang']),
+				'time' => date('H:i', strtotime($m['at'])), 'day' => chat_day($m['at']),
+			], $new),
+			'unread' => unread_count(),
+		], $back);
+	}
+
 	if ($action === 'delete' && $conversation) {
 		hide_conversation($cid, $me['id']);
 		messages_answer(200, ['flash' => t('m.deleted')]);
@@ -117,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	rate_hit('message', (string) $me['id']);
 	$firstUnread = conversation_unread($cid, $otherId) === 0;
 	$lang = detect_text_lang($text);
-	add_message($cid, $me['id'], $text, $lang);
+	$messageId = add_message($cid, $me['id'], $text, $lang);
 
 	// A failed letter is logged by mail.php and does not stop the message
 	if ($firstUnread) {
@@ -127,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	messages_answer(200, [
 		'conversation' => $cid,
 		'created' => $created,
-		'message' => ['text' => user_text($text, $lang), 'time' => date('H:i'), 'day' => t('time.today')],
+		'message' => ['id' => $messageId, 'mine' => true, 'text' => user_text($text, $lang), 'time' => date('H:i'), 'day' => t('time.today')],
 	], ['c' => $cid]);
 }
 
@@ -266,7 +282,7 @@ require INC_DIR . '/header.php';
 				<?php if ($day !== $prevDay): $prevDay = $day; ?>
 				<p class="day-sep"><?= e(chat_day($msg['at'])) ?></p>
 				<?php endif; ?>
-				<div class="msg <?= $mine ? 'msg--out' : 'msg--in' ?>">
+				<div class="msg <?= $mine ? 'msg--out' : 'msg--in' ?>" data-msg="<?= (int) $msg['id'] ?>">
 					<span class="visually-hidden"><?= e($mine ? t('m.you') : person_name($other['name'])) ?>:</span>
 					<?= e(user_text($msg['text'], $msg['lang'])) ?>
 					<time class="msg__time" datetime="<?= e(date('c', strtotime($msg['at']))) ?>"><?= date('H:i', strtotime($msg['at'])) ?></time>
@@ -290,7 +306,6 @@ require INC_DIR . '/header.php';
 				<?php else: ?>
 				<input type="hidden" name="listing" value="<?= (int) $conv['listing_id'] ?>">
 				<?php endif; ?>
-				<button type="button" class="btn btn--ghost btn--icon" aria-label="<?= e(t('m.attach')) ?>"><?= icon('paperclip', 20) ?></button>
 				<label class="visually-hidden" for="msg-<?= (int) $conv['id'] ?>"><?= e(t('m.message_input')) ?></label>
 				<textarea class="textarea composer__input" id="msg-<?= (int) $conv['id'] ?>" name="text" rows="1" maxlength="<?= MESSAGE_MAX ?>" required placeholder="<?= e(t('m.placeholder')) ?>"></textarea>
 				<button type="submit" class="btn btn--primary" aria-label="<?= e(t('m.send')) ?>"><?= icon('send', 18) ?></button>

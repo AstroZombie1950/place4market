@@ -28,6 +28,9 @@ const LOG_LEVELS = ['debug', 'info', 'warning', 'error', 'critical'];
 const LOG_RETENTION_DAYS = 90;
 // Disk protection for the fallback files: after this much in a day only 'critical' is written
 const LOG_DAILY_LIMIT = 100 * 1024 * 1024;
+// Database protection: after this many records in a day (UTC) only 'error' and 'critical' are
+// written; the first record over it says so (one 'error' a day)
+const LOG_DB_DAILY_ROWS = 50000;
 // The same critical error is alerted at most once per this many seconds
 const LOG_ALERT_PAUSE = 900;
 // Context keys whose values never reach the log
@@ -201,13 +204,25 @@ function log_db(): ?PDO
 
 function log_write_db(array $record): bool
 {
-	static $insert = null;
+	static $insert = null, $over = null, $said = null;
 
 	if (!$pdo = log_db()) {
 		return false;
 	}
 
 	try {
+		// Records of today, counted once per request (index on created_at)
+		$over ??= (int) $pdo->query('SELECT COUNT(*) FROM log_entries WHERE created_at >= UTC_DATE()')->fetchColumn() >= LOG_DB_DAILY_ROWS;
+		if ($over && !in_array($record['level'], ['error', 'critical'], true)) {
+			$said ??= (bool) $pdo->query("SELECT 1 FROM log_entries WHERE created_at >= UTC_DATE() AND message LIKE 'Journal: daily limit%' LIMIT 1")->fetchColumn();
+			if ($said) {
+				return true;
+			}
+			$said = true;
+			$record = ['level' => 'error', 'channel' => 'app', 'context' => ['limit' => LOG_DB_DAILY_ROWS, 'first_skipped' => $record['message']],
+				'message' => 'Journal: daily limit of ' . LOG_DB_DAILY_ROWS . ' records reached, debug, info and warnings are skipped until midnight UTC'] + $record;
+		}
+
 		$insert ??= $pdo->prepare('INSERT INTO log_entries (created_at, level, channel, message, request_id, method, url, ip, user_id, user_role, ua, context)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
