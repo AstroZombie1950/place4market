@@ -43,3 +43,10 @@ RewriteRule ^uploads/.*\.(php|phtml|phar)$ - [F,L]
 
 # Файл состояния деплоя (список файлов и хэшей) наружу не отдаём
 RewriteRule ^\.ftp-deploy-sync-state\.json$ - [F,L]
+
+# ПРОВЕРКА (05.11): применяет ли хостинг новые правила (этап 5, маршрутизатор). Оба адреса
+# должны отдать robots.txt; пока отдают 404 LiteSpeed — правила не подхвачены. Убрать после проверки
+RewriteRule ^rewrite-canary-plain$ robots.txt [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^rewrite-canary-cond$ robots.txt [L]

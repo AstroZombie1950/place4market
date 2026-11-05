@@ -1,46 +1,22 @@
 <?php
 /* ==========================================================================
 	Apply new migrations: php source/db/migrate.php
-	Migrations are source/db/migrations/NNN_name.php: each returns its SQL
-	(PHP, so the web server never shows the schema as text). Applied once each
-	in name order, applied ones are listed in schema_migrations. A migration
-	is never edited after it reached production: changes go into a new file.
+	The same code runs on production right after a deploy (deploy-hook.php)
+	and from the admin (admin/migrations.php): source/inc/migrations.php.
 	========================================================================== */
 
 require __DIR__ . '/cli.php';
+require INC_DIR . '/migrations.php';
 
-db()->exec('CREATE TABLE IF NOT EXISTS schema_migrations (
-	version VARCHAR(100) NOT NULL,
-	applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (version)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-
-$applied = db_column('SELECT version FROM schema_migrations');
-$files = glob(__DIR__ . '/migrations/*.php') ?: [];
-sort($files);
-$count = 0;
-
-foreach ($files as $file) {
-	$version = basename($file, '.php');
-
-	if (in_array($version, $applied, true)) {
-		continue;
-	}
-
-	// One statement at a time: PDO reports errors of the first statement only.
-	// Statements are split on ";" at the end of a line, comments are dropped
-	$sql = preg_replace('/^\s*--.*$/m', '', require $file);
-
-	foreach (preg_split('/;\s*$/m', $sql) as $statement) {
-		if (trim($statement) !== '') {
-			db()->exec($statement);
-		}
-	}
-
-	db_exec('INSERT INTO schema_migrations (version) VALUES (?)', [$version]);
-	log_event('info', 'Migration applied', ['version' => $version], 'db');
-	out('Applied ' . $version);
-	$count++;
+try {
+	$done = migrations_apply('cli');
+} catch (RuntimeException $e) {
+	out($e->getMessage());
+	exit(1);
 }
 
-out($count ? 'Done: ' . $count . ' migration(s).' : 'Nothing to apply, the schema is up to date.');
+foreach ($done as $version) {
+	out('Applied ' . $version);
+}
+
+out($done ? 'Done: ' . count($done) . ' migration(s).' : 'Nothing to apply, the schema is up to date.');

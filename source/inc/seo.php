@@ -136,10 +136,39 @@ function schema_site(): array
 	]];
 }
 
-// Listing: product with an offer
+// Listing: product with an offer. Without a price (negotiable) there is no Offer,
+// and Google treats a Product without offers as an error: then only its videos
+// go out, as VideoObject. Returns a list of JSON-LD objects
 function schema_listing(array $listing, array $seller, array $category): array
 {
-	$schema = [
+	// Videos: VideoObject with the poster as thumbnail (video rich results)
+	$videos = array_map(fn($video) => [
+		'@type' => 'VideoObject',
+		'name' => listing_title($listing),
+		'description' => listing_description($listing),
+		'thumbnailUrl' => site_url(photo_url($video['poster'], array_key_first($video['poster']['sizes']))),
+		'contentUrl' => site_url(video_url($video)),
+		'uploadDate' => date('c', strtotime($listing['created'])),
+		'duration' => 'PT' . (int) floor($video['duration']) . 'S',
+	], $listing['videos']);
+
+	if ($listing['price'] === null) {
+		return $videos;
+	}
+
+	$offer = [
+		'@type' => 'Offer',
+		'url' => site_url(listing_url($listing)),
+		'price' => $listing['price'],
+		'priceCurrency' => $listing['currency'],
+		'availability' => 'https://schema.org/InStock',
+		'seller' => ['@type' => 'Person', 'name' => person_name($seller['name'])],
+	];
+	if ($listing['condition'] !== null) {
+		$offer['itemCondition'] = 'https://schema.org/' . ($listing['condition'] === 'new' ? 'NewCondition' : 'UsedCondition');
+	}
+
+	$product = [
 		'@type' => 'Product',
 		'name' => listing_title($listing),
 		'description' => listing_description($listing),
@@ -149,37 +178,13 @@ function schema_listing(array $listing, array $seller, array $category): array
 		'image' => $listing['images']
 			? array_map(fn($photo) => site_url(photo_url($photo, array_key_first($photo['sizes']))), $listing['images'])
 			: site_url(ASSETS_URL . '/img/og-image.png'),
+		'offers' => $offer,
 	];
-
-	// Videos: VideoObject with the poster as thumbnail (video rich results)
-	if ($listing['videos']) {
-		$schema['subjectOf'] = array_map(fn($video) => [
-			'@type' => 'VideoObject',
-			'name' => listing_title($listing),
-			'description' => listing_description($listing),
-			'thumbnailUrl' => site_url(photo_url($video['poster'], array_key_first($video['poster']['sizes']))),
-			'contentUrl' => site_url(video_url($video)),
-			'uploadDate' => date('c', strtotime($listing['created'])),
-			'duration' => 'PT' . (int) floor($video['duration']) . 'S',
-		], $listing['videos']);
+	if ($videos) {
+		$product['subjectOf'] = $videos;
 	}
 
-	if ($listing['price'] !== null) {
-		$offer = [
-			'@type' => 'Offer',
-			'url' => site_url(listing_url($listing)),
-			'price' => $listing['price'],
-			'priceCurrency' => $listing['currency'],
-			'availability' => 'https://schema.org/InStock',
-			'seller' => ['@type' => 'Person', 'name' => person_name($seller['name'])],
-		];
-		if ($listing['condition'] !== null) {
-			$offer['itemCondition'] = 'https://schema.org/' . ($listing['condition'] === 'new' ? 'NewCondition' : 'UsedCondition');
-		}
-		$schema['offers'] = $offer;
-	}
-
-	return $schema;
+	return [$product];
 }
 
 // Results page: list of listing URLs

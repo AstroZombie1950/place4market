@@ -85,7 +85,7 @@ if ($photos) {
 	];
 }
 $page['schema'][] = schema_breadcrumbs($crumbs);
-$page['schema'][] = schema_listing($listing, $seller, $childCat ?? $parentCat);
+array_push($page['schema'], ...schema_listing($listing, $seller, $childCat ?? $parentCat));
 
 require INC_DIR . '/header.php';
 ?>

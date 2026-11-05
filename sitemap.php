@@ -1,42 +1,90 @@
 <?php
 /* ==========================================================================
-	sitemap.xml (served via .htaccess rewrite): home, categories, listings,
-	sellers, info pages.
-	Every URL lists all its language versions (hreflang + x-default).
+	Sitemap (served as /sitemap.xml via .htaccess rewrite).
+	Without parameters — a sitemap index; its parts:
+	  ?part=pages             home, all listings, categories with listings, info pages
+	  ?part=listings&n=1…     published listings, SITEMAP_SIZE per part, by id
+	  ?part=sellers&n=1…      sellers with published listings
+	Every URL lists all its language versions (hreflang + x-default); lastmod is
+	the last change of a listing (updated_at, UTC). A part past the end — 404.
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
 
-// Indexable pages: [path, params, lastmod]
-$entries = [['index.php', [], null], ['category.php', [], null]];
+// Entries per part: each one gives a URL per language (3 × 10 000 = 30 000 URLs,
+// the limit is 50 000 URLs and 50 MB per file)
+const SITEMAP_SIZE = 10000;
 
-foreach (categories() as $parent) {
-	if (!$parent['active']) {
-		continue;
-	}
-	$entries[] = ['category.php', ['cat' => $parent['slug']], null];
-	foreach ($parent['children'] as $child) {
-		if ($child['active']) {
-			$entries[] = ['category.php', ['cat' => $child['slug']], null];
+$part = (string) ($_GET['part'] ?? '');
+$n = (int) ($_GET['n'] ?? 1);
+
+// UTC from the database → W3C datetime
+$w3c = fn(?string $utc) => $utc ? gmdate('Y-m-d\TH:i:s\Z', strtotime($utc . ' UTC')) : null;
+
+$xml = function (): void {
+	header('Content-Type: application/xml; charset=utf-8');
+	echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+};
+
+/* ---------- Index ---------- */
+
+if ($part === '') {
+	$categories = sitemap_categories();
+	$parts = [['pages', 1, $categories ? max($categories) : null]];
+	foreach (['listings', 'sellers'] as $type) {
+		foreach (sitemap_parts($type, SITEMAP_SIZE) as $i => $lastmod) {
+			$parts[] = [$type, $i + 1, $lastmod];
 		}
 	}
+
+	$xml();
+	echo '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+	foreach ($parts as [$type, $num, $lastmod]) {
+		echo "\t<sitemap>\n";
+		echo "\t\t<loc>" . e(site_url('sitemap.php?' . http_build_query($type === 'pages' ? ['part' => $type] : ['part' => $type, 'n' => $num]))) . "</loc>\n";
+		if ($lastmod) {
+			echo "\t\t<lastmod>" . $w3c($lastmod) . "</lastmod>\n";
+		}
+		echo "\t</sitemap>\n";
+	}
+	echo "</sitemapindex>\n";
+	exit;
 }
 
-foreach (sitemap_listings() as $listing) {
-	$entries[] = ['listing.php', ['id' => $listing['id']], date('c', strtotime($listing['created']))];
+/* ---------- Parts: [path, params, lastmod UTC] ---------- */
+
+$entries = [];
+
+if ($part === 'pages' && !isset($_GET['n'])) {
+	$categories = sitemap_categories();
+	$newest = $categories ? max($categories) : null;
+	$entries = [['index.php', [], $newest], ['category.php', [], $newest]];
+
+	foreach (categories() as $parent) {
+		if (isset($categories[$parent['id']])) {
+			$entries[] = ['category.php', ['cat' => $parent['slug']], $categories[$parent['id']]];
+		}
+		foreach ($parent['children'] as $child) {
+			if (isset($categories[$child['id']])) {
+				$entries[] = ['category.php', ['cat' => $child['slug']], $categories[$child['id']]];
+			}
+		}
+	}
+
+	foreach (info_pages() as $info) {
+		$entries[] = [$info['path'], [], null];
+	}
+} elseif (in_array($part, ['listings', 'sellers'], true) && $n >= 1) {
+	foreach (sitemap_part($part, ($n - 1) * SITEMAP_SIZE, SITEMAP_SIZE) as $row) {
+		$entries[] = [$part === 'listings' ? 'listing.php' : 'seller.php', ['id' => $row['id']], $row['lastmod']];
+	}
 }
 
-// Sellers with active listings
-foreach (seller_ids() as $sellerId) {
-	$entries[] = ['seller.php', ['id' => $sellerId], null];
+if (!$entries) {
+	http_response_code(404);
+	exit;
 }
 
-foreach (info_pages() as $info) {
-	$entries[] = [$info['path'], [], null];
-}
-
-header('Content-Type: application/xml; charset=utf-8');
-
-echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+$xml();
 echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">' . "\n";
 
 foreach ($entries as [$path, $params, $lastmod]) {
@@ -50,7 +98,7 @@ foreach ($entries as [$path, $params, $lastmod]) {
 		echo "\t<url>\n";
 		echo "\t\t<loc>" . e(site_url(lang_link($code, $path, $params))) . "</loc>\n";
 		if ($lastmod) {
-			echo "\t\t<lastmod>" . $lastmod . "</lastmod>\n";
+			echo "\t\t<lastmod>" . $w3c($lastmod) . "</lastmod>\n";
 		}
 		echo $alternates;
 		echo "\t</url>\n";

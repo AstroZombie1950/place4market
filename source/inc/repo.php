@@ -419,21 +419,47 @@ function count_listings(array $f): int
 	return (int) db_value('SELECT COUNT(*) FROM ' . LISTING_FROM . ' WHERE ' . $where, $params);
 }
 
-// Sitemap: published listings [id, created]
-function sitemap_listings(): array
+/* ---------- Sitemap ---------- */
+
+// What goes into the sitemap: published listings of active sellers in visible categories
+const SITEMAP_FROM = 'listings l JOIN users u ON u.id = l.user_id JOIN categories c ON c.id = l.category_id
+	WHERE ' . LISTING_LIVE . " AND u.status = 'active' AND " . CATEGORY_VISIBLE;
+
+// Rows of one list: listings (id, title for the address, last change) or sellers (id, last change of their listings)
+function sitemap_rows_sql(string $type): string
 {
-	return array_map(
-		fn($r) => ['id' => $r['id'], 'created' => db_local($r['created_at'])],
-		db_all('SELECT l.id, l.created_at FROM listings l JOIN users u ON u.id = l.user_id JOIN categories c ON c.id = l.category_id
-			WHERE ' . LISTING_LIVE . " AND u.status = 'active' AND " . CATEGORY_VISIBLE . ' ORDER BY l.created_at DESC, l.id DESC')
-	);
+	return $type === 'sellers'
+		? 'SELECT l.user_id AS id, MAX(l.updated_at) AS lastmod FROM ' . SITEMAP_FROM . ' GROUP BY l.user_id'
+		: 'SELECT l.id, l.title, l.updated_at AS lastmod FROM ' . SITEMAP_FROM;
 }
 
-// Sitemap: users with published listings
-function seller_ids(): array
+// One part of a list, by id: [['id' => …, ('title' => …,) 'lastmod' => UTC], …]. Counters (views,
+// favourites) keep updated_at, so lastmod moves only when the listing itself changes
+function sitemap_part(string $type, int $offset, int $limit): array
 {
-	return db_column('SELECT DISTINCT l.user_id FROM listings l JOIN users u ON u.id = l.user_id
-		WHERE ' . LISTING_LIVE . " AND u.status = 'active' ORDER BY l.user_id");
+	return db_all(sitemap_rows_sql($type) . ' ORDER BY id LIMIT ' . $limit . ' OFFSET ' . $offset);
+}
+
+// Parts of a list of $size rows each: [last change in part 1 (UTC), in part 2, …]
+function sitemap_parts(string $type, int $size): array
+{
+	return db_column('SELECT MAX(lastmod) FROM (SELECT lastmod, FLOOR((ROW_NUMBER() OVER (ORDER BY id) - 1) / ' . $size . ') AS part
+		FROM (' . sitemap_rows_sql($type) . ') r) t GROUP BY part ORDER BY part');
+}
+
+// Categories with published listings: [id => last change (UTC)]; a parent also gets
+// its children's (an empty category is not in the sitemap and is noindex)
+function sitemap_categories(): array
+{
+	$out = [];
+
+	foreach (db_all('SELECT c.id, c.parent_id, MAX(l.updated_at) AS lastmod FROM ' . SITEMAP_FROM . ' GROUP BY c.id, c.parent_id') as $r) {
+		foreach (array_filter([$r['id'], $r['parent_id']]) as $id) {
+			$out[$id] = max($out[$id] ?? '', $r['lastmod']);
+		}
+	}
+
+	return $out;
 }
 
 /* ---------- Posting and editing (owner) ---------- */

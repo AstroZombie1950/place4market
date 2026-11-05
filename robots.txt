@@ -1,5 +1,5 @@
-# Пока идёт разработка, сайт закрыт заголовком X-Robots-Tag в .htaccess (не здесь),
-# иначе роботы не увидят noindex
+# Пока идёт разработка, сайт закрыт заголовком X-Robots-Tag (source/inc/bootstrap.php и .htaccess),
+# а не здесь: иначе роботы не увидят noindex
 
 User-agent: *
 Disallow: /admin/

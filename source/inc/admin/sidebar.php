@@ -19,11 +19,13 @@ $navGroups = [
 	'System' => [],
 ];
 
-// Settings and the journal (with errors of the last 24 hours): admins only
+// Settings, the journal (with errors of the last 24 hours) and migrations (pending ones): admins only
 if (is_admin()) {
 	$navGroups['System'][] = ['key' => 'settings', 'href' => 'settings.php', 'icon' => 'settings', 'label' => 'Settings'];
 	$navGroups['System'][] = ['key' => 'logs', 'href' => 'logs.php?level=warning', 'icon' => 'list', 'label' => 'Journal',
 		'count' => count_log_problems(date('Y-m-d H:i:s', strtotime('-1 day'))), 'alert' => true];
+	$navGroups['System'][] = ['key' => 'migrations', 'href' => 'migrations.php', 'icon' => 'refresh', 'label' => 'Migrations',
+		'count' => count(migrations_pending()), 'alert' => true];
 }
 ?>
 <aside class="sidebar" id="sidebar" aria-label="Admin navigation">

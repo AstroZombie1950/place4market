@@ -6,6 +6,8 @@
 #   FTP_SERVER    budo420.adriahost.com
 #   FTP_USERNAME  FTP-аккаунт для деплоя
 #   FTP_PASSWORD  его пароль
+#   DEPLOY_TOKEN  токен deploy-hook.php (тот же, что 'deploy' => ['token' => …] в app-config.php);
+#                 без него шаг миграций пропускается — тогда миграции через админку (Migrations) или phpMyAdmin
 
 name: Deploy
 
@@ -21,6 +23,8 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -47,3 +51,10 @@ jobs:
             .claude/**
             README.md
             temp/**
+
+      # Новые миграции — сразу после заливки (source/inc/migrations.php). Ошибка миграции
+      # роняет workflow, в журнале — запись critical с уведомлением
+      - name: Apply migrations
+        if: env.DEPLOY_TOKEN != ''
+        run: |
+          curl -sS --fail-with-body --max-time 120 -X POST -H "X-Deploy-Token: $DEPLOY_TOKEN" https://place4market.com/deploy-hook.php

@@ -12,6 +12,7 @@ return [
 	'meta.category' => '{name}: listings across Serbia. Browse offers or post your ad for free on Place4Market.',
 	'meta.all_listings' => 'All listings across Serbia: cars, real estate, electronics and more. Free classifieds on Place4Market.',
 	'meta.page' => 'page {n}',
+	'meta.page_desc' => 'Page {n}. {text}',
 
 	// 404
 	'404.title' => 'Page not found',

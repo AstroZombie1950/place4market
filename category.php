@@ -22,6 +22,13 @@ if ($f['cat'] !== '' && (!$currentCat || !$currentCat['visible'])) {
 $perPage = setting('per_page');
 $total = count_listings($f);
 $pageNum = max(1, min((int) ($_GET['page'] ?? 1), max(1, (int) ceil($total / $perPage))));
+
+// One address per results page: ?page=1, 0, "abc", "2x" or past the last page → 301
+// to the right one (the last page, or none for the first). Otherwise the same
+// results live under many addresses, and an old ?page=99 shows a duplicate
+if (isset($_GET['page']) && $_GET['page'] !== ($pageNum > 1 ? (string) $pageNum : null)) {
+	redirect(url('category.php', search_query($f) + ['page' => $pageNum > 1 ? $pageNum : null]), 301);
+}
 $pageItems = search_listings($f, $perPage, ($pageNum - 1) * $perPage);
 
 // Title
@@ -63,7 +70,7 @@ if (!$parentCat) {
 	$crumbs[] = ['label' => t('cat.all_listings')];
 }
 
-// SEO: clean category pages (with pagination) are indexed; search, filters and sorting are not
+// SEO: clean category pages (with pagination) are indexed; search, filters, sorting and empty ones are not
 $isFiltered = $f['q'] !== '' || $f['city'] !== '' || $f['price_from'] !== '' || $f['price_to'] !== ''
 	|| $f['condition'] !== '' || $f['negotiable'] || $f['photos'] || $f['sort'] !== 'new';
 
@@ -71,9 +78,13 @@ $isFiltered = $f['q'] !== '' || $f['city'] !== '' || $f['price_from'] !== '' || 
 [$seoTitle, $seoDescription] = $currentCat ? category_seo($currentCat) : [null, null];
 $page['title'] = ($f['q'] === '' && $seoTitle ? $seoTitle : $title) . ($pageNum > 1 ? ' · ' . t('meta.page', ['n' => $pageNum]) : '');
 $page['description'] = $currentCat ? ($seoDescription ?? t('meta.category', ['name' => cat_name($currentCat)])) : t('meta.all_listings');
+if ($pageNum > 1) {
+	$page['description'] = t('meta.page_desc', ['n' => $pageNum, 'text' => $page['description']]);
+}
 $page['nav'] = 'home';
 $page['canonical'] = ['category.php', ['cat' => $currentCat['slug'] ?? null, 'page' => $pageNum > 1 ? $pageNum : null]];
-$page['robots'] = $isFiltered ? 'noindex, follow' : 'index, follow';
+// An empty category is a thin page: kept out of the index (and of the sitemap) until it has listings
+$page['robots'] = $isFiltered || !$total ? 'noindex, follow' : 'index, follow';
 $page['schema'][] = schema_breadcrumbs($crumbs);
 if ($pageItems) {
 	$page['schema'][] = schema_item_list($pageItems);
@@ -129,7 +140,7 @@ require INC_DIR . '/header.php';
 							<?php if ($parentCat): ?>
 							<li><a class="filters__link filters__link--back" href="<?= e($linkWith(['cat' => null])) ?>"><?= icon('chevron-left', 16) ?><?= e(t('cat.all_categories')) ?></a></li>
 							<li><a class="filters__link" href="<?= e($linkWith(['cat' => $parentCat['slug']])) ?>"<?= !$childCat ? ' aria-current="page"' : '' ?>><span><?= e(cat_name($parentCat)) ?></span><span class="muted"><?= count_listings(array_merge($f, ['cat' => $parentCat['slug']])) ?></span></a></li>
-							<?php foreach ($parentCat['children'] as $child): ?>
+							<?php foreach (array_filter($parentCat['children'], fn($child) => $child['visible']) as $child): ?>
 							<li><a class="filters__link" href="<?= e($linkWith(['cat' => $child['slug']])) ?>"<?= $childCat && $childCat['slug'] === $child['slug'] ? ' aria-current="page"' : '' ?>><span>— <?= e(cat_name($child)) ?></span><span class="muted"><?= count_listings(array_merge($f, ['cat' => $child['slug']])) ?></span></a></li>
 							<?php endforeach; ?>
 							<?php else: ?>

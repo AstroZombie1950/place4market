@@ -31,6 +31,7 @@ require SOURCE_DIR . '/inc/seo.php';
 require ADMIN_INC . '/helpers.php';
 require SOURCE_DIR . '/inc/db.php';
 require SOURCE_DIR . '/inc/repo.php';
+require SOURCE_DIR . '/inc/migrations.php';
 require SOURCE_DIR . '/inc/auth.php';
 require SOURCE_DIR . '/inc/mail.php';
 auth_init();

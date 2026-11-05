@@ -13,6 +13,7 @@ return [
 	'meta.category' => '{name}: oglasi širom Srbije. Pregledajte ponude ili besplatno postavite oglas na Place4Market.',
 	'meta.all_listings' => 'Svi oglasi širom Srbije: automobili, nekretnine, elektronika i još mnogo toga. Besplatni oglasi na Place4Market.',
 	'meta.page' => 'strana {n}',
+	'meta.page_desc' => 'Strana {n}. {text}',
 
 	// 404
 	'404.title' => 'Stranica nije pronađena',
