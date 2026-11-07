@@ -32,13 +32,27 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 	exit;
 }
 
-if (!hash_equals($token, (string) ($_SERVER['HTTP_X_DEPLOY_TOKEN'] ?? ''))) {
-	log_event('warning', 'Deploy hook: wrong token', [], 'db');
-	http_response_code(403);
-	exit;
+// The header as PHP sees it; some servers pass custom headers only through getallheaders()
+$sent = (string) ($_SERVER['HTTP_X_DEPLOY_TOKEN'] ?? '');
+if ($sent === '' && function_exists('getallheaders')) {
+	foreach (getallheaders() as $name => $value) {
+		if (strcasecmp($name, 'X-Deploy-Token') === 0) {
+			$sent = (string) $value;
+		}
+	}
 }
+$sent = trim($sent);
 
 header('Content-Type: application/json; charset=utf-8');
+
+// A body of our own, otherwise LiteSpeed shows its "403 Forbidden" page and it looks like the hosting
+if (!hash_equals(trim($token), $sent)) {
+	$why = $sent === '' ? 'no X-Deploy-Token header reached PHP' : 'token mismatch';
+	log_event('warning', 'Deploy hook: ' . $why, ['sent_length' => strlen($sent), 'expected_length' => strlen(trim($token))], 'db');
+	http_response_code(403);
+	echo json_encode(['error' => $why, 'sent_length' => strlen($sent)]);
+	exit;
+}
 
 try {
 	$done = migrations_apply('deploy');

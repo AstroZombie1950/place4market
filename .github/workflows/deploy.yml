@@ -1,13 +1,17 @@
-# Деплой на хостинг AdriaHost по FTPS при пуше в main.
-# Заливаются только изменённые файлы: состояние хранится на сервере
-# в .ftp-deploy-sync-state.json (не удалять, иначе следующий деплой зальёт всё заново).
+# Деплой на сервер place4market (85.17.188.76, DirectAdmin + OpenLiteSpeed) по SSH при пуше в main.
 #
-# Секреты (Settings → Secrets and variables → Actions):
-#   FTP_SERVER    budo420.adriahost.com
-#   FTP_USERNAME  FTP-аккаунт для деплоя
-#   FTP_PASSWORD  его пароль
-#   DEPLOY_TOKEN  токен deploy-hook.php (тот же, что 'deploy' => ['token' => …] в app-config.php);
-#                 без него шаг миграций пропускается — тогда миграции через админку (Migrations) или phpMyAdmin
+# rsync сравнивает файлы по содержимому (-c) и заливает только изменённые; даты у
+# неизменённых файлов не трогает, поэтому ?v= в asset() меняется только у изменённых.
+# Файлы, удалённые из репозитория, удаляются и на сервере (--delete). Папки, которых нет
+# в репозитории (uploads/, .well-known/), исключены и поэтому не удаляются.
+#
+# Ключ деплоя на сервере ограничен (forced command /usr/local/bin/p4m-deploy-gate в
+# ~placemar/.ssh/authorized_keys): можно только rsync в public_html (через rrsync, выйти
+# из папки нельзя) и `migrate` — php source/db/migrate.php.
+# Изменённый .htaccess подхватывается сам: служба p4m-htaccess.path перезапускает веб-сервер.
+#
+# Секрет (Settings → Secrets and variables → Actions):
+#   SSH_DEPLOY_KEY  закрытый ключ ed25519 «github-actions-deploy place4market»
 
 name: Deploy
 
@@ -20,41 +24,46 @@ concurrency:
   group: deploy
   cancel-in-progress: false
 
+env:
+  DEPLOY_HOST: 85.17.188.76
+  DEPLOY_USER: placemar
+  # Ключи сервера (ssh-keyscan 85.17.188.76; ED25519 SHA256:yUAlazntaGvEW7mkM6uiH6tE6+XBbjci/nyxHB2D0QQ)
+  KNOWN_HOSTS: |
+    85.17.188.76 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPVu57naAlvezNsVzE2vuFakPRkbLdvQyZqAoASBtaWW
+    85.17.188.76 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDIHAyjShwYFnl99jsIhMr844MK/g2cHNNNll7icf8BoL5lpc/PV43DkPcYNoSEtUl09RW39PcFtFR8C2ZHJtAZZvqtOb2+ch/r77RpYQsVenv6/1RYHc21LpX46f/jEPK/U2patsK+HreC6nraWkICyGX2Rr0Ehg3IXUT6KUpKIAAJxTighLN9BnwPjg7+0tvZV6J1XIy11Abl6dybJomrU4Qv9BhD2NJFpdJIxkmkLxsY5mJN69/7GddJuU4kjIlCAD93YH75PTIH0ajmd73LSesz9zPgTcua3iieoXd0JYKUBNqyZxC/9Torx27EZZ13EpI/aMDqih+9lF3fpr64RNfIBtO3TWpS8LUt0FtbJd6qQVnPLqyDb8HwxNT6k4Sf20PV5vI1BBzVYbMhsQX4/pYZ+qBs3B8waibDqyPHyQIB+WTDq8VabXP29Vc5bpZFLTTa/nI2BtL1u+tVQLNp9aky6D9gumIQtusAyhiTuqSP0eGC0UANiO6BaVCyvrU=
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    env:
-      DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
       # Минификация CSS и JS прямо в рабочей копии раннера: в репозитории исходники
-      # остаются читаемыми, на хостинг уходят сжатые. Комментарии и пробелы убираются,
+      # остаются читаемыми, на сервер уходят сжатые. Комментарии и пробелы убираются,
       # синтаксис не понижается. Версия esbuild зафиксирована, чтобы вывод не менялся сам
       - name: Minify CSS and JS
         run: npx -y esbuild@0.25.10 source/css/*.css source/js/*.js --minify --outdir=source --outbase=source --allow-overwrite --log-level=warning
 
-      - uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
-          port: 21
-          # Путь от корня FTP-аккаунта (/home/placemar/domains)
-          server-dir: place4market.com/public_html/
-          exclude: |
-            **/.git*
-            **/.git*/**
-            .github/**
-            .vscode/**
-            .claude/**
-            README.md
-            temp/**
+      - name: SSH key
+        env:
+          SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host deploy\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/deploy_key\n  IdentitiesOnly yes\n  BatchMode yes\n  StrictHostKeyChecking yes\n' "$DEPLOY_HOST" "$DEPLOY_USER" > ~/.ssh/config
+
+      # Заливка: в списке — только изменённые файлы (itemize). Путь «.» — public_html (rrsync)
+      - name: Upload
+        run: |
+          rsync -rlcp --chmod=D755,F644 --delete --itemize-changes \
+            --exclude='.git*' --exclude='.github/' --exclude='.vscode/' --exclude='.claude/' \
+            --exclude='README.md' --exclude='temp/' --exclude='doc/' \
+            --exclude='uploads/' --exclude='.well-known/' --exclude='.ftp-deploy-sync-state.json' \
+            ./ deploy:.
 
       # Новые миграции — сразу после заливки (source/inc/migrations.php). Ошибка миграции
       # роняет workflow, в журнале — запись critical с уведомлением
       - name: Apply migrations
-        if: env.DEPLOY_TOKEN != ''
-        run: |
-          curl -sS --fail-with-body --max-time 120 -X POST -H "X-Deploy-Token: $DEPLOY_TOKEN" https://place4market.com/deploy-hook.php
+        run: ssh deploy migrate
