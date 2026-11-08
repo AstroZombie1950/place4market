@@ -4,6 +4,60 @@
 	(data access lives in repo.php, i18n functions in i18n.php)
 	========================================================================== */
 
+/* ---------- Human addresses (see i18n.php) ---------- */
+
+// End of bootstrap: category words of a routed address → ?cat= (the key), unknown → 404;
+// then GET of any page except a listing (listing.php does it with its title) goes to the
+// exact address of the page if it was asked another way
+function route_resolve(): void
+{
+	if (isset($GLOBALS['__route']['params']['cat_path'])) {
+		unset($_GET['cat_path']);
+		$key = category_key_by_word((string) end($GLOBALS['__route']['params']['cat_path']));
+		if ($key === null) {
+			require ROOT_DIR . '/404.php';
+			exit;
+		}
+		$_GET['cat'] = $key;
+	}
+
+	$script = current_script();
+	if (isset(page_routes()[$script]) && $script !== 'listing.php') {
+		enforce_url(lang_link(lang(), $script, array_diff_key($_GET, ['lang' => true])));
+	}
+}
+
+// Category key for an address word: the Serbian or English word of the current or a
+// former slug (category_old_slugs, kept when the admin changes one)
+function category_key_by_word(string $word): ?string
+{
+	foreach (categories() as $parent) {
+		foreach ([$parent, ...$parent['children']] as $category) {
+			if ($category['slug_sr'] === $word || $category['slug'] === $word) {
+				return $category['slug'];
+			}
+		}
+	}
+
+	return category_old_slug($word);
+}
+
+// A GET that reached the page by another address — old page.php?…&lang=…, ?lang= on a
+// human address, other case, a trailing slash, a word of another language, a former
+// title of a listing — goes to $expected with a 301 (one address per page)
+function enforce_url(string $expected): void
+{
+	if (!in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD'], true)) {
+		return;
+	}
+
+	$requested = rawurldecode((string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH));
+
+	if ($requested !== parse_url($expected, PHP_URL_PATH) || isset($_GET['lang'])) {
+		redirect($expected, 301);
+	}
+}
+
 /* ---------- Categories ---------- */
 
 // [parent, child|null] for a slug, or [null, null]
@@ -107,9 +161,17 @@ function listing_phone(array $listing, array $seller): ?string
 	return $listing['show_phone'] ? ($listing['phone'] ?? $seller['phone']) : null;
 }
 
-function listing_url(array $listing): string
+// Address of a listing: /oglas/vw-golf-7-1-6-tdi-2016-1048. The words come from the
+// title as written (the same in every language), the page is found by the id:
+// after a new title the old address answers with a 301
+function listing_url(array $listing, ?string $code = null): string
 {
-	return url('listing.php', ['id' => $listing['id']]);
+	return lang_link($code ?? lang(), 'listing.php', listing_url_params($listing));
+}
+
+function listing_url_params(array $listing): array
+{
+	return ['id' => $listing['id'], 'slug' => url_slug($listing['title'] ?? '')];
 }
 
 // Time shown on cards and the listing: the feed's own order (publication or the last bump),

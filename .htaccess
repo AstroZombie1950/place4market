@@ -1,5 +1,9 @@
 DirectoryIndex index.php
+# Неизвестные адреса отдаёт route.php (в конце файла); это — для отсутствующих файлов
 ErrorDocument 404 /404.php
+
+# Header и ErrorDocument ниже OpenLiteSpeed не выполняет (работают на Apache): noindex и заголовки
+# безопасности ставит PHP, кэш статики — настройка сервера (/etc/openlitespeed/httpd-expires.conf)
 
 # DEV-ONLY: сайт закрыт от индексации на время разработки. Убрать при запуске (doc/ROADMAP.md, этап 7)
 <IfModule mod_headers.c>
@@ -41,12 +45,8 @@ RewriteRule ^source/db/ - [F,L]
 RewriteRule ^config/ - [F,L]
 RewriteRule ^uploads/.*\.(php|phtml|phar)$ - [F,L]
 
-# Файл состояния деплоя (список файлов и хэшей) наружу не отдаём
-RewriteRule ^\.ftp-deploy-sync-state\.json$ - [F,L]
-
-# ПРОВЕРКА (05.11): применяет ли хостинг новые правила (этап 5, маршрутизатор). Оба адреса
-# должны отдать robots.txt; пока отдают 404 LiteSpeed — правила не подхвачены. Убрать после проверки
-RewriteRule ^rewrite-canary-plain$ robots.txt [L]
+# Человекочитаемые адреса (/oglasi/vozila/automobili, /en/listing/…, /pomoc): всё, что не файл
+# и не папка, — в route.php. Он же отдаёт нашу 404 на неизвестные адреса. Должно идти последним
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^rewrite-canary-cond$ robots.txt [L]
+RewriteRule ^ route.php [L]

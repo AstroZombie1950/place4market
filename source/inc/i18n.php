@@ -1,40 +1,37 @@
 <?php
 /* ==========================================================================
-	i18n: language detection, translations, plurals, links
-	Languages: en (default), sr-latn (Serbian Latin), sr-cyrl (Serbian Cyrillic)
-	Current language: ?lang=… → cookie → default.
-	All links go through url(), so switching to SEO paths later (/sr/…)
-	means changing lang_link() and lang_url() only.
+	i18n: languages, translations, plurals, human addresses, transliteration
+	Languages: sr-latn (main, at the root /), sr-cyrl (/cir/…), en (/en/…).
+	The language comes from the address only (no cookie, no browser
+	language): every version has its own URL for people and search engines.
+	Pages have human addresses (page_routes(): /oglasi/vozila/automobili,
+	/en/listing/vw-golf-7-1048, /pomoc); route.php maps them to the page
+	scripts, url() / lang_link() build them. Endpoints (favorite.php,
+	phone.php…) keep their .php address and get the language as ?lang=.
 	========================================================================== */
 
-const DEFAULT_LANG = 'en';
-const LANG_COOKIE = 'p4m_lang';
+const DEFAULT_LANG = 'sr-latn';
+// Strings missing in a language come from here (English is the source text)
+const FALLBACK_LANG = 'en';
 
-// Supported languages
+// Supported languages: address prefix and the set of address words (sr | en)
 function languages(): array
 {
 	return [
-		'en' => ['label' => 'EN', 'name' => 'English', 'html' => 'en', 'locale' => 'en_US'],
-		'sr-latn' => ['label' => 'SR', 'name' => 'Srpski (latinica)', 'html' => 'sr-Latn', 'locale' => 'sr_RS@latin'],
-		'sr-cyrl' => ['label' => 'СР', 'name' => 'Српски (ћирилица)', 'html' => 'sr-Cyrl', 'locale' => 'sr_RS'],
+		'sr-latn' => ['label' => 'SR', 'name' => 'Srpski (latinica)', 'html' => 'sr-Latn', 'locale' => 'sr_RS@latin', 'prefix' => '', 'slugs' => 'sr'],
+		'sr-cyrl' => ['label' => 'СР', 'name' => 'Српски (ћирилица)', 'html' => 'sr-Cyrl', 'locale' => 'sr_RS', 'prefix' => 'cir', 'slugs' => 'sr'],
+		'en' => ['label' => 'EN', 'name' => 'English', 'html' => 'en', 'locale' => 'en_US', 'prefix' => 'en', 'slugs' => 'en'],
 	];
 }
 
-// Detect language, remember it in a cookie, load strings
+// Language of the request: the address prefix (route.php), else ?lang= (endpoints
+// and old addresses, which then redirect), else the main language
 function i18n_init(): void
 {
-	$langs = languages();
-	$lang = DEFAULT_LANG;
+	$lang = $GLOBALS['__route']['lang'] ?? null;
 
-	if (isset($_GET['lang']) && isset($langs[$_GET['lang']])) {
-		$lang = $_GET['lang'];
-		setcookie(LANG_COOKIE, $lang, [
-			'expires' => time() + 31536000,
-			'path' => '/',
-			'samesite' => 'Lax',
-		]);
-	} elseif (isset($_COOKIE[LANG_COOKIE]) && isset($langs[$_COOKIE[LANG_COOKIE]])) {
-		$lang = $_COOKIE[LANG_COOKIE];
+	if ($lang === null) {
+		$lang = isset($_GET['lang']) && is_string($_GET['lang']) && isset(languages()[$_GET['lang']]) ? $_GET['lang'] : DEFAULT_LANG;
 	}
 
 	i18n_use($lang);
@@ -46,7 +43,7 @@ function i18n_use(string $lang): void
 	$lang = isset(languages()[$lang]) ? $lang : DEFAULT_LANG;
 	$GLOBALS['__lang'] = $lang;
 	$GLOBALS['__strings'] = require SOURCE_DIR . '/lang/' . $lang . '.php';
-	$GLOBALS['__fallback'] = $lang === DEFAULT_LANG ? [] : require SOURCE_DIR . '/lang/' . DEFAULT_LANG . '.php';
+	$GLOBALS['__fallback'] = $lang === FALLBACK_LANG ? [] : require SOURCE_DIR . '/lang/' . FALLBACK_LANG . '.php';
 }
 
 // Runs $fn in another language and comes back: a letter in the recipient's language
@@ -137,35 +134,175 @@ function url(string $path, array $params = []): string
 	return lang_link(lang(), $path, $params);
 }
 
-// Internal link in a given language; the home page is always "./", never "index.php"
+/* ---------- Human addresses ---------- */
+
+// Pages with human addresses: script => [Serbian word, English word].
+// Changing a word changes the addresses: add the old one to route_aliases()
+function page_routes(): array
+{
+	return [
+		'index.php' => ['', ''],
+		'category.php' => ['oglasi', 'listings'],
+		'listing.php' => ['oglas', 'listing'],
+		'seller.php' => ['prodavac', 'seller'],
+		'post.php' => ['postavi-oglas', 'post-ad'],
+		'profile.php' => ['profil', 'profile'],
+		'favorites.php' => ['omiljeno', 'favorites'],
+		'messages.php' => ['poruke', 'messages'],
+		'auth.php' => ['prijava', 'login'],
+		'reset.php' => ['nova-lozinka', 'reset-password'],
+		'verify.php' => ['potvrda', 'verify'],
+		'about.php' => ['o-nama', 'about'],
+		'help.php' => ['pomoc', 'help'],
+		'safety.php' => ['bezbednost', 'safety'],
+		'terms.php' => ['uslovi-koriscenja', 'terms'],
+		'privacy.php' => ['privatnost', 'privacy'],
+		'contact.php' => ['kontakt', 'contact'],
+	];
+}
+
+// Former address words: [word => script], answered with a 301 to the current one
+function route_aliases(): array
+{
+	return [];
+}
+
+// Internal link in a given language, always from the site root:
+// lang_link('en', 'category.php', ['cat' => 'cars', 'page' => 2]) → /en/listings/vehicles/cars?page=2
+// Routed pages: listing.php takes id (+ slug), seller.php id, category.php cat (the
+// category key = its English slug); the rest of the params go to the query.
+// Endpoints keep /name.php and carry the language as ?lang= (not for the main one)
 function lang_link(string $code, string $path, array $params = []): string
 {
 	unset($params['lang']);
+	$params = array_filter($params, fn($v) => $v !== null && $v !== '' && $v !== false);
+	$meta = languages()[$code];
+	$route = page_routes()[$path] ?? null;
 
-	if ($code !== DEFAULT_LANG) {
-		$params['lang'] = $code;
+	if ($route === null) {
+		if ($code !== DEFAULT_LANG) {
+			$params['lang'] = $code;
+		}
+
+		return '/' . $path . ($params ? '?' . http_build_query($params) : '');
 	}
 
-	$params = array_filter($params, fn($v) => $v !== null && $v !== '' && $v !== false);
+	$segments = $route[$meta['slugs'] === 'en' ? 1 : 0] === '' ? [] : [$route[$meta['slugs'] === 'en' ? 1 : 0]];
 
-	return ($path === 'index.php' ? './' : $path) . ($params ? '?' . http_build_query($params) : '');
+	if ($path === 'category.php' && isset($params['cat'])) {
+		$catPath = category_url_path((string) $params['cat'], $meta['slugs']);
+		if ($catPath) {
+			array_push($segments, ...$catPath);
+			unset($params['cat']);
+		}
+	} elseif ($path === 'listing.php' && isset($params['id'])) {
+		$segments[] = (isset($params['slug']) ? $params['slug'] . '-' : '') . (int) $params['id'];
+		unset($params['id'], $params['slug']);
+	} elseif ($path === 'seller.php' && isset($params['id'])) {
+		$segments[] = (int) $params['id'];
+		unset($params['id']);
+	}
+
+	return ($meta['prefix'] === '' ? '' : '/' . $meta['prefix']) . '/' . implode('/', $segments)
+		. ($params ? '?' . http_build_query($params) : '');
 }
 
-// Same page in another language for the switcher (keeps the query string).
-// Always carries ?lang=, even for the default language, so the cookie gets updated.
+// Address words of a category: [parent, child] in the sr | en set; null if unknown
+function category_url_path(string $key, string $set): ?array
+{
+	if (!function_exists('categories')) {
+		return null;
+	}
+
+	$slug = fn(array $c) => $set === 'sr' ? $c['slug_sr'] : $c['slug'];
+
+	foreach (categories() as $parent) {
+		if ($parent['slug'] === $key) {
+			return [$slug($parent)];
+		}
+		foreach ($parent['children'] as $child) {
+			if ($child['slug'] === $key) {
+				return [$slug($parent), $slug($child)];
+			}
+		}
+	}
+
+	return null;
+}
+
+// Address word from any text: "VW Golf 7 1.6 TDI, 2016" → "vw-golf-7-1-6-tdi-2016";
+// Cyrillic is converted, Serbian letters lose their marks (đ → dj), at most $max characters
+function url_slug(string $text, int $max = 70): string
+{
+	$text = strtr(mb_strtolower(sr_lat($text)), ['č' => 'c', 'ć' => 'c', 'š' => 's', 'ž' => 'z', 'đ' => 'dj']);
+	$text = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text) ?: '';
+	$text = trim(preg_replace('/[^a-z0-9]+/', '-', strtolower($text)), '-');
+
+	if (strlen($text) > $max) {
+		$text = substr($text, 0, $max);
+		$text = str_contains($text, '-') ? substr($text, 0, strrpos($text, '-')) : $text;
+	}
+
+	return $text;
+}
+
+// Page script of the request: the routed one or the file itself
+function current_script(): string
+{
+	return $GLOBALS['__route']['script'] ?? basename($_SERVER['SCRIPT_NAME'] ?? 'index.php');
+}
+
+// Reads a human address (path without the query): ['lang', 'script', 'params'] or
+// null (404). Lenient: case, a trailing slash, a word from the other language or a
+// former word are accepted — the page then redirects to its exact address (301).
+// Category words stay raw in params['cat_path']: route_resolve() looks them up in the database
+function route_match(string $path): ?array
+{
+	$segments = array_values(array_filter(explode('/', strtolower($path)), fn($s) => $s !== ''));
+	$lang = DEFAULT_LANG;
+
+	foreach (languages() as $code => $meta) {
+		if ($meta['prefix'] !== '' && ($segments[0] ?? null) === $meta['prefix']) {
+			$lang = $code;
+			array_shift($segments);
+			break;
+		}
+	}
+
+	if (!$segments) {
+		return ['lang' => $lang, 'script' => 'index.php', 'params' => []];
+	}
+
+	$word = array_shift($segments);
+	$script = route_aliases()[$word] ?? null;
+	foreach (page_routes() as $file => $words) {
+		if ($word !== '' && in_array($word, $words, true)) {
+			$script = $file;
+			break;
+		}
+	}
+
+	$rest = count($segments);
+
+	return match (true) {
+		$script === null, $script === 'index.php' => null,
+		$script === 'category.php' && $rest <= 2 => ['lang' => $lang, 'script' => $script, 'params' => $rest ? ['cat_path' => $segments] : []],
+		$script === 'listing.php' && $rest === 1 && preg_match('/^(?:([a-z0-9-]*)-)?(\d+)$/', $segments[0], $m) === 1
+			=> ['lang' => $lang, 'script' => $script, 'params' => ['id' => $m[2]]],
+		$script === 'seller.php' && $rest === 1 && ctype_digit($segments[0]) => ['lang' => $lang, 'script' => $script, 'params' => ['id' => $segments[0]]],
+		!in_array($script, ['category.php', 'listing.php', 'seller.php'], true) && $rest === 0 => ['lang' => $lang, 'script' => $script, 'params' => []],
+		default => null,
+	};
+}
+
+// The same page in another language (switcher): the page's canonical address
+// with the current query (filters, sorting) kept
 function lang_url(string $code): string
 {
-	$params = $_GET;
-	$params['lang'] = $code;
-	$path = basename($_SERVER['SCRIPT_NAME'] ?? 'index.php');
+	[$path, $params] = $GLOBALS['page']['canonical'] ?? [current_script(), []];
+	$query = array_diff_key($_GET, ['lang' => true, 'cat_path' => true]);
 
-	return ($path === 'index.php' ? './' : $path) . '?' . http_build_query($params);
-}
-
-// Hidden input to keep the language in GET forms
-function lang_input(): string
-{
-	return lang() === DEFAULT_LANG ? '' : '<input type="hidden" name="lang" value="' . e(lang()) . '">';
+	return lang_link($code, $path, $params + $query);
 }
 
 // Serbian Latin → Cyrillic. Keeps placeholders, tags, abbreviations,

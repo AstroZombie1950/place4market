@@ -1,10 +1,11 @@
 <?php
 /* ==========================================================================
 	Admin: database migrations (source/inc/migrations.php). Admins only.
-	Normally they are applied by the deploy hook right after a push
-	(deploy-hook.php); here — what is applied and when, and a manual run if the
-	hook is not set up or failed. If an admin page itself breaks on the new
-	schema, the way out is the hook or phpMyAdmin (temp/prod-NNN.sql).
+	Normally the deploy applies them before the new code goes live
+	(.github/workflows/deploy.yml, `ssh deploy migrate`); here — what is applied
+	and when, and a manual run if that did not happen. If an admin page itself
+	breaks on the new schema, the way out is the console on the server
+	(php source/db/migrate.php) or phpMyAdmin (temp/prod-NNN.sql).
 	POST action=apply (CSRF).
 	========================================================================== */
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
@@ -43,7 +44,7 @@ require ADMIN_INC . '/header.php';
 <div class="page-head">
 	<div>
 		<h1 class="page-head__title">Migrations</h1>
-		<p class="page-head__sub">Database schema changes. Applied automatically right after a deploy; run them here if that did not happen.</p>
+		<p class="page-head__sub">Database schema changes. Applied automatically by the deploy before the new code goes live; run them here if that did not happen.</p>
 	</div>
 	<?php if ($pending): ?>
 	<form method="post" action="migrations.php">

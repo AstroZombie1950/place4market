@@ -104,7 +104,10 @@ function categories(): array
 
 		foreach ($rows as $r) {
 			$category = [
-				'id' => $r['id'], 'slug' => $r['slug'], 'sort' => $r['sort'], 'active' => (bool) $r['active'],
+				// slug — the key (?cat=, saved searches) and the English address word; slug_sr — the
+				// Serbian one (Latin and Cyrillic pages); without it (before 014) the English one
+				'id' => $r['id'], 'slug' => $r['slug'], 'slug_sr' => ($r['slug_sr'] ?? '') !== '' ? $r['slug_sr'] : $r['slug'],
+				'sort' => $r['sort'], 'active' => (bool) $r['active'],
 				'names' => ['en' => $r['name_en'], 'sr-latn' => $r['name_sr_latn'], 'sr-cyrl' => $r['name_sr_cyrl']],
 				'seo' => ['en' => [$r['seo_title_en'], $r['meta_en']], 'sr' => [$r['seo_title_sr'], $r['meta_sr']]],
 			];
@@ -131,15 +134,15 @@ function visible_categories(): array
 	));
 }
 
-// New category or changes to one. $f: parent_id (null = top level), slug, icon, names (en,
+// New category or changes to one. $f: parent_id (null = top level), slug, slug_sr, icon, names (en,
 // sr-latn, sr-cyrl), seo (as in categories()), sort, active. Returns the id
 function save_category(?int $id, array $f): int
 {
 	$values = [
-		$f['parent_id'], $f['slug'], $f['icon'], $f['names']['en'], $f['names']['sr-latn'], $f['names']['sr-cyrl'],
+		$f['parent_id'], $f['slug'], $f['slug_sr'], $f['icon'], $f['names']['en'], $f['names']['sr-latn'], $f['names']['sr-cyrl'],
 		$f['seo']['en'][0], $f['seo']['sr'][0], $f['seo']['en'][1], $f['seo']['sr'][1], $f['sort'], (int) $f['active'],
 	];
-	$set = 'parent_id = ?, slug = ?, icon = ?, name_en = ?, name_sr_latn = ?, name_sr_cyrl = ?,
+	$set = 'parent_id = ?, slug = ?, slug_sr = ?, icon = ?, name_en = ?, name_sr_latn = ?, name_sr_cyrl = ?,
 		seo_title_en = ?, seo_title_sr = ?, meta_en = ?, meta_sr = ?, sort = ?, active = ?';
 
 	if ($id === null) {
@@ -158,10 +161,35 @@ function set_category_active(int $id, bool $active): bool
 	return db_exec('UPDATE categories SET active = ? WHERE id = ?', [(int) $active, $id]) > 0;
 }
 
-// Slug used by another category
+// A former address word of a category → its key (current slug), or null.
+// Without the table (before 014) — null
+function category_old_slug(string $word): ?string
+{
+	try {
+		$slug = db_value('SELECT c.slug FROM category_old_slugs o JOIN categories c ON c.id = o.category_id WHERE o.slug = ?', [$word]);
+	} catch (PDOException) {
+		return null;
+	}
+
+	return $slug === false ? null : $slug;
+}
+
+// Address word used by another category, in either language (a word must lead to one category)
 function category_slug_taken(string $slug, ?int $exceptId): bool
 {
-	return (bool) db_value('SELECT 1 FROM categories WHERE slug = ? AND id <> ?', [$slug, $exceptId ?? 0]);
+	return (bool) db_value('SELECT 1 FROM categories WHERE (slug = ? OR slug_sr = ?) AND id <> ?', [$slug, $slug, $exceptId ?? 0]);
+}
+
+// A changed address word is kept: its old address answers with a 301 (category_old_slug()).
+// A word in use again by a category no longer counts as former
+function remember_category_slug(int $id, string $oldSlug, string $lang): void
+{
+	db_exec('REPLACE INTO category_old_slugs (slug, lang, category_id) VALUES (?, ?, ?)', [$oldSlug, $lang, $id]);
+}
+
+function forget_category_slugs(array $slugs): void
+{
+	db_exec('DELETE FROM category_old_slugs WHERE slug IN (' . db_in($slugs) . ')', $slugs);
 }
 
 // Deleted only when nothing refers to it: no subcategories, no listings in any status

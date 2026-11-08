@@ -2,8 +2,9 @@
 /* ==========================================================================
 	Set a user's password: php source/db/password.php <email> [--sql]
 	The password is asked in the terminal (not shown) or read from a pipe.
-	--sql: change nothing, print an UPDATE with the hash to run in phpMyAdmin
-	on the hosting (the password itself never leaves this machine).
+	On the server it runs the same way (SSH). --sql: change nothing, print an
+	UPDATE with the hash to run elsewhere (phpMyAdmin) — the password itself
+	never leaves this machine.
 	========================================================================== */
 
 require __DIR__ . '/cli.php';

@@ -149,7 +149,7 @@ require ADMIN_INC . '/header.php';
 								<input type="hidden" name="id" value="<?= (int) $listing['id'] ?>">
 								<input type="hidden" name="back" value="<?= e($back) ?>">
 								<a class="dropdown__item" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= icon('edit', 18) ?>Edit</a>
-								<a class="dropdown__item" href="<?= SITE_URL ?>listing.php?id=<?= (int) $listing['id'] ?>" target="_blank" rel="noopener"><?= icon('external', 18) ?>View on site</a>
+								<a class="dropdown__item" href="<?= e(listing_url($listing)) ?>" target="_blank" rel="noopener"><?= icon('external', 18) ?>View on site</a>
 								<?php if (in_array($listing['status'], ['pending', 'rejected'], true)): ?>
 								<button type="submit" class="dropdown__item" name="action" value="approve"><?= icon('check', 18) ?>Approve</button>
 								<?php endif; ?>

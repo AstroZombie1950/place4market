@@ -39,8 +39,9 @@ foreach ($demo['cities'] as $i => $city) {
 }
 
 $insertCategory = fn(array $c, ?int $parentId) => db_exec(
-	'INSERT INTO categories (id, parent_id, slug, icon, name_en, name_sr_latn, name_sr_cyrl, sort, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-	[$c['id'], $parentId, $c['slug'], $c['icon'] ?? null, $c['names']['en'], $c['names']['sr-latn'], $c['names']['sr-cyrl'], $c['sort'], (int) $c['active']]
+	'INSERT INTO categories (id, parent_id, slug, slug_sr, icon, name_en, name_sr_latn, name_sr_cyrl, sort, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+	// Serbian address word from the Latin name: Kuća i bašta → kuca-i-basta
+	[$c['id'], $parentId, $c['slug'], url_slug($c['names']['sr-latn'], 64), $c['icon'] ?? null, $c['names']['en'], $c['names']['sr-latn'], $c['names']['sr-cyrl'], $c['sort'], (int) $c['active']]
 );
 $categoryIds = [];
 foreach ($demo['categories'] as $parent) {

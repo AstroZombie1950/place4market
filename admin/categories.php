@@ -4,7 +4,8 @@
 	GET: edit (id) opens that category in the form.
 	POST here (csrf), action:
 	  save     id (empty = new); name_en, name_srl, name_src (empty = from the
-	           Latin), slug, seo_title_en, meta_en, seo_title_sr, meta_sr,
+	           Latin), slug (key + English address word), slug_sr (Serbian address
+	           word), seo_title_en, meta_en, seo_title_sr, meta_sr,
 	           parent, icon, sort, active
 	  toggle   (toggle=1 instead of action) id, active — shown on the site or hidden
 	  delete   id — only without subcategories and listings (any status)
@@ -59,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$f = [
 			'names' => ['en' => $clean('name_en', 100), 'sr-latn' => $clean('name_srl', 100), 'sr-cyrl' => $clean('name_src', 100)],
 			'slug' => strtolower($clean('slug', 64)),
+			'slug_sr' => strtolower($clean('slug_sr', 64)),
 			'seo' => [
 				'en' => [$clean('seo_title_en', 70) ?: null, $clean('meta_en', 160) ?: null],
 				'sr' => [$clean('seo_title_sr', 70) ?: null, $clean('meta_sr', 160) ?: null],
@@ -74,8 +76,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$error = match (true) {
 			$id !== null && !$existing => 'This category no longer exists.',
 			min(array_map('mb_strlen', $f['names'])) < 2 => 'Enter the name in English and Serbian (2 to 100 characters).',
-			!preg_match('/^[a-z0-9]+(-[a-z0-9]+)*$/', $f['slug']) => 'The slug takes lowercase Latin letters, digits and single dashes.',
-			category_slug_taken($f['slug'], $id) => 'Another category already uses the slug “' . $f['slug'] . '”.',
+			!preg_match('/^[a-z0-9]+(-[a-z0-9]+)*$/', $f['slug']) || !preg_match('/^[a-z0-9]+(-[a-z0-9]+)*$/', $f['slug_sr'])
+				=> 'Address words take lowercase Latin letters without marks, digits and single dashes.',
+			category_slug_taken($f['slug'], $id) => 'Another category already uses the address word “' . $f['slug'] . '”.',
+			category_slug_taken($f['slug_sr'], $id) => 'Another category already uses the address word “' . $f['slug_sr'] . '”.',
 			$f['parent_id'] !== null && (!$newParent || $newParent['id'] !== $f['parent_id']) => 'The parent must be a top-level category.',
 			$f['parent_id'] !== null && $f['parent_id'] === $id => 'A category cannot be its own parent.',
 			$f['parent_id'] !== null && $parentRow && !$childRow && $parentRow['children'] => 'This category has subcategories: it stays at the top level.',
@@ -87,13 +91,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			// Only top-level categories have an icon
 			$f['icon'] = $f['parent_id'] === null ? $f['icon'] : null;
 			$savedId = save_category($id, $f);
+			// Changed address words: the old addresses answer with a 301 to the new ones
+			if ($existing) {
+				foreach (['en' => ['slug', $existing['slug']], 'sr' => ['slug_sr', $existing['slug_sr']]] as $lang => [$key, $old]) {
+					if ($f[$key] !== $old) {
+						remember_category_slug($savedId, $old, $lang);
+					}
+				}
+			}
+			forget_category_slugs([$f['slug'], $f['slug_sr']]);
 			$changed = $existing ? array_keys(array_filter([
-				'names' => $f['names'] != $existing['names'], 'slug' => $f['slug'] !== $existing['slug'], 'seo' => $f['seo'] != $existing['seo'],
+				'names' => $f['names'] != $existing['names'], 'slug' => $f['slug'] !== $existing['slug'], 'slug_sr' => $f['slug_sr'] !== $existing['slug_sr'], 'seo' => $f['seo'] != $existing['seo'],
 				'parent' => $f['parent_id'] !== ($childRow ? $parentRow['id'] : null), 'icon' => !$childRow && $f['icon'] !== $existing['icon'],
 				'sort' => $f['sort'] !== $existing['sort'], 'active' => $f['active'] !== $existing['active'],
 			])) : [];
 			log_action($id ? 'admin.category_update' : 'admin.category_create', ['category_id' => $savedId, 'slug' => $f['slug']]
-				+ ($changed ? ['fields' => $changed] : []) + ($existing && $f['slug'] !== $existing['slug'] ? ['old_slug' => $existing['slug']] : []));
+				+ ($changed ? ['fields' => $changed] : []) + ($existing && $f['slug'] !== $existing['slug'] ? ['old_slug' => $existing['slug']] : [])
+				+ ($existing && $f['slug_sr'] !== $existing['slug_sr'] ? ['old_slug_sr' => $existing['slug_sr']] : []));
 			flash('success', $id ? ($changed ? 'Saved: ' . implode(', ', $changed) . '.' : 'Nothing changed.') : 'Category “' . $f['names']['en'] . '” created.');
 			redirect('categories.php?edit=' . $savedId);
 		}
@@ -101,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		// The form opens again with what was sent
 		$posted = [
 			'formTitle' => $existing ? 'Edit: ' . $existing['names']['en'] : 'New category', 'id' => (string) ($id ?? ''),
-			'name_en' => $f['names']['en'], 'name_srl' => $f['names']['sr-latn'], 'name_src' => $f['names']['sr-cyrl'], 'slug' => $f['slug'],
+			'name_en' => $f['names']['en'], 'name_srl' => $f['names']['sr-latn'], 'name_src' => $f['names']['sr-cyrl'], 'slug' => $f['slug'], 'slug_sr' => $f['slug_sr'],
 			'seo_title_en' => (string) $f['seo']['en'][0], 'meta_en' => (string) $f['seo']['en'][1],
 			'seo_title_sr' => (string) $f['seo']['sr'][0], 'meta_sr' => (string) $f['seo']['sr'][1],
 			'parent' => (string) ($f['parent_id'] ?? ''), 'icon' => $f['icon'], 'sort' => (string) $f['sort'], 'active' => $f['active'],
@@ -187,7 +201,7 @@ require ADMIN_INC . '/header.php';
 					<?php endif; ?>
 					<span class="tree__name">
 						<?= e($item['names']['en']) ?>
-						<span class="tree__sub"><?= e($item['names']['sr-latn']) ?> · <?= e($item['names']['sr-cyrl']) ?> · <code><?= e($item['slug']) ?></code></span>
+						<span class="tree__sub"><?= e($item['names']['sr-latn']) ?> · <?= e($item['names']['sr-cyrl']) ?> · <code><?= e($item['slug_sr']) ?></code> · <code><?= e($item['slug']) ?></code></span>
 					</span>
 					<span class="tree__meta"><?php if ($count): ?><a href="listings.php?cat=<?= e($item['slug']) ?>"><?= e(plural($count, 'listing', 'listings')) ?></a><?php else: ?>No listings<?php endif; ?></span>
 					<form class="tree__actions" method="post" action="categories.php" data-autosubmit>
@@ -275,11 +289,19 @@ require ADMIN_INC . '/header.php';
 			<div class="form-section">
 				<h3 class="form-section__title">General</h3>
 				<div class="form-list">
-					<div class="field">
-						<label class="field__label" for="c-slug">URL slug</label>
-						<input class="input" id="c-slug" name="slug" type="text" required maxlength="64" pattern="[a-z0-9]+(-[a-z0-9]+)*" value="<?= e($current['slug']) ?>" data-slug-source="name_en">
-						<span class="field__hint">category.php?cat=<strong>slug</strong>, the same in all languages. Changing it changes the address: old links and saved searches with it stop working.</span>
+					<div class="form-grid">
+						<div class="field">
+							<label class="field__label" for="c-slug-sr">Address word (Serbian)</label>
+							<input class="input" id="c-slug-sr" name="slug_sr" type="text" required maxlength="64" pattern="[a-z0-9]+(-[a-z0-9]+)*" value="<?= e($current['slug_sr']) ?>" data-slug-source="name_srl">
+							<span class="field__hint">/oglasi/<strong>word</strong> (Latin and Cyrillic).</span>
+						</div>
+						<div class="field">
+							<label class="field__label" for="c-slug">Address word (English)</label>
+							<input class="input" id="c-slug" name="slug" type="text" required maxlength="64" pattern="[a-z0-9]+(-[a-z0-9]+)*" value="<?= e($current['slug']) ?>" data-slug-source="name_en">
+							<span class="field__hint">/en/listings/<strong>word</strong>; also the key of saved searches.</span>
+						</div>
 					</div>
+					<p class="field__hint">Changing a word changes the address: the old one redirects to the new one (301), but saved searches keep the old English word and stop matching. Pick the words from the keyword research and keep them.</p>
 					<div class="field">
 						<label class="field__label" for="c-parent">Parent category</label>
 						<select class="select" id="c-parent" name="parent"><?= options($parentOptions, $current['parent']) ?></select>

@@ -12,14 +12,15 @@ define('INC_DIR', __DIR__);
 // Logging and error handlers first: failures in everything below are caught
 require INC_DIR . '/log.php';
 
-// URLs: site root (uploads, demo photos) and assets; pages live in the site root
-define('ROOT_URL', '');
-define('ASSETS_URL', 'source');
+// URLs from the site root (pages have nested addresses like /oglasi/vozila/automobili):
+// uploads and demo photos, assets
+define('ROOT_URL', '/');
+define('ASSETS_URL', '/source');
 
 // Helpers, icons, i18n
 require INC_DIR . '/helpers.php';
 require INC_DIR . '/icons.php';
-require INC_DIR . '/i18n.php';
+require_once INC_DIR . '/i18n.php'; // route.php may have loaded it
 require INC_DIR . '/site.php';
 require INC_DIR . '/seo.php';
 security_headers();
@@ -28,7 +29,7 @@ security_headers();
 // works on any server). Remove at launch together with the .htaccess block
 header('X-Robots-Tag: noindex, nofollow');
 
-// Language must be set before any output (cookie)
+// Language of the address (route.php) or ?lang=
 i18n_init();
 
 // Database and data access (repo.php is the only file that reads storage)
@@ -58,9 +59,8 @@ function page_defaults(): array
 		'nav' => '',
 		'body_class' => '',
 		'search' => true,
-		'base' => '',
 		// SEO (see seo.php)
-		'canonical' => [basename($_SERVER['SCRIPT_NAME'] ?? 'index.php'), []],
+		'canonical' => [current_script(), []],
 		'robots' => 'index, follow',
 		'og_type' => 'website',
 		'og' => [],
@@ -69,3 +69,7 @@ function page_defaults(): array
 }
 
 $page = page_defaults();
+
+// Human addresses: category words → ?cat=, a page asked by another address → 301
+// to its exact one (see site.php)
+route_resolve();

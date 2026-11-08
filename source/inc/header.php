@@ -15,17 +15,14 @@ $searchCity = (string) ($_GET['city'] ?? '');
 <html lang="<?= e(lang_meta()['html']) ?>">
 <head>
 	<meta charset="utf-8">
-<?php if ($page['base'] !== ''): ?>
-	<base href="<?= e($page['base']) ?>">
-<?php endif; ?>
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<?= seo_head() ?>
 
 	<!-- Icons, theme -->
-	<link rel="icon" href="favicon.ico" sizes="32x32">
+	<link rel="icon" href="/favicon.ico" sizes="32x32">
 	<link rel="icon" href="<?= asset('img/icons/favicon.svg') ?>" type="image/svg+xml">
 	<link rel="apple-touch-icon" href="<?= asset('img/icons/apple-touch-icon.png') ?>">
-	<link rel="manifest" href="site.webmanifest">
+	<link rel="manifest" href="/site.webmanifest">
 	<meta name="theme-color" content="#FBF8F2">
 
 	<!-- Fonts of the first screen (self-hosted, see variables.css): Cyrillic or Latin set.
@@ -76,8 +73,7 @@ $searchCity = (string) ($_GET['city'] ?? '');
 
 		<?php if ($page['search']): ?>
 		<!-- Search: query + city -->
-		<form class="search" role="search" action="category.php" method="get">
-			<?= lang_input() ?>
+		<form class="search" role="search" action="<?= e(url('category.php')) ?>" method="get">
 			<label class="search__field">
 				<?= icon('search', 20) ?>
 				<span class="visually-hidden"><?= e(t('search.label')) ?></span>

@@ -12,8 +12,8 @@
 	unavailable, records go to daily files LOG_DIR/2026-10-29.log, one JSON
 	object per line; cron.php imports them into the table later.
 	LOG_DIR is outside the web root: <site root>/../app-logs (on php -S: ./logs),
-	next to the hosting's own logs/ folder, not inside it.
-	On another server (VPS) set the P4M_LOG_DIR environment variable instead.
+	next to DirectAdmin's own logs/ folder, not inside it.
+	Another place: the P4M_LOG_DIR environment variable.
 	Passwords, tokens and similar fields are masked before writing.
 	Critical records also go out as alerts (log_alert(): email, Telegram).
 	========================================================================== */

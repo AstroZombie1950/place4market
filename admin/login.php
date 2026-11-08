@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 			<div class="auth__row">
 				<label class="check"><input type="checkbox" name="remember"> Remember me</label>
-				<a href="<?= SITE_URL ?>reset.php">Forgot password?</a>
+				<a href="<?= e(url('reset.php')) ?>">Forgot password?</a>
 			</div>
 
 			<button type="submit" class="btn btn--primary btn--block">Sign in</button>

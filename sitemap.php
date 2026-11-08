@@ -75,7 +75,9 @@ if ($part === 'pages' && !isset($_GET['n'])) {
 	}
 } elseif (in_array($part, ['listings', 'sellers'], true) && $n >= 1) {
 	foreach (sitemap_part($part, ($n - 1) * SITEMAP_SIZE, SITEMAP_SIZE) as $row) {
-		$entries[] = [$part === 'listings' ? 'listing.php' : 'seller.php', ['id' => $row['id']], $row['lastmod']];
+		$entries[] = $part === 'listings'
+			? ['listing.php', listing_url_params($row), $row['lastmod']]
+			: ['seller.php', ['id' => $row['id']], $row['lastmod']];
 	}
 }
 

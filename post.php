@@ -205,7 +205,7 @@ require INC_DIR . '/header.php';
 	</div>
 
 	<div class="post">
-		<form class="post__form" id="post-form" method="post" action="<?= e(url('post.php', ['id' => $editId])) ?>" data-post-form data-upload-url="photo-upload.php">
+		<form class="post__form" id="post-form" method="post" action="<?= e(url('post.php', ['id' => $editId])) ?>" data-post-form data-upload-url="<?= e(url('photo-upload.php')) ?>">
 			<?= csrf_field() ?>
 			<?php if ($error !== ''): ?>
 			<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($error) ?></p>

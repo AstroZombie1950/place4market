@@ -1,13 +1,20 @@
 # Деплой на сервер place4market (85.17.188.76, DirectAdmin + OpenLiteSpeed) по SSH при пуше в main.
 #
-# rsync сравнивает файлы по содержимому (-c) и заливает только изменённые; даты у
+# Три шага, чтобы новый код не встретил старую схему БД:
+#   1. rsync в папку выпуска place4market.com/release (рядом с public_html, снаружи не видна);
+#   2. миграции из неё (php release/source/db/migrate.php) — сайт в это время работает на прежнем коде,
+#      поэтому миграция обязана быть совместимой с ним (README, «Миграции»);
+#   3. publish — на сервере release/ копируется в public_html (rsync, только изменённые).
+# Ошибка миграции останавливает деплой до шага 3: сайт остаётся на прежнем коде.
+#
+# rsync сравнивает файлы по содержимому (-c) и копирует только изменённые; даты у
 # неизменённых файлов не трогает, поэтому ?v= в asset() меняется только у изменённых.
 # Файлы, удалённые из репозитория, удаляются и на сервере (--delete). Папки, которых нет
-# в репозитории (uploads/, .well-known/), исключены и поэтому не удаляются.
+# в репозитории (uploads/, .well-known/), на шаге 3 исключены и поэтому не удаляются.
 #
 # Ключ деплоя на сервере ограничен (forced command /usr/local/bin/p4m-deploy-gate в
-# ~placemar/.ssh/authorized_keys): можно только rsync в public_html (через rrsync, выйти
-# из папки нельзя) и `migrate` — php source/db/migrate.php.
+# ~placemar/.ssh/authorized_keys): можно только rsync в release (через rrsync, выйти
+# из папки нельзя; команду помечает --rsync-path="release rsync"), `migrate-release` и `publish`.
 # Изменённый .htaccess подхватывается сам: служба p4m-htaccess.path перезапускает веб-сервер.
 #
 # Секрет (Settings → Secrets and variables → Actions):
@@ -54,16 +61,21 @@ jobs:
           printf '%s' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           printf 'Host deploy\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/deploy_key\n  IdentitiesOnly yes\n  BatchMode yes\n  StrictHostKeyChecking yes\n' "$DEPLOY_HOST" "$DEPLOY_USER" > ~/.ssh/config
 
-      # Заливка: в списке — только изменённые файлы (itemize). Путь «.» — public_html (rrsync)
+      # 1. Заливка в папку выпуска: в списке — только изменённые файлы (itemize).
+      # Путь «.» — папка release (rrsync)
       - name: Upload
         run: |
-          rsync -rlcp --chmod=D755,F644 --delete --itemize-changes \
+          rsync -rlcp --chmod=D755,F644 --delete --itemize-changes --rsync-path='release rsync' \
             --exclude='.git*' --exclude='.github/' --exclude='.vscode/' --exclude='.claude/' \
             --exclude='README.md' --exclude='temp/' --exclude='doc/' \
-            --exclude='uploads/' --exclude='.well-known/' --exclude='.ftp-deploy-sync-state.json' \
+            --exclude='uploads/' --exclude='.well-known/' \
             ./ deploy:.
 
-      # Новые миграции — сразу после заливки (source/inc/migrations.php). Ошибка миграции
-      # роняет workflow, в журнале — запись critical с уведомлением
+      # 2. Новые миграции (source/inc/migrations.php) — до того, как новый код увидит сайт.
+      # Ошибка роняет workflow, в журнале — запись critical с уведомлением
       - name: Apply migrations
-        run: ssh deploy migrate
+        run: ssh deploy migrate-release
+
+      # 3. Выпуск: release/ → public_html на сервере (uploads/ и .well-known/ не трогаются)
+      - name: Publish
+        run: ssh deploy publish

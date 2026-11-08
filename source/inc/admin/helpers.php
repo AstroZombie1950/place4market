@@ -150,7 +150,7 @@ function city_listing_count(string $city): int
 // Payload for the category edit form (filled by JS from [data-edit-category]); $category null = new
 function category_payload(?array $category, ?array $parent = null): array
 {
-	$category ??= ['id' => '', 'slug' => '', 'names' => ['en' => '', 'sr-latn' => '', 'sr-cyrl' => ''],
+	$category ??= ['id' => '', 'slug' => '', 'slug_sr' => '', 'names' => ['en' => '', 'sr-latn' => '', 'sr-cyrl' => ''],
 		'seo' => ['en' => [null, null], 'sr' => [null, null]], 'sort' => 0, 'active' => true];
 
 	return [
@@ -160,6 +160,7 @@ function category_payload(?array $category, ?array $parent = null): array
 		'name_srl' => $category['names']['sr-latn'],
 		'name_src' => $category['names']['sr-cyrl'],
 		'slug' => $category['slug'],
+		'slug_sr' => $category['slug_sr'],
 		'seo_title_en' => (string) $category['seo']['en'][0],
 		'meta_en' => (string) $category['seo']['en'][1],
 		'seo_title_sr' => (string) $category['seo']['sr'][0],

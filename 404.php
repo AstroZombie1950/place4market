@@ -1,7 +1,7 @@
 <?php
 /* ==========================================================================
-	404: unknown pages (Apache ErrorDocument) and missing listings/categories
-	(pages include this file and exit)
+	404: unknown addresses (route.php; ErrorDocument for missing files) and missing
+	listings/categories (pages include this file and exit)
 	========================================================================== */
 require_once __DIR__ . '/source/inc/bootstrap.php';
 
@@ -15,8 +15,6 @@ log_event($internal ? 'warning' : 'info', 'Not found', ['referer' => $referer !=
 $page = array_merge(page_defaults(), [
 	'title' => t('404.title'),
 	'robots' => 'noindex, follow',
-	// Relative links must work from any missing URL, e.g. /a/b/c
-	'base' => '/',
 ]);
 
 require INC_DIR . '/header.php';

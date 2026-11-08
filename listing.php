@@ -19,6 +19,9 @@ if (!$listing || !(($listing['status'] === 'active' && $seller['status'] === 'ac
 	exit;
 }
 
+// One address per listing: an old listing.php?id=…, a former title or another case → 301
+enforce_url(lang_link(lang(), 'listing.php', listing_url_params($listing) + array_diff_key($_GET, ['id' => true, 'lang' => true])));
+
 // The "similar" cards below reuse $listing: the bottom of the page uses this id
 $listingId = (int) $listing['id'];
 // Phone buttons only when there is a phone to show (the ad's or the seller's); the number comes from phone.php
@@ -65,7 +68,7 @@ $page['title'] = $title;
 $page['description'] = mb_substr(preg_replace('/\s+/u', ' ', listing_description($listing)), 0, 155);
 $page['nav'] = 'home';
 $page['body_class'] = 'body--listing';
-$page['canonical'] = ['listing.php', ['id' => $listing['id']]];
+$page['canonical'] = ['listing.php', listing_url_params($listing)];
 // Seen by its author or staff only: never indexed
 if ($listing['status'] !== 'active') {
 	$page['robots'] = 'noindex, nofollow';

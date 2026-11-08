@@ -1,8 +1,9 @@
 <?php
 /* ==========================================================================
 	Apply new migrations: php source/db/migrate.php
-	The same code runs on production right after a deploy (deploy-hook.php)
-	and from the admin (admin/migrations.php): source/inc/migrations.php.
+	On production the deploy runs it from the release folder before the new code
+	goes live (.github/workflows/deploy.yml); the admin has the same
+	(admin/migrations.php): source/inc/migrations.php.
 	========================================================================== */
 
 require __DIR__ . '/cli.php';

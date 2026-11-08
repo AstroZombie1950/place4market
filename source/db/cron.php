@@ -1,7 +1,7 @@
 <?php
 /* ==========================================================================
-	Maintenance, hourly from the hosting panel's cron:
-	php /home/<account>/place4market.com/public_html/source/db/cron.php
+	Maintenance, hourly from the cron of the placemar user (DirectAdmin):
+	/usr/local/php85/bin/php /home/placemar/domains/place4market.com/public_html/source/db/cron.php
 	- active listings past their expiry date become expired (the site already
 	  hides them; this fixes the status for "My listings" and the admin)
 	- photos uploaded more than a day ago and never put into a listing are

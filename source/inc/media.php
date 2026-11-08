@@ -5,10 +5,11 @@
 	all metadata dropped, WebP sizes 1920 / 960 / 480 / 320 / 200 (long side)
 	with their quality, average colour. The original is not kept.
 
-	Now: PHP GD, synchronously at upload (shared hosting, no libvips). The
-	browser already sends ≤ 2560 px JPEG, so one photo takes about a second.
-	On the new server process_photo() switches to libvips behind a queue;
-	callers and the stored format stay the same.
+	Now: PHP GD, synchronously at upload. The browser already sends ≤ 2560 px
+	JPEG, so one photo takes about a second. The server has libvips and ffmpeg,
+	but web PHP may not start programs (exec/proc_open are disabled), so the
+	switch to libvips goes with a queue and a background worker (command line):
+	process_photo() changes, callers and the stored format stay the same.
 	========================================================================== */
 
 // Long side => WebP quality

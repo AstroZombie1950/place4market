@@ -3,14 +3,15 @@
 	Migrations: source/db/migrations/NNN_name.php, each returns its SQL
 	(PHP, so the web server never shows the schema as text). Applied once each
 	in name order; applied ones are listed in schema_migrations.
-	Used by the console (source/db/migrate.php), the deploy hook (deploy-hook.php)
-	and the admin (admin/migrations.php). Needs only log.php and db.php, so it
+	Used by the console (source/db/migrate.php — also by the deploy) and the
+	admin (admin/migrations.php). Needs only log.php and db.php, so it
 	works even when the rest of the code already expects the new schema.
 
 	Rules: a migration is never edited after it reached production (changes go
 	into a new file). It keeps the previous code working — new tables, new
-	columns with defaults: the deploy hook runs right after the upload, so for a
-	short time the new code meets the old schema and the old code the new one.
+	columns with defaults: the deploy applies migrations to the new files in a
+	release folder before they replace the site, so for a short time the old code
+	meets the new schema.
 	Removing or renaming a column takes two deploys.
 	========================================================================== */
 
@@ -57,9 +58,9 @@ function migrations_pending(): array
 }
 
 // Applies the pending migrations in order and returns their versions.
-// $by — who started it, for the journal: cli, deploy, admin.
+// $by — who started it, for the journal: cli (also the deploy), admin.
 // Stops at the first failure and throws (the ones before it stay applied).
-// Two runs at once (deploy hook + admin) cannot overlap: the second one throws
+// Two runs at once (deploy + admin) cannot overlap: the second one throws
 function migrations_apply(string $by): array
 {
 	if ((int) db_value('SELECT GET_LOCK(?, 0)', [MIGRATIONS_LOCK]) !== 1) {

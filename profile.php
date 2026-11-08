@@ -119,13 +119,13 @@ if (($_POST['action'] ?? '') === 'save_profile') {
 			log_action('account.email_change_requested', ['user_id' => $me['id']]);
 		}
 
-		// The message and the page in the chosen language (?lang= also updates the cookie)
+		// The message and the page in the chosen language
 		in_lang($profile['lang'], fn() => flash($sent ? 'success' : 'warning', match (true) {
 			!$sent => t('auth.err_mail'),
 			$newEmail !== null => t('p.email_change_sent', ['email' => $newEmail]),
 			default => t('p.saved'),
 		}));
-		redirect('profile.php?' . http_build_query(['lang' => $profile['lang']]) . '#settings');
+		redirect(lang_link($profile['lang'], 'profile.php') . '#settings');
 	}
 }
 

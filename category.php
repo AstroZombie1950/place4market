@@ -29,6 +29,7 @@ $pageNum = max(1, min((int) ($_GET['page'] ?? 1), max(1, (int) ceil($total / $pe
 if (isset($_GET['page']) && $_GET['page'] !== ($pageNum > 1 ? (string) $pageNum : null)) {
 	redirect(url('category.php', search_query($f) + ['page' => $pageNum > 1 ? $pageNum : null]), 301);
 }
+
 $pageItems = search_listings($f, $perPage, ($pageNum - 1) * $perPage);
 
 // Title
@@ -120,10 +121,8 @@ require INC_DIR . '/header.php';
 	<div class="layout layout--filters">
 		<!-- Filters: sidebar on desktop, drawer on smaller screens -->
 		<div class="layout__side">
-			<form class="filters" id="filters" action="category.php" method="get" aria-label="<?= e(t('cat.filters')) ?>">
-				<?= lang_input() ?>
+			<form class="filters" id="filters" action="<?= e(url('category.php', ['cat' => $f['cat']])) ?>" method="get" aria-label="<?= e(t('cat.filters')) ?>">
 				<?php if ($f['q'] !== ''): ?><input type="hidden" name="q" value="<?= e($f['q']) ?>"><?php endif; ?>
-				<?php if ($f['cat'] !== ''): ?><input type="hidden" name="cat" value="<?= e($f['cat']) ?>"><?php endif; ?>
 				<?php if ($f['sort'] !== 'new'): ?><input type="hidden" name="sort" value="<?= e($f['sort']) ?>"><?php endif; ?>
 
 				<!-- Drawer head (tablets/phones) -->
@@ -207,8 +206,8 @@ require INC_DIR . '/header.php';
 
 					<?php if ($total): ?>
 					<!-- Sort (keeps all filters); with nothing found there is nothing to sort or show -->
-					<form class="row" action="category.php" method="get">
-						<?php foreach (array_diff_key(search_query($f), ['sort' => true]) + (lang() === DEFAULT_LANG ? [] : ['lang' => lang()]) as $name => $value): ?>
+					<form class="row" action="<?= e(url('category.php', ['cat' => $f['cat']])) ?>" method="get">
+						<?php foreach (array_diff_key(search_query($f), ['sort' => true, 'cat' => true]) as $name => $value): ?>
 						<input type="hidden" name="<?= e($name) ?>" value="<?= e($value) ?>">
 						<?php endforeach; ?>
 						<label class="visually-hidden" for="sort"><?= e(t('cat.sort')) ?></label>

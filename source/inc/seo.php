@@ -2,7 +2,7 @@
 /* ==========================================================================
 	SEO: absolute URLs, canonical + hreflang, Open Graph, JSON-LD, breadcrumbs
 	Pages set before header.php (see defaults in bootstrap.php):
-	  $page['canonical'] = ['category.php', ['cat' => 'cars']];  path + params, no language
+	  $page['canonical'] = ['category.php', ['cat' => 'cars']];  script + params, no language (lang_link() makes the address)
 	  $page['robots']    = 'noindex, follow';                     service pages, filtered results
 	  $page['schema'][]  = [...];                                 JSON-LD objects
 	  $page['og_type']   = 'product';                             + $page['og'] for extra og:* tags
@@ -12,7 +12,7 @@ const SITE_NAME = 'Place4Market';
 const SITE_HOST = 'place4market.com';
 const SITE_EMAIL = 'support@place4market.com'; // placeholder until the client gives the real one
 
-// Absolute URL for a link built by url(): site_url('listing.php?id=5').
+// Absolute URL for a link built by url(): site_url(url('help.php')) → https://place4market.com/pomoc.
 // Always https://place4market.com, whatever the Host header says: links in letters (password
 // reset, email change) must not lead to a forged host. Only php -S on a developer machine
 // keeps its own host
@@ -22,7 +22,7 @@ function site_url(string $link = ''): string
 
 	$base ??= IS_DEV && !empty($_SERVER['HTTP_HOST']) ? 'http://' . $_SERVER['HTTP_HOST'] : 'https://' . SITE_HOST;
 
-	return $base . '/' . preg_replace('#^\./#', '', $link);
+	return $base . '/' . ltrim(preg_replace('#^\./#', '', $link), '/');
 }
 
 // Canonical URL of the current page in any language

@@ -13,14 +13,14 @@ const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inl
 	. "media-src 'self' blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; "
 	. "form-action 'self'; frame-ancestors 'self'";
 
-// Sent by PHP: the hosting ignores Header in .htaccess
+// Sent by PHP: OpenLiteSpeed ignores Header in .htaccess
 function security_headers(): void
 {
 	if (headers_sent() || PHP_SAPI === 'cli') {
 		return;
 	}
 
-	$https = ($_SERVER['HTTPS'] ?? '') === 'on' || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+	$https = ($_SERVER['HTTPS'] ?? '') === 'on';
 
 	header('Content-Security-Policy: ' . CSP . ($https ? '; upgrade-insecure-requests' : ''));
 	header('X-Content-Type-Options: nosniff');

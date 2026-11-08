@@ -5,9 +5,9 @@
 	independently of db.php.
 
 	Settings (DB password…) are never in git and never in the web root:
-	  P4M_CONFIG environment variable (VPS)
+	  P4M_CONFIG environment variable
 	  → <site root>/config/local.php (developer machine, in .gitignore)
-	  → <site root>/../app-config.php (hosting, next to public_html)
+	  → <site root>/../app-config.php (server, next to public_html and release/)
 	The file returns ['db' => ['host', 'port', 'name', 'user', 'pass'] + optional 'socket',
 	'mail' => […] (mail.php), 'alerts' => […] (log.php)].
 	========================================================================== */

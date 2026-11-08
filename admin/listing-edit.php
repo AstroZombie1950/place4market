@@ -200,7 +200,7 @@ require ADMIN_INC . '/header.php';
 		<h1 class="page-head__title"><?= e(admin_title($listing)) ?> <?= status_badge($listing['status']) ?></h1>
 	</div>
 	<div class="page-head__actions">
-		<a class="btn btn--secondary" href="<?= SITE_URL ?>listing.php?id=<?= (int) $listing['id'] ?>" target="_blank" rel="noopener"><?= icon('external', 18) ?>View on site</a>
+		<a class="btn btn--secondary" href="<?= e(listing_url($listing)) ?>" target="_blank" rel="noopener"><?= icon('external', 18) ?>View on site</a>
 		<?php if ($editable): ?>
 		<button type="submit" class="btn btn--primary" form="listing-form"><?= icon('check', 18) ?>Save changes</button>
 		<?php endif; ?>
@@ -332,7 +332,7 @@ require ADMIN_INC . '/header.php';
 				</figure>
 				<?php endforeach; ?>
 			</div>
-			<p class="field__hint">Video upload comes with the move to our own server (processing needs ffmpeg).</p>
+			<p class="field__hint">Video upload comes later (processing with ffmpeg in the background).</p>
 			<?php endif; ?>
 
 			<?php if ($editable && $listing['photos'] < setting('max_photos')): ?>

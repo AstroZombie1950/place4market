@@ -23,7 +23,8 @@ const PASSWORD_MAX = 72;
 
 function is_https(): bool
 {
-	return ($_SERVER['HTTPS'] ?? '') === 'on' || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+	// No proxy in front of the web server: X-Forwarded-Proto would come from the visitor
+	return ($_SERVER['HTTPS'] ?? '') === 'on';
 }
 
 // Resume the session if the browser has one; $create = true starts a new one
