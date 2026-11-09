@@ -164,23 +164,47 @@
 	--toast-error: #F97066;
 	--toast-info: #F2A07F;
 
-	/* Category tints (photo placeholders, thumbnails) */
+	/* Category tints by section key (photo placeholders, thumbnails) */
 	--tint-vehicles-bg: #DCE3E6;
 	--tint-vehicles-fg: #8A9CA5;
 	--tint-real-estate-bg: #EADBC8;
 	--tint-real-estate-fg: #B39B7E;
+	--tint-jobs-bg: #E2E4DE;
+	--tint-jobs-fg: #91978C;
+	--tint-services-bg: #E0E2E8;
+	--tint-services-fg: #8E93A3;
 	--tint-electronics-bg: #E2DFDA;
 	--tint-electronics-fg: #9E978E;
-	--tint-home-garden-bg: #E3DFD9;
-	--tint-home-garden-fg: #A0978C;
+	--tint-appliances-bg: #DEE4E3;
+	--tint-appliances-fg: #8BA09D;
+	--tint-furniture-bg: #E3DFD9;
+	--tint-furniture-fg: #A0978C;
+	--tint-construction-bg: #E8DCD3;
+	--tint-construction-fg: #A88E7B;
+	--tint-tools-bg: #E1E1DC;
+	--tint-tools-fg: #95958A;
+	--tint-agriculture-bg: #E2E6D3;
+	--tint-agriculture-fg: #949D74;
 	--tint-fashion-bg: #ECDFDA;
 	--tint-fashion-fg: #AE958B;
 	--tint-kids-bg: #EEDDD3;
 	--tint-kids-fg: #BC9A87;
-	--tint-jobs-services-bg: #E2E4DE;
-	--tint-jobs-services-fg: #91978C;
-	--tint-sports-hobby-bg: #DFE3D0;
-	--tint-sports-hobby-fg: #8F9873;
+	--tint-sports-bg: #DFE3D0;
+	--tint-sports-fg: #8F9873;
+	--tint-beauty-health-bg: #EEDCE0;
+	--tint-beauty-health-fg: #B48E97;
+	--tint-pets-bg: #EADFD2;
+	--tint-pets-fg: #AD9579;
+	--tint-holidays-bg: #EFE5CF;
+	--tint-holidays-fg: #B8A273;
+	--tint-music-bg: #E2DCE6;
+	--tint-music-fg: #9A8EA6;
+	--tint-books-bg: #E7E0D3;
+	--tint-books-fg: #A3957B;
+	--tint-antiques-bg: #E9DECB;
+	--tint-antiques-fg: #A99272;
+	--tint-other-bg: #E4E2DF;
+	--tint-other-fg: #9C9790;
 
 	/* Typography */
 	--font-sans: "Source Sans 3", "Source Sans 3 Fallback", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;

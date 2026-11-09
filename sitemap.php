@@ -3,6 +3,7 @@
 	Sitemap (served as /sitemap.xml via .htaccess rewrite).
 	Without parameters — a sitemap index; its parts:
 	  ?part=pages             home, all listings, categories with listings, info pages
+	  ?part=landings          approved landing pages (016) with listings
 	  ?part=listings&n=1…     published listings, SITEMAP_SIZE per part, by id
 	  ?part=sellers&n=1…      sellers with published listings
 	Every URL lists all its language versions (hreflang + x-default); lastmod is
@@ -30,6 +31,9 @@ $xml = function (): void {
 if ($part === '') {
 	$categories = sitemap_categories();
 	$parts = [['pages', 1, $categories ? max($categories) : null]];
+	if ($landings = sitemap_landings()) {
+		$parts[] = ['landings', 1, max(array_column($landings, 1))];
+	}
 	foreach (['listings', 'sellers'] as $type) {
 		foreach (sitemap_parts($type, SITEMAP_SIZE) as $i => $lastmod) {
 			$parts[] = [$type, $i + 1, $lastmod];
@@ -40,7 +44,7 @@ if ($part === '') {
 	echo '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
 	foreach ($parts as [$type, $num, $lastmod]) {
 		echo "\t<sitemap>\n";
-		echo "\t\t<loc>" . e(site_url('sitemap.php?' . http_build_query($type === 'pages' ? ['part' => $type] : ['part' => $type, 'n' => $num]))) . "</loc>\n";
+		echo "\t\t<loc>" . e(site_url('sitemap.php?' . http_build_query(in_array($type, ['pages', 'landings'], true) ? ['part' => $type] : ['part' => $type, 'n' => $num]))) . "</loc>\n";
 		if ($lastmod) {
 			echo "\t\t<lastmod>" . $w3c($lastmod) . "</lastmod>\n";
 		}
@@ -72,6 +76,10 @@ if ($part === 'pages' && !isset($_GET['n'])) {
 
 	foreach (info_pages() as $info) {
 		$entries[] = [$info['path'], [], null];
+	}
+} elseif ($part === 'landings' && !isset($_GET['n'])) {
+	foreach (sitemap_landings() as [$filters, $lastmod]) {
+		$entries[] = ['category.php', array_filter($filters), $lastmod];
 	}
 } elseif (in_array($part, ['listings', 'sellers'], true) && $n >= 1) {
 	foreach (sitemap_part($part, ($n - 1) * SITEMAP_SIZE, SITEMAP_SIZE) as $row) {

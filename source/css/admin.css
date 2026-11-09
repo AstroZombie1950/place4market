@@ -1356,12 +1356,24 @@ a.cell-main__title:hover {
 
 .thumb--vehicles { --thumb-bg: var(--tint-vehicles-bg); --thumb-fg: var(--tint-vehicles-fg); }
 .thumb--real-estate { --thumb-bg: var(--tint-real-estate-bg); --thumb-fg: var(--tint-real-estate-fg); }
+.thumb--jobs { --thumb-bg: var(--tint-jobs-bg); --thumb-fg: var(--tint-jobs-fg); }
+.thumb--services { --thumb-bg: var(--tint-services-bg); --thumb-fg: var(--tint-services-fg); }
 .thumb--electronics { --thumb-bg: var(--tint-electronics-bg); --thumb-fg: var(--tint-electronics-fg); }
-.thumb--home-garden { --thumb-bg: var(--tint-home-garden-bg); --thumb-fg: var(--tint-home-garden-fg); }
+.thumb--appliances { --thumb-bg: var(--tint-appliances-bg); --thumb-fg: var(--tint-appliances-fg); }
+.thumb--furniture { --thumb-bg: var(--tint-furniture-bg); --thumb-fg: var(--tint-furniture-fg); }
+.thumb--construction { --thumb-bg: var(--tint-construction-bg); --thumb-fg: var(--tint-construction-fg); }
+.thumb--tools { --thumb-bg: var(--tint-tools-bg); --thumb-fg: var(--tint-tools-fg); }
+.thumb--agriculture { --thumb-bg: var(--tint-agriculture-bg); --thumb-fg: var(--tint-agriculture-fg); }
 .thumb--fashion { --thumb-bg: var(--tint-fashion-bg); --thumb-fg: var(--tint-fashion-fg); }
 .thumb--kids { --thumb-bg: var(--tint-kids-bg); --thumb-fg: var(--tint-kids-fg); }
-.thumb--jobs-services { --thumb-bg: var(--tint-jobs-services-bg); --thumb-fg: var(--tint-jobs-services-fg); }
-.thumb--sports-hobby { --thumb-bg: var(--tint-sports-hobby-bg); --thumb-fg: var(--tint-sports-hobby-fg); }
+.thumb--sports { --thumb-bg: var(--tint-sports-bg); --thumb-fg: var(--tint-sports-fg); }
+.thumb--beauty-health { --thumb-bg: var(--tint-beauty-health-bg); --thumb-fg: var(--tint-beauty-health-fg); }
+.thumb--pets { --thumb-bg: var(--tint-pets-bg); --thumb-fg: var(--tint-pets-fg); }
+.thumb--holidays { --thumb-bg: var(--tint-holidays-bg); --thumb-fg: var(--tint-holidays-fg); }
+.thumb--music { --thumb-bg: var(--tint-music-bg); --thumb-fg: var(--tint-music-fg); }
+.thumb--books { --thumb-bg: var(--tint-books-bg); --thumb-fg: var(--tint-books-fg); }
+.thumb--antiques { --thumb-bg: var(--tint-antiques-bg); --thumb-fg: var(--tint-antiques-fg); }
+.thumb--other { --thumb-bg: var(--tint-other-bg); --thumb-fg: var(--tint-other-fg); }
 
 .avatar {
 	display: inline-flex;

@@ -32,6 +32,11 @@ $v = [
 	'title' => $editing['title'] ?? '',
 	'description' => $editing['description'] ?? '',
 	'condition' => $editing['condition'] ?? 'used',
+	'deal' => $editing['deal'] ?? '',
+	'type' => $editing['type'] ?? '',
+	'brand' => $editing['brand'] ?? '',
+	'district' => $editing['district'] ?? '',
+	'seller_type' => $editing['seller_type'] ?? 'private',
 	'attrs' => array_map('attr_input_value', $editing['attrs'] ?? []),
 	'price' => isset($editing['price']) ? (string) $editing['price'] : '',
 	'currency' => $editing['currency'] ?? 'RSD',
@@ -51,12 +56,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		'title' => trim(preg_replace('/\s+/u', ' ', (string) ($_POST['title'] ?? ''))),
 		'description' => trim(str_replace("\r\n", "\n", (string) ($_POST['description'] ?? ''))),
 		'condition' => (string) ($_POST['condition'] ?? ''),
+		'deal' => (string) ($_POST['deal'] ?? ''),
+		'type' => (string) ($_POST['type'] ?? ''),
+		'brand' => (string) ($_POST['brand'] ?? ''),
+		'district' => (string) ($_POST['district'] ?? ''),
+		'seller_type' => (string) ($_POST['seller_type'] ?? ''),
 		'attrs' => array_map('strval', array_filter((array) ($_POST['attrs'] ?? []), 'is_scalar')),
 		'price' => preg_replace('/\D/', '', (string) ($_POST['price'] ?? '')),
 		'currency' => ($_POST['currency'] ?? '') === 'EUR' ? 'EUR' : 'RSD',
 		'negotiable' => !empty($_POST['negotiable']),
 		'agreement' => !empty($_POST['agreement']),
-		'city' => (string) ($_POST['city'] ?? ''),
+		// The place is typed (datalist): its Latin name, or the text as typed to show it again with the error
+		'city' => city_by_input((string) ($_POST['city'] ?? '')) ?? trim((string) ($_POST['city'] ?? '')),
 		'phone' => trim((string) ($_POST['phone'] ?? '')),
 		'show_phone' => !empty($_POST['show_phone']),
 		'photos' => postable_photos($me['id'], (array) ($_POST['photo_ids'] ?? []), $editId),
@@ -70,6 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$isDraft = ($_POST['action'] ?? '') === 'draft' && $isNew;
 	$hasCondition = $child && category_has_condition($child['slug']);
 	[$attrs, $attrError] = $child ? clean_attrs($child['slug'], $v['attrs'], !$isDraft) : [[], ''];
+	[$facets, $facetError] = $child ? clean_facets($child['slug'], $parent['slug'], $v['city'], $v, !$isDraft) : [[], ''];
 
 	if (!csrf_valid()) {
 		$error = t('auth.err_csrf');
@@ -82,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				'status' => 'draft', 'title' => mb_substr($v['title'], 0, 80), 'description' => mb_substr($v['description'], 0, 3000),
 				'price' => !$v['agreement'] && $price >= 1 && $price <= 2_000_000_000 ? $price : null,
 				'condition' => $hasCondition && in_array($v['condition'], ['new', 'like_new', 'used'], true) ? $v['condition'] : null,
-				'attrs' => $attrs,
+				'attrs' => $attrs, 'facets' => $facets,
 				'city' => in_array($v['city'], array_column(active_cities(), 'latn'), true) ? $v['city'] : $me['city'],
 				'phone' => preg_match('/^\+?[0-9 ()\-]{6,20}$/', $v['phone']) ? $v['phone'] : null,
 				'photos' => array_slice($v['photos'], 0, setting('max_photos')),
@@ -99,6 +111,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$error = t('post.err_description');
 	} elseif ($hasCondition && !in_array($v['condition'], ['new', 'like_new', 'used'], true)) {
 		$error = t('post.err_condition');
+	} elseif ($facetError !== '') {
+		$error = t($facetError);
 	} elseif ($attrError !== '') {
 		$error = $attrError;
 	} elseif (!$v['agreement'] && ($price < 1 || $price > 2_000_000_000)) {
@@ -116,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$id = post_save($me, $v, $editId, [
 			'status' => 'pending', 'title' => $v['title'], 'description' => $v['description'],
 			'price' => $v['agreement'] ? null : $price, 'condition' => $hasCondition ? $v['condition'] : null,
-			'attrs' => $attrs, 'city' => $v['city'], 'phone' => $v['phone'] ?: null, 'photos' => $v['photos'], 'moderation_note' => $note,
+			'attrs' => $attrs, 'facets' => $facets, 'city' => $v['city'], 'phone' => $v['phone'] ?: null, 'photos' => $v['photos'], 'moderation_note' => $note,
 		], $publish);
 		log_action($isNew ? 'listing.create' : 'listing.update', ['listing_id' => $id, 'photos' => count($v['photos'])]
 			+ ($publish ? ['published' => true] : []) + ($note ? ['note' => $note] : []));
@@ -148,8 +162,8 @@ function post_route(array $me, ?array $editing, string $text): array
 }
 
 // Saves the ad and its photos in one transaction, then removes the files of photos taken out.
-// $v: the sent form, $f: checked values (status, title, description, price, condition, attrs, city, phone, photos,
-// moderation_note); $publish: approved right away (like a moderator's approval: term, place in the feed)
+// $v: the sent form, $f: checked values (status, title, description, price, condition, attrs, facets (clean_facets()),
+// city, phone, photos, moderation_note); $publish: approved right away (like a moderator's approval: term, place in the feed)
 function post_save(array $me, array $v, ?int $editId, array $f, bool $publish = false): int
 {
 	db()->beginTransaction();
@@ -160,7 +174,7 @@ function post_save(array $me, array $v, ?int $editId, array $f, bool $publish = 
 			'price' => $f['price'], 'currency' => $v['currency'], 'negotiable' => $v['negotiable'] && $f['price'] !== null,
 			'condition' => $f['condition'], 'attrs' => $f['attrs'], 'phone' => $f['phone'], 'show_phone' => $v['show_phone'],
 			'moderation_note' => $f['moderation_note'] ?? null,
-		], $editId);
+		] + $f['facets'], $editId);
 		$removed = set_listing_photos($id, $me['id'], $f['photos']);
 		if ($publish) {
 			approve_listing($id);
@@ -187,6 +201,28 @@ $subcats = [];
 foreach (visible_categories() as $category) {
 	$subcats[$category['slug']] = array_map(fn($child) => ['slug' => $child['slug'], 'name' => cat_name($child)], $category['children']);
 }
+
+// Blocks that belong to some subcategories ([data-for] = their slugs, main.js shows the matching ones):
+// deal choices (real estate), kind and brand lists, sets of details (equal sets share one block)
+$visibleSubs = array_merge(...array_map(fn($category) => array_column($category['children'], 'slug'), visible_categories()));
+$dealSets = [];
+$attrSets = [];
+foreach ($visibleSubs as $slug) {
+	if ($deals = category_deals($slug)) {
+		$dealSets[implode(' ', $deals)][] = $slug;
+	}
+	if ($fields = category_attr_fields($slug)) {
+		$attrSets[json_encode(array_keys($fields)) . json_encode(CATEGORY_ATTRS[$slug]['fields'])][] = $slug;
+	}
+}
+$districtSubs = [];
+foreach (visible_categories() as $category) {
+	if (in_array($category['slug'], DISTRICT_SECTIONS, true)) {
+		array_push($districtSubs, ...array_column($category['children'], 'slug'));
+	}
+}
+$for = fn(array $slugs) => e(implode(' ', $slugs));
+$shown = fn(array $slugs) => in_array($v['subcategory'], $slugs, true);
 
 $page['title'] = t($editing && !$isNew ? 'post.edit_title' : 'post.title');
 $page['robots'] = 'noindex, follow';
@@ -230,6 +266,43 @@ require INC_DIR . '/header.php';
 							<option value="" data-choose="<?= e(t('post.choose')) ?>" data-empty="<?= e(t('post.choose_category_first')) ?>"><?= e(t('post.choose_category_first')) ?></option>
 						</select>
 					</div>
+
+					<!-- Deal (real estate): one set of choices per group of subcategories -->
+					<?php foreach ($dealSets as $deals => $slugs): $on = $shown($slugs); ?>
+					<fieldset class="field field--full filters__fieldset" data-for="<?= $for($slugs) ?>"<?= $on ? '' : ' disabled hidden' ?>>
+						<legend class="field__label"><?= e(t('post.f_deal')) ?></legend>
+						<div class="seg seg--spaced">
+							<?php foreach (explode(' ', $deals) as $i => $deal): ?>
+							<label class="seg__item"><input type="radio" name="deal" value="<?= e($deal) ?>" required<?= ($on ? $v['deal'] === $deal : false) || (!in_array($v['deal'], explode(' ', $deals), true) && $i === 0) ? ' checked' : '' ?>><span class="seg__label"><?= e(t('deal.' . $deal)) ?></span></label>
+							<?php endforeach; ?>
+						</div>
+					</fieldset>
+					<?php endforeach; ?>
+
+					<!-- Kind and brand lists of the chosen subcategory -->
+					<?php foreach ($visibleSubs as $slug): if (!$types = category_types($slug)) continue; $on = $v['subcategory'] === $slug; ?>
+					<fieldset class="field filters__fieldset" data-for="<?= e($slug) ?>"<?= $on ? '' : ' disabled hidden' ?>>
+						<label class="field__label" for="p-type-<?= e($slug) ?>"><?= e(t(TYPE_LABELS[$slug] ?? 'post.f_type')) ?></label>
+						<select class="select" id="p-type-<?= e($slug) ?>" name="type" required>
+							<option value=""><?= e(t('post.choose')) ?></option>
+							<?php foreach ($types as $key => $type): ?>
+							<option value="<?= e($key) ?>"<?= $on && $v['type'] === $key ? ' selected' : '' ?>><?= e(type_name($type)) ?></option>
+							<?php endforeach; ?>
+						</select>
+					</fieldset>
+					<?php endforeach; ?>
+					<?php foreach ($visibleSubs as $slug): if (!$brands = category_brands($slug)) continue; $on = $v['subcategory'] === $slug; ?>
+					<fieldset class="field filters__fieldset" data-for="<?= e($slug) ?>"<?= $on ? '' : ' disabled hidden' ?>>
+						<label class="field__label" for="p-brand-<?= e($slug) ?>"><?= e(t('post.f_brand')) ?></label>
+						<select class="select" id="p-brand-<?= e($slug) ?>" name="brand" required>
+							<option value=""><?= e(t('post.choose')) ?></option>
+							<?php foreach ($brands as $key => $name): ?>
+							<option value="<?= e($key) ?>"<?= $on && $v['brand'] === $key ? ' selected' : '' ?>><?= e($name) ?></option>
+							<?php endforeach; ?>
+							<option value="other"<?= $on && $v['brand'] === 'other' ? ' selected' : '' ?>><?= e(t('post.brand_other')) ?></option>
+						</select>
+					</fieldset>
+					<?php endforeach; ?>
 				</div>
 			</section>
 
@@ -265,16 +338,21 @@ require INC_DIR . '/header.php';
 					</fieldset>
 
 					<!-- Details of the chosen subcategory (main.js shows one set, the others are disabled) -->
-					<?php foreach (CATEGORY_ATTRS as $slug => $set): if (!$set['fields']) continue; $on = $slug === $v['subcategory']; ?>
-					<fieldset class="field--full filters__fieldset attrs" data-attrs="<?= e($slug) ?>"<?= $on ? '' : ' disabled hidden' ?>>
+					<?php foreach (array_values($attrSets) as $setIndex => $slugs): $slug = $slugs[0]; $on = $shown($slugs); ?>
+					<fieldset class="field--full filters__fieldset attrs" data-for="<?= $for($slugs) ?>"<?= $on ? '' : ' disabled hidden' ?>>
 						<legend class="visually-hidden"><?= e(t('post.f_attrs')) ?></legend>
 						<div class="form-grid">
 							<?php foreach (category_attr_fields($slug) as $key => $field):
-								$fieldId = 'a-' . $slug . '-' . $key;
+								$fieldId = 'a-' . $setIndex . '-' . $key;
 								$value = $on ? (string) ($v['attrs'][$key] ?? '') : '';
 								$unit = $field['unit'] ?? '';
 								$label = t('a.' . $key) . ($unit !== '' ? ', ' . (str_starts_with($unit, 'u.') ? t($unit) : $unit) : '');
 							?>
+							<?php if ($field['type'] === 'bool'): ?>
+							<div class="field field--end">
+								<label class="check"><input type="checkbox" id="<?= e($fieldId) ?>" name="attrs[<?= e($key) ?>]" value="1"<?= $value === '1' ? ' checked' : '' ?>><span><?= e($label) ?></span></label>
+							</div>
+							<?php continue; endif; ?>
 							<div class="field">
 								<label class="field__label" for="<?= e($fieldId) ?>"><?= e($label) ?></label>
 								<?php if ($field['type'] === 'select'): ?>
@@ -337,8 +415,29 @@ require INC_DIR . '/header.php';
 				<div class="form-grid">
 					<div class="field">
 						<label class="field__label" for="p-city"><?= e(t('post.f_city')) ?></label>
-						<select class="select" id="p-city" name="city" required data-bind="city"><?= city_select_options($v['city'], false) ?></select>
+						<input class="input" id="p-city" name="city" type="text" list="p-city-list" required autocomplete="off" data-bind="city" data-city-input aria-describedby="p-city-hint" value="<?= e(city_by_input($v['city']) !== null ? city_name($v['city']) : $v['city']) ?>">
+						<datalist id="p-city-list"><?= city_datalist_options() ?></datalist>
+						<span class="field__hint" id="p-city-hint"><?= e(t('post.f_city_hint')) ?></span>
 					</div>
+					<?php foreach (districts() as $city => $list): if (!$districtSubs) break; $on = $shown($districtSubs) && $v['city'] === $city; ?>
+					<fieldset class="field filters__fieldset" data-for="<?= $for($districtSubs) ?>" data-city="<?= e(url_slug($city)) ?>"<?= $on ? '' : ' disabled hidden' ?>>
+						<label class="field__label" for="p-district-<?= e(url_slug($city)) ?>"><?= e(t('post.f_district')) ?></label>
+						<select class="select" id="p-district-<?= e(url_slug($city)) ?>" name="district">
+							<option value=""><?= e(t('post.district_any')) ?></option>
+							<?php foreach ($list as $district): ?>
+							<option value="<?= e($district['latn']) ?>"<?= $on && $v['district'] === $district['latn'] ? ' selected' : '' ?>><?= e(district_name($district)) ?></option>
+							<?php endforeach; ?>
+						</select>
+					</fieldset>
+					<?php endforeach; ?>
+					<fieldset class="field filters__fieldset">
+						<legend class="field__label"><?= e(t('post.f_seller')) ?></legend>
+						<div class="seg seg--spaced">
+							<?php foreach (SELLER_TYPES as $seller): ?>
+							<label class="seg__item"><input type="radio" name="seller_type" value="<?= e($seller) ?>"<?= $v['seller_type'] === $seller ? ' checked' : '' ?>><span class="seg__label"><?= e(t('seller.' . $seller)) ?></span></label>
+							<?php endforeach; ?>
+						</div>
+					</fieldset>
 					<div class="field">
 						<label class="field__label" for="p-phone"><?= e(t('post.f_phone')) ?></label>
 						<input class="input" id="p-phone" name="phone" type="tel" autocomplete="tel" value="<?= e($v['phone']) ?>">

@@ -390,10 +390,11 @@ function log_alert(array $record): void
 	if (!empty($settings['email'])) {
 		$subject = 'Place4Market: ' . log_trim($record['message'], 80);
 
+		// -f: envelope sender on our domain (like send_mail()): exim signs DKIM by it, SPF and DMARC pass
 		if (IS_DEV) {
 			$dir = LOG_DIR . '/mail';
 			(is_dir($dir) || @mkdir($dir, 0750, true)) && @file_put_contents($dir . '/' . date('Y-m-d_His') . '_alert_' . $record['request'] . '.txt', 'To: ' . $settings['email'] . "\nSubject: " . $subject . "\n\n" . $text . "\n");
-		} elseif (!@mail($settings['email'], mb_encode_mimeheader($subject, 'UTF-8'), $text, ['From' => 'noreply@place4market.com', 'Content-Type' => 'text/plain; charset=UTF-8'])) {
+		} elseif (!@mail($settings['email'], mb_encode_mimeheader($subject, 'UTF-8'), $text, ['From' => 'noreply@place4market.com', 'Content-Type' => 'text/plain; charset=UTF-8'], '-fnoreply@place4market.com')) {
 			error_log('place4market alert email not sent: ' . $record['request']);
 		}
 	}

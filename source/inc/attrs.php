@@ -7,32 +7,124 @@
 	Demo values are ready strings ('168 000 km') and are shown as they are.
 	========================================================================== */
 
-// Subcategory → fields; 'condition' => false: new/used does not apply (property, services, jobs).
-// A field is a key of attr_fields() or key => overrides (motorbike body types)
+// Subcategory → fields; 'condition' => false: new/used does not apply (property, stays, jobs, services,
+// animals, food). A field is a key of attr_fields() or key => overrides (motorbike body types).
+// Kind, brand and deal are columns of their own (taxonomy.php), not fields here
+const ATTRS_VEHICLE = ['year', 'mileage', 'fuel', 'gearbox', 'power'];
+const ATTRS_FURNITURE = ['material', 'dimensions', 'color'];
+const ATTRS_WEAR = ['size', 'color'];
+const ATTRS_ANIMAL = ['breed', 'age'];
+const ATTRS_STAY = ['guests'];
 const CATEGORY_ATTRS = [
-	'cars' => ['fields' => ['year', 'mileage', 'fuel', 'gearbox', 'power', 'body', 'color']],
+	// Vozila
+	'cars' => ['fields' => [...ATTRS_VEHICLE, 'body', 'color', 'damaged', 'financing']],
 	'motorcycles' => ['fields' => ['year', 'mileage', 'engine', 'body' => ['options' => ['naked', 'sport', 'touring', 'enduro', 'scooter', 'chopper', 'other']], 'color']],
-	'auto-parts' => ['fields' => []],
-	'apartments' => ['fields' => ['area', 'rooms', 'floor', 'heating', 'built', 'furnished'], 'condition' => false],
+	'trucks-vans' => ['fields' => [...ATTRS_VEHICLE, 'damaged', 'financing']],
+	'trailers' => ['fields' => ['year']],
+	'boats' => ['fields' => ['year', 'length']],
+	'tyres-wheels' => ['fields' => ['season', 'tyre_size']],
+	'car-parts' => ['fields' => []],
+	'car-accessories' => ['fields' => []],
+	'motorcycle-gear' => ['fields' => ['size']],
+	// Nekretnine
+	'apartments' => ['fields' => ['area', 'rooms', 'floor', 'heating', 'built', 'furnished', 'new_build'], 'condition' => false],
 	'houses' => ['fields' => ['area', 'plot', 'rooms', 'heating', 'built', 'furnished'], 'condition' => false],
+	'cottages' => ['fields' => ['area', 'plot', 'rooms', 'heating'], 'condition' => false],
 	'land' => ['fields' => ['plot'], 'condition' => false],
+	'commercial' => ['fields' => ['area', 'floor', 'heating'], 'condition' => false],
+	'garages' => ['fields' => ['area'], 'condition' => false],
+	'rooms' => ['fields' => ['area', 'furnished'], 'condition' => false],
+	// Odmor
+	'mountains' => ['fields' => ATTRS_STAY, 'condition' => false],
+	'spas' => ['fields' => ATTRS_STAY, 'condition' => false],
+	'seaside' => ['fields' => ATTRS_STAY, 'condition' => false],
+	'lakes-rivers' => ['fields' => ATTRS_STAY, 'condition' => false],
+	'rural' => ['fields' => ATTRS_STAY, 'condition' => false],
+	// Posao
+	'remote-jobs' => ['fields' => ['employment'], 'condition' => false],
+	'drivers-delivery' => ['fields' => ['employment'], 'condition' => false],
+	'jobs-abroad' => ['fields' => ['employment'], 'condition' => false],
+	'student-jobs' => ['fields' => ['employment'], 'condition' => false],
+	'hospitality' => ['fields' => ['employment'], 'condition' => false],
+	'construction-jobs' => ['fields' => ['employment'], 'condition' => false],
+	'production-jobs' => ['fields' => ['employment'], 'condition' => false],
+	'care-jobs' => ['fields' => ['employment'], 'condition' => false],
+	'sales-jobs' => ['fields' => ['employment'], 'condition' => false],
+	'office-jobs' => ['fields' => ['employment'], 'condition' => false],
+	'beauty-jobs' => ['fields' => ['employment'], 'condition' => false],
+	'other-jobs' => ['fields' => ['employment'], 'condition' => false],
+	// Usluge
+	'car-service' => ['fields' => ['experience', 'area_served'], 'condition' => false],
+	'car-rental' => ['fields' => ['area_served'], 'condition' => false],
+	'events' => ['fields' => ['experience', 'area_served'], 'condition' => false],
+	'beauty-services' => ['fields' => ['experience', 'area_served'], 'condition' => false],
+	'tradesmen' => ['fields' => ['experience', 'area_served'], 'condition' => false],
+	'lessons' => ['fields' => ['experience', 'area_served'], 'condition' => false],
+	'towing' => ['fields' => ['area_served'], 'condition' => false],
+	'repairs' => ['fields' => ['experience', 'area_served'], 'condition' => false],
+	'business-services' => ['fields' => ['experience', 'area_served'], 'condition' => false],
+	'moving' => ['fields' => ['area_served'], 'condition' => false],
+	'cleaning' => ['fields' => ['experience', 'area_served'], 'condition' => false],
+	'other-services' => ['fields' => ['experience', 'area_served'], 'condition' => false],
+	// Elektronika
 	'phones' => ['fields' => ['memory', 'battery', 'color']],
-	'computers' => ['fields' => ['ram', 'ssd', 'battery']],
+	'tablets' => ['fields' => ['memory']],
+	'laptops' => ['fields' => ['ram', 'ssd', 'battery']],
+	'desktops' => ['fields' => ['ram', 'ssd']],
 	'consoles' => ['fields' => ['memory', 'controllers']],
-	'furniture' => ['fields' => ['material', 'dimensions', 'color']],
-	'appliances' => ['fields' => ['capacity', 'energy']],
-	'womens-clothing' => ['fields' => ['size', 'color']],
-	'mens-clothing' => ['fields' => ['size', 'color']],
+	'tv' => ['fields' => ['diagonal']],
+	// Kućni aparati
+	'fridges' => ['fields' => ['capacity', 'energy']],
+	'washing-machines' => ['fields' => ['capacity', 'energy']],
+	'dishwashers' => ['fields' => ['capacity', 'energy']],
+	'cookers' => ['fields' => ['energy']],
+	'air-conditioners' => ['fields' => ['capacity', 'energy']],
+	'water-heaters' => ['fields' => ['capacity']],
+	// Nameštaj
+	'sofas' => ['fields' => ATTRS_FURNITURE],
+	'beds' => ['fields' => ATTRS_FURNITURE],
+	'tables-chairs' => ['fields' => ATTRS_FURNITURE],
+	'wardrobes' => ['fields' => ATTRS_FURNITURE],
+	'garden-furniture' => ['fields' => ATTRS_FURNITURE],
+	'kitchens' => ['fields' => ['dimensions', 'color']],
+	// Poljoprivreda
+	'tractors' => ['fields' => ['year', 'power', 'hours']],
+	'farm-machinery' => ['fields' => ['year']],
+	'livestock' => ['fields' => ATTRS_ANIMAL, 'condition' => false],
+	'plants' => ['fields' => [], 'condition' => false],
+	'feed' => ['fields' => [], 'condition' => false],
+	'farm-produce' => ['fields' => [], 'condition' => false],
+	// Ljubimci
+	'dogs' => ['fields' => ATTRS_ANIMAL, 'condition' => false],
+	'cats' => ['fields' => ATTRS_ANIMAL, 'condition' => false],
+	'birds' => ['fields' => ATTRS_ANIMAL, 'condition' => false],
+	'other-pets' => ['fields' => ATTRS_ANIMAL, 'condition' => false],
+	'pet-services' => ['fields' => ['experience', 'area_served'], 'condition' => false],
+	// Moda
+	'womens-clothing' => ['fields' => ATTRS_WEAR],
+	'mens-clothing' => ['fields' => ATTRS_WEAR],
+	'womens-shoes' => ['fields' => ATTRS_WEAR],
+	'mens-shoes' => ['fields' => ATTRS_WEAR],
+	'sports-shoes' => ['fields' => ATTRS_WEAR],
+	'wedding' => ['fields' => ATTRS_WEAR],
+	'workwear' => ['fields' => ATTRS_WEAR],
+	'costumes' => ['fields' => ['size']],
+	// Deca
 	'strollers' => ['fields' => ['age', 'color']],
 	'toys' => ['fields' => ['age', 'material']],
-	'services' => ['fields' => ['experience', 'area_served'], 'condition' => false],
-	'jobs' => ['fields' => ['employment'], 'condition' => false],
+	'kids-clothing' => ['fields' => ATTRS_WEAR],
+	'kids-shoes' => ['fields' => ATTRS_WEAR],
+	'kids-bikes' => ['fields' => ['wheel']],
+	'car-seats' => ['fields' => ['age']],
+	// Sport
 	'bikes' => ['fields' => ['wheel', 'frame', 'gears']],
 	'winter-sports' => ['fields' => ['length', 'size']],
+	// Ostalo
+	'tickets' => ['fields' => [], 'condition' => false],
 ];
 
 // Field types: number (min, max, step, unit; a unit "u.*" is translated), select (options:
-// v.<option>, or shown as is with 'raw'), text (max length)
+// v.<option>, or shown as is with 'raw'), text (max length), bool (a checkbox: stored as true when on)
 function attr_fields(): array
 {
 	$nextYear = (int) date('Y') + 1;
@@ -72,6 +164,15 @@ function attr_fields(): array
 		'area_served' => ['type' => 'text', 'max' => 60],
 		'controllers' => ['type' => 'number', 'min' => 0, 'max' => 10],
 		'employment' => ['type' => 'select', 'options' => ['full_time', 'part_time', 'temporary', 'freelance']],
+		'damaged' => ['type' => 'bool'],
+		'financing' => ['type' => 'bool'],
+		'new_build' => ['type' => 'bool'],
+		'season' => ['type' => 'select', 'options' => ['summer', 'winter', 'all_season']],
+		'tyre_size' => ['type' => 'text', 'max' => 20],
+		'diagonal' => ['type' => 'number', 'min' => 10, 'max' => 150, 'unit' => '″'],
+		'guests' => ['type' => 'number', 'min' => 1, 'max' => 50],
+		'hours' => ['type' => 'number', 'min' => 0, 'max' => 100_000, 'unit' => 'u.hours'],
+		'breed' => ['type' => 'text', 'max' => 40],
 	];
 }
 
@@ -111,6 +212,7 @@ function clean_attrs(string $slug, array $input, bool $strict = true): array
 		$value = match ($field['type']) {
 			'number' => attr_number($raw, $field),
 			'select' => in_array($raw, $field['options'], true) ? (empty($field['raw']) ? 'v.' . $raw : $raw) : null,
+			'bool' => $raw === '1' ? true : null,
 			default => mb_strlen($raw) <= $field['max'] ? preg_replace('/\s+/u', ' ', $raw) : null,
 		};
 
@@ -148,9 +250,12 @@ function attr_number(string $raw, array $field): int|float|null
 	return $n == (int) $n ? (int) $n : $n;
 }
 
-// Stored value → form value: 'v.diesel' → 'diesel', 2.5 → '2,5'
+// Stored value → form value: 'v.diesel' → 'diesel', 2.5 → '2,5', true → '1'
 function attr_input_value(mixed $value): string
 {
+	if (is_bool($value)) {
+		return $value ? '1' : '';
+	}
 	if (is_float($value)) {
 		return str_replace('.', ',', (string) $value);
 	}
@@ -161,6 +266,9 @@ function attr_input_value(mixed $value): string
 // Value for the listing page: options translated, numbers with their unit, texts in the page script
 function attr_value(string $key, mixed $value): string
 {
+	if (is_bool($value)) {
+		return t($value ? 'v.yes' : 'v.no');
+	}
 	if (is_int($value) || is_float($value)) {
 		$unit = attr_fields()[$key]['unit'] ?? '';
 		$unit = str_starts_with($unit, 'u.') ? t($unit) : $unit;
@@ -172,10 +280,21 @@ function attr_value(string $key, mixed $value): string
 	return str_starts_with($value, 'v.') ? t($value) : (lang() === 'sr-cyrl' ? sr_cyr($value) : $value);
 }
 
-// Rows of the details block: condition (from its own column) first, then the attributes
+// Rows of the details block: deal, kind and brand, condition (from their own columns) first, then the
+// attributes, the advertiser last
 function listing_details(array $listing): array
 {
 	$rows = [];
+
+	if (!empty($listing['deal'])) {
+		$rows[] = [t('post.f_deal'), t('deal.' . $listing['deal'])];
+	}
+	if (!empty($listing['type']) && ($type = category_types($listing['category'])[$listing['type']] ?? null)) {
+		$rows[] = [t(TYPE_LABELS[$listing['category']] ?? 'post.f_type'), type_name($type)];
+	}
+	if (($brand = brand_name($listing['category'], $listing['brand'] ?? null)) !== null) {
+		$rows[] = [t('post.f_brand'), $brand];
+	}
 
 	if ($listing['condition'] !== null && !isset($listing['attrs']['condition']) && category_has_condition($listing['category'])) {
 		$rows[] = [t('a.condition'), t('v.' . $listing['condition'])];
@@ -183,6 +302,10 @@ function listing_details(array $listing): array
 
 	foreach ($listing['attrs'] as $key => $value) {
 		$rows[] = [t('a.' . $key), attr_value($key, $value)];
+	}
+
+	if (($listing['seller_type'] ?? null) === 'business') {
+		$rows[] = [t('post.f_seller'), t('seller.business')];
 	}
 
 	return $rows;

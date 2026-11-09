@@ -9,6 +9,7 @@
 
 require __DIR__ . '/cli.php';
 require INC_DIR . '/site.php';
+require INC_DIR . '/taxonomy.php';
 
 $demo = require INC_DIR . '/mock-data.php';
 
@@ -25,7 +26,7 @@ $json = fn($value) => json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPE
 $lastId = fn() => (int) db()->lastInsertId();
 
 db()->exec('SET FOREIGN_KEY_CHECKS = 0');
-foreach (['rate_events', 'remember_tokens', 'auth_tokens', 'reports', 'messages', 'conversations', 'saved_searches', 'favorites', 'listing_videos', 'listing_photos', 'listings', 'users', 'categories', 'cities'] as $table) {
+foreach (['rate_events', 'remember_tokens', 'auth_tokens', 'reports', 'messages', 'conversations', 'saved_searches', 'favorites', 'listing_videos', 'listing_photos', 'listings', 'users', 'categories', 'districts', 'cities'] as $table) {
 	db()->exec('TRUNCATE TABLE ' . $table);
 }
 db()->exec('SET FOREIGN_KEY_CHECKS = 1');
@@ -34,14 +35,22 @@ db()->exec('SET FOREIGN_KEY_CHECKS = 1');
 
 $cityIds = [];
 foreach ($demo['cities'] as $i => $city) {
-	db_exec('INSERT INTO cities (latn, cyrl, sort, active) VALUES (?, ?, ?, ?)', [$city['latn'], $city['cyrl'], $i + 1, (int) $city['active']]);
+	db_exec('INSERT INTO cities (latn, cyrl, slug, slug_en, kind, main_rank, sort, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+		[$city['latn'], $city['cyrl'], $city['slug'], $city['slug_en'], $city['kind'], $city['main'], $i + 1, (int) $city['active']]);
 	$cityIds[$city['latn']] = $lastId();
 }
 
+$districtIds = [];
+foreach ($demo['districts'] as $city => $names) {
+	foreach ($names as $i => $name) {
+		db_exec('INSERT INTO districts (city_id, latn, cyrl, slug, sort) VALUES (?, ?, ?, ?, ?)', [$cityIds[$city], $name, sr_cyr($name), url_slug($name, 64), $i + 1]);
+		$districtIds[$city][$name] = $lastId();
+	}
+}
+
 $insertCategory = fn(array $c, ?int $parentId) => db_exec(
-	'INSERT INTO categories (id, parent_id, slug, slug_sr, icon, name_en, name_sr_latn, name_sr_cyrl, sort, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-	// Serbian address word from the Latin name: Kuća i bašta → kuca-i-basta
-	[$c['id'], $parentId, $c['slug'], url_slug($c['names']['sr-latn'], 64), $c['icon'] ?? null, $c['names']['en'], $c['names']['sr-latn'], $c['names']['sr-cyrl'], $c['sort'], (int) $c['active']]
+	'INSERT INTO categories (id, parent_id, slug, slug_sr, icon, name_en, name_sr_latn, name_sr_cyrl, h1_sr, h1_en, sort, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+	[$c['id'], $parentId, $c['slug'], $c['slug_sr'], $c['icon'] ?? null, $c['names']['en'], $c['names']['sr-latn'], $c['names']['sr-cyrl'], $c['h1'], $c['names']['en'], $c['sort'], (int) $c['active']]
 );
 $categoryIds = [];
 foreach ($demo['categories'] as $parent) {
@@ -76,11 +85,12 @@ foreach ($demo['listings'] as $l) {
 	$listingLang[$l['id']] = $lang;
 
 	db_exec(
-		'INSERT INTO listings (id, user_id, category_id, city_id, status, title, description, lang, search_text, price, currency, negotiable, item_condition, attrs,
+		'INSERT INTO listings (id, user_id, category_id, deal, item_type, brand, city_id, district_id, seller_type, status, title, description, lang, search_text, price, currency, negotiable, item_condition, attrs,
 			views, favorites_count, messages_count, reject_reason, reject_comment, created_at, sorted_at, published_at, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
 		[
-			$l['id'], $l['user_id'], $categoryIds[$l['category']], $cityIds[$l['city']], $l['status'],
+			$l['id'], $l['user_id'], $categoryIds[$l['category']], $l['deal'], $l['type'], $l['brand'], $cityIds[$l['city']],
+			$l['district'] !== null ? $districtIds[$l['city']][$l['district']] : null, 'private', $l['status'],
 			$title, $description, $lang, sr_lat($title . "\n" . $description),
 			$l['price'], $l['currency'], (int) $l['negotiable'], $l['condition'], $l['attrs'] ? $json($l['attrs']) : null,
 			$l['views'], $l['favorites'], $l['messages'], $l['reject_reason'] ?? null, $l['reject_comment'] ?? null,

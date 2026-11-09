@@ -25,6 +25,7 @@ require SOURCE_DIR . '/inc/icons.php';
 require SOURCE_DIR . '/inc/i18n.php';
 i18n_use('en');
 require SOURCE_DIR . '/inc/site.php';
+require SOURCE_DIR . '/inc/taxonomy.php';
 require SOURCE_DIR . '/inc/seo.php';
 
 // Admin helpers and data access (shared with the site)

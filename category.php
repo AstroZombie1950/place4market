@@ -1,10 +1,14 @@
 <?php
 /* ==========================================================================
 	Category / search results: filters, sorting, grid or list, pagination
-	GET: cat, q, city, price_from, price_to, currency, condition,
-	     negotiable, photos, sort, page
+	GET: cat, q, city, district, deal, type, brand, seller, damaged, financing,
+	     price_from, price_to, currency, condition, negotiable, photos, sort, page
+	Human address: /oglasi/<section>/<sub>/<deal>/<kind|brand>/<place>/<district>
+	(route_facets()); a combination approved in landings (016) is a landing page:
+	indexed while it has listings, with its own heading and links to the next ones.
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
+require INC_DIR . '/attrs.php';
 
 // Read filters
 $f = search_filters($_GET);
@@ -16,6 +20,26 @@ $currentCat = $childCat ?? $parentCat;
 if ($f['cat'] !== '' && (!$currentCat || !$currentCat['visible'])) {
 	require ROOT_DIR . '/404.php';
 	exit;
+}
+
+// Dictionaries of this page: deals, kinds, brands of the subcategory (kinds of a section: SECTION_TYPES),
+// districts of the city (real estate). A value that does not fit is dropped (→ 301 without it)
+$deals = $childCat ? category_deals($childCat['slug']) : [];
+$types = $childCat ? category_types($childCat['slug']) : ($parentCat ? section_types($parentCat['slug'], array_column($parentCat['children'], 'slug')) : []);
+$brands = $childCat ? category_brands($childCat['slug']) : [];
+$cityDistricts = $parentCat && in_array($parentCat['slug'], DISTRICT_SECTIONS, true) ? districts()[$f['city']] ?? [] : [];
+$attrFlags = array_values(array_intersect(['damaged', 'financing'], CATEGORY_ATTRS[$childCat['slug'] ?? '']['fields'] ?? []));
+$clean = [
+	'deal' => in_array($f['deal'], $deals, true) ? $f['deal'] : '',
+	'type' => isset($types[$f['type']]) ? $f['type'] : '',
+	'brand' => isset($brands[$f['brand']]) || ($brands && $f['brand'] === 'other') ? $f['brand'] : '',
+	'city' => city_by_input($f['city']) ?? '',
+	'district' => in_array($f['district'], array_column($cityDistricts, 'latn'), true) ? $f['district'] : '',
+	'damaged' => $f['damaged'] && in_array('damaged', $attrFlags, true),
+	'financing' => $f['financing'] && in_array('financing', $attrFlags, true),
+];
+if (array_intersect_key($f, $clean) != $clean) {
+	redirect(url('category.php', search_query(array_merge($f, $clean))), 301);
 }
 
 // Results + pagination
@@ -32,24 +56,23 @@ if (isset($_GET['page']) && $_GET['page'] !== ($pageNum > 1 ? (string) $pageNum 
 
 $pageItems = search_listings($f, $perPage, ($pageNum - 1) * $perPage);
 
-// Title
-if ($f['q'] !== '') {
-	$title = t('cat.results_for', ['q' => $f['q']]);
-} elseif ($currentCat) {
-	$title = cat_name($currentCat);
-} elseif ($f['city'] !== '') {
-	$title = t('cat.all_listings') . ' · ' . city_name($f['city']);
-} else {
-	$title = t('cat.all_listings');
-}
+// Landing page: an approved combination of the facets in the address (016)
+$facets = array_intersect_key($f, array_flip(['cat', 'deal', 'type', 'brand', 'city', 'district']));
+$hasFacets = array_filter(array_diff_key($facets, ['cat' => true])) !== [];
+$landing = $hasFacets ? find_landing($facets) : null;
+
+// Heading: the query, else from the category and the facets ("Prodaja stanova Zemun, Beograd")
+$title = $f['q'] !== '' ? t('cat.results_for', ['q' => $f['q']]) : results_h1($facets, $landing);
 
 // Link to this page with some params changed (null removes a param)
 $linkWith = fn(array $changes): string => url('category.php', search_query(array_merge($f, $changes)));
 
 // Active filter chips: label + link without that filter
 $chipRemove = [
-	'q' => ['q' => ''], 'city' => ['city' => ''], 'price' => ['price_from' => '', 'price_to' => ''],
+	'q' => ['q' => ''], 'city' => ['city' => '', 'district' => ''], 'district' => ['district' => ''], 'price' => ['price_from' => '', 'price_to' => ''],
 	'condition' => ['condition' => ''], 'negotiable' => ['negotiable' => false], 'photos' => ['photos' => false],
+	'deal' => ['deal' => ''], 'type' => ['type' => ''], 'brand' => ['brand' => ''], 'seller' => ['seller' => ''],
+	'damaged' => ['damaged' => false], 'financing' => ['financing' => false],
 ];
 $chips = [];
 foreach (search_filter_labels($f) as $key => $label) {
@@ -62,30 +85,61 @@ $savedSearchId = current_user() ? find_saved_search(current_user_id(), saved_sea
 // Breadcrumbs
 $crumbs = [['label' => t('common.home'), 'href' => url('index.php')]];
 if ($parentCat) {
-	$crumbs[] = ['label' => cat_name($parentCat), 'href' => $childCat ? url('category.php', ['cat' => $parentCat['slug']]) : null];
+	$crumbs[] = ['label' => cat_name($parentCat), 'href' => $childCat || $hasFacets ? url('category.php', ['cat' => $parentCat['slug']]) : null];
 }
 if ($childCat) {
-	$crumbs[] = ['label' => cat_name($childCat)];
+	$crumbs[] = ['label' => cat_name($childCat), 'href' => $hasFacets ? url('category.php', ['cat' => $childCat['slug']]) : null];
 }
 if (!$parentCat) {
-	$crumbs[] = ['label' => t('cat.all_listings')];
+	$crumbs[] = ['label' => t('cat.all_listings'), 'href' => $hasFacets ? url('category.php') : null];
+}
+// A landing page continues the path with its own heading
+if ($hasFacets) {
+	$crumbs[] = ['label' => $title];
 }
 
-// SEO: clean category pages (with pagination) are indexed; search, filters, sorting and empty ones are not
-$isFiltered = $f['q'] !== '' || $f['city'] !== '' || $f['price_from'] !== '' || $f['price_to'] !== ''
-	|| $f['condition'] !== '' || $f['negotiable'] || $f['photos'] || $f['sort'] !== 'new';
+// SEO: clean category pages and approved landings (with pagination) are indexed; search, other
+// filters and combinations, sorting and empty pages are not
+$isFiltered = $f['q'] !== '' || $f['price_from'] !== '' || $f['price_to'] !== '' || $f['condition'] !== '' || $f['negotiable']
+	|| $f['photos'] || $f['sort'] !== 'new' || $f['seller'] !== '' || $f['damaged'] || $f['financing'] || ($hasFacets && !$landing);
 
-// Title and description of a category from the admin (empty = default texts)
-[$seoTitle, $seoDescription] = $currentCat ? category_seo($currentCat) : [null, null];
+// Title and description: the landing's own (stage C), a category's from the admin, else the templates
+[$seoTitle, $seoDescription] = $currentCat && !$hasFacets ? category_seo($currentCat) : [null, null];
+if ($landing) {
+	[$seoTitle, $seoDescription] = [sr_text($landing['title']['sr'], $landing['title']['en']), sr_text($landing['meta']['sr'], $landing['meta']['en'])];
+}
 $page['title'] = ($f['q'] === '' && $seoTitle ? $seoTitle : $title) . ($pageNum > 1 ? ' · ' . t('meta.page', ['n' => $pageNum]) : '');
-$page['description'] = $currentCat ? ($seoDescription ?? t('meta.category', ['name' => cat_name($currentCat)])) : t('meta.all_listings');
+$page['description'] = $seoDescription ?? match (true) {
+	$hasFacets => t('meta.landing', ['name' => $title]),
+	(bool) $currentCat => t('meta.category', ['name' => $title]),
+	default => t('meta.all_listings'),
+};
 if ($pageNum > 1) {
 	$page['description'] = t('meta.page_desc', ['n' => $pageNum, 'text' => $page['description']]);
 }
 $page['nav'] = 'home';
-$page['canonical'] = ['category.php', ['cat' => $currentCat['slug'] ?? null, 'page' => $pageNum > 1 ? $pageNum : null]];
-// An empty category is a thin page: kept out of the index (and of the sitemap) until it has listings
+$page['canonical'] = ['category.php', array_filter($facets) + ['page' => $pageNum > 1 ? $pageNum : null]];
+// An empty page is a thin page: kept out of the index (and of the sitemap) until it has listings
 $page['robots'] = $isFiltered || !$total ? 'noindex, follow' : 'index, follow';
+
+// SEO text under the listings (stage C): the landing's, else the category's on its clean page
+$seoText = $f['q'] === '' && $pageNum === 1
+	? ($landing ? sr_text($landing['text']['sr'], $landing['text']['en']) : (!$hasFacets && $currentCat ? sr_text($currentCat['text']['sr'], $currentCat['text']['en']) : null))
+	: null;
+
+// Links to the landings one step further (a place, a kind, a brand, a deal) that have listings: interlinking
+$nextLandings = [];
+if ($f['q'] === '' && !$isFiltered) {
+	// The 40 biggest by demand are counted, up to 24 with listings are shown
+	$set = array_filter($facets);
+	$candidates = array_slice(array_filter(landings($f['cat']), fn($next) => count(array_diff_assoc(array_filter($next['filters']), $set)) === 1
+		&& array_diff_assoc($set, array_filter($next['filters'])) === []), 0, 40);
+	foreach ($candidates as $next) {
+		if (($n = count_listings($next['filters'])) > 0 && count($nextLandings) < 24) {
+			$nextLandings[] = ['label' => results_h1($next['filters'], $next), 'href' => url('category.php', array_filter($next['filters'])), 'n' => $n];
+		}
+	}
+}
 $page['schema'][] = schema_breadcrumbs($crumbs);
 if ($pageItems) {
 	$page['schema'][] = schema_item_list($pageItems);
@@ -150,11 +204,63 @@ require INC_DIR . '/header.php';
 						</ul>
 					</div>
 
-					<!-- City -->
+					<?php if ($deals): ?>
+					<!-- Deal (real estate) -->
 					<div class="filters__group">
-						<label class="filters__title" for="f-city"><?= e(t('search.city')) ?></label>
+						<label class="filters__title" for="f-deal"><?= e(t('post.f_deal')) ?></label>
+						<select class="select" id="f-deal" name="deal">
+							<?php foreach (['', ...$deals] as $deal): ?>
+							<option value="<?= e($deal) ?>"<?= $f['deal'] === $deal ? ' selected' : '' ?>><?= e($deal === '' ? t('cat.any') : t('deal.' . $deal)) ?></option>
+							<?php endforeach; ?>
+						</select>
+					</div>
+					<?php endif; ?>
+
+					<?php if ($types): ?>
+					<!-- Kind -->
+					<div class="filters__group">
+						<label class="filters__title" for="f-type"><?= e(t(TYPE_LABELS[$childCat['slug'] ?? ''] ?? 'post.f_type')) ?></label>
+						<select class="select" id="f-type" name="type">
+							<option value=""><?= e(t('cat.any')) ?></option>
+							<?php foreach ($types as $key => $type): ?>
+							<option value="<?= e($key) ?>"<?= $f['type'] === $key ? ' selected' : '' ?>><?= e(type_name($type)) ?></option>
+							<?php endforeach; ?>
+						</select>
+					</div>
+					<?php endif; ?>
+
+					<?php if ($brands): ?>
+					<!-- Brand -->
+					<div class="filters__group">
+						<label class="filters__title" for="f-brand"><?= e(t('post.f_brand')) ?></label>
+						<select class="select" id="f-brand" name="brand">
+							<option value=""><?= e(t('cat.any')) ?></option>
+							<?php foreach ($brands as $key => $name): ?>
+							<option value="<?= e($key) ?>"<?= $f['brand'] === $key ? ' selected' : '' ?>><?= e($name) ?></option>
+							<?php endforeach; ?>
+							<option value="other"<?= $f['brand'] === 'other' ? ' selected' : '' ?>><?= e(t('post.brand_other')) ?></option>
+						</select>
+					</div>
+					<?php endif; ?>
+
+					<!-- Place: the main ones, then every other -->
+					<div class="filters__group">
+						<label class="filters__title" for="f-city"><?= e(t('post.f_city')) ?></label>
 						<select class="select" id="f-city" name="city"><?= city_select_options($f['city']) ?></select>
 					</div>
+
+					<?php if ($cityDistricts): ?>
+					<!-- District (real estate in Beograd and Novi Sad) -->
+					<div class="filters__group">
+						<label class="filters__title" for="f-district"><?= e(t('post.f_district')) ?></label>
+						<select class="select" id="f-district" name="district">
+							<option value=""><?= e(t('cat.whole_city')) ?></option>
+							<?php foreach ($cityDistricts as $district): ?>
+							<option value="<?= e($district['latn']) ?>"<?= $f['district'] === $district['latn'] ? ' selected' : '' ?>><?= e(district_name($district)) ?></option>
+							<?php endforeach; ?>
+						</select>
+					</div>
+					<?php endif; ?>
 
 					<!-- Price -->
 					<div class="filters__group"><fieldset class="filters__fieldset">
@@ -172,7 +278,8 @@ require INC_DIR . '/header.php';
 						</div>
 					</fieldset></div>
 
-					<!-- Condition -->
+					<?php if (!$childCat || category_has_condition($childCat['slug'])): ?>
+					<!-- Condition (not where it does not apply: property, jobs, services…) -->
 					<div class="filters__group"><fieldset class="filters__fieldset">
 						<legend class="filters__title"><?= e(t('cat.condition')) ?></legend>
 						<div class="seg">
@@ -181,11 +288,25 @@ require INC_DIR . '/header.php';
 							<?php endforeach; ?>
 						</div>
 					</fieldset></div>
+					<?php endif; ?>
+
+					<!-- Advertiser -->
+					<div class="filters__group"><fieldset class="filters__fieldset">
+						<legend class="filters__title"><?= e(t('post.f_seller')) ?></legend>
+						<div class="seg">
+							<?php foreach (['', ...SELLER_TYPES] as $seller): ?>
+							<label class="seg__item"><input type="radio" name="seller" value="<?= e($seller) ?>"<?= $f['seller'] === $seller ? ' checked' : '' ?>><span class="seg__label"><?= e($seller === '' ? t('cat.any') : t('seller.' . $seller)) ?></span></label>
+							<?php endforeach; ?>
+						</div>
+					</fieldset></div>
 
 					<!-- Extra -->
 					<div class="filters__group filters__checks">
 						<label class="check"><input type="checkbox" name="negotiable" value="1"<?= $f['negotiable'] ? ' checked' : '' ?>><span><?= e(t('cat.only_negotiable')) ?></span></label>
 						<label class="check"><input type="checkbox" name="photos" value="1"<?= $f['photos'] ? ' checked' : '' ?>><span><?= e(t('cat.only_photos')) ?></span></label>
+						<?php foreach ($attrFlags as $flag): ?>
+						<label class="check"><input type="checkbox" name="<?= e($flag) ?>" value="1"<?= $f[$flag] ? ' checked' : '' ?>><span><?= e(t('a.' . $flag)) ?></span></label>
+						<?php endforeach; ?>
 					</div>
 				</div>
 
@@ -251,6 +372,29 @@ require INC_DIR . '/header.php';
 				<p><?= e(t('cat.empty_text')) ?></p>
 				<a class="btn btn--outline" href="<?= e(url('category.php')) ?>"><?= e(t('cat.reset')) ?></a>
 			</div>
+			<?php endif; ?>
+
+			<?php if ($nextLandings): ?>
+			<!-- Landings one step further (interlinking) -->
+			<nav class="next-links" aria-labelledby="next-links-title">
+				<h2 class="next-links__title" id="next-links-title"><?= e(t('cat.popular')) ?></h2>
+				<ul class="chips" role="list">
+					<?php foreach ($nextLandings as $link): ?>
+					<li><a class="chip" href="<?= e($link['href']) ?>"><?= e($link['label']) ?> <span class="muted"><?= (int) $link['n'] ?></span></a></li>
+					<?php endforeach; ?>
+				</ul>
+			</nav>
+			<?php endif; ?>
+
+			<?php if ($seoText !== null): ?>
+			<!-- About this page (stage C): visible, compact, the rest under "More" -->
+			<section class="seo-text" aria-labelledby="seo-text-title">
+				<h2 class="seo-text__title" id="seo-text-title"><?= e(t('cat.about', ['name' => $title])) ?></h2>
+				<details class="seo-text__more">
+					<summary class="seo-text__toggle"><?= e(t('cat.more')) ?></summary>
+					<div class="seo-text__body"><?= text_paragraphs($seoText) ?></div>
+				</details>
+			</section>
 			<?php endif; ?>
 		</section>
 	</div>

@@ -630,6 +630,8 @@
 		  Photos already uploaded (editing, a form with an error) come in
 		  [data-photo-list] data-photos='[{"id", "url"}]'
 		- [data-subcategory-select] data-selected: subcategory chosen on load
+		- blocks of some subcategories: [data-for="slug slug…"], a district block
+		  also [data-city] = the address word of its city, typed in [data-city-input]
 		- live preview: inputs [data-bind="…"] → [data-preview="…"]
 		---------------------------------------------------------------------- */
 	const initPostForm = () => {
@@ -666,15 +668,23 @@
 				$$('[data-preview-icon]', ph).forEach((icon) => { icon.hidden = icon.dataset.previewIcon !== (catSelect.value || 'default'); });
 			}
 		};
-		// Subcategory → its details set; condition is hidden where it does not apply.
-		// Hidden sets are disabled, so the form sends only the chosen one
+		// Subcategory → its blocks [data-for="slug slug…"] (deal, kind, brand, details); a district
+		// block also needs its city [data-city] typed in the place field. Condition is hidden where it
+		// does not apply. Hidden blocks are disabled, so the form sends only the chosen ones
 		const conditionField = $('[data-condition-field]', form);
+		const cityInput = $('[data-city-input]', form);
 		let noCondition = [];
 		try { noCondition = JSON.parse(subSelect.dataset.noCondition || '[]'); } catch (err) { noCondition = []; }
 
+		// "Novi Sad", "нови сад", "Cacak" → the address word of the place (as url_slug() in PHP)
+		const CYR = { а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', ђ: 'dj', е: 'e', ж: 'z', з: 'z', и: 'i', ј: 'j', к: 'k', л: 'l', љ: 'lj', м: 'm', н: 'n', њ: 'nj', о: 'o', п: 'p', р: 'r', с: 's', т: 't', ћ: 'c', у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'c', џ: 'dz', ш: 's' };
+		const placeWord = (text) => text.toLowerCase().replace(/đ/g, 'dj').replace(/[Ѐ-ӿ]/g, (ch) => CYR[ch] || '')
+			.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
 		const toggleAttrs = () => {
-			$$('[data-attrs]', form).forEach((set) => {
-				const on = set.dataset.attrs === subSelect.value;
+			const place = cityInput ? placeWord(cityInput.value) : '';
+			$$('[data-for]', form).forEach((set) => {
+				const on = set.dataset.for.split(' ').includes(subSelect.value) && (!set.dataset.city || set.dataset.city === place);
 				set.hidden = !on;
 				set.disabled = !on;
 			});
@@ -691,6 +701,7 @@
 				toggleAttrs();
 			});
 			subSelect.addEventListener('change', toggleAttrs);
+			if (cityInput) cityInput.addEventListener('input', toggleAttrs);
 			fillSubcats();
 			toggleAttrs();
 		}
@@ -718,8 +729,7 @@
 				p('price').innerHTML = `<span class="price__num">${formatNumber(amount)}</span>&nbsp;<span class="price__cur">${currency}</span>`;
 			}
 
-			const city = field('city');
-			p('city').textContent = city.options[city.selectedIndex].text;
+			p('city').textContent = field('city').value.trim();
 			p('tag').hidden = !field('negotiable').checked || agreement;
 		};
 		$$('[data-bind]', form).forEach((input) => {

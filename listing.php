@@ -156,7 +156,7 @@ require INC_DIR . '/header.php';
 				<p class="listing-head__price price"><?= price_html($listing['price'], $listing['currency']) ?></p>
 
 				<p class="listing-head__meta">
-					<span><?= icon('map-pin', 16) ?><?= e(city_name($listing['city'])) ?></span>
+					<span><?= icon('map-pin', 16) ?><?= e(listing_place($listing)) ?></span>
 					<span><?= icon('clock', 16) ?><time datetime="<?= e(date('c', strtotime(listing_time($listing)))) ?>"><?= e(time_ago(listing_time($listing))) ?></time></span>
 					<span><?= icon('eye', 16) ?><?= e(tp('p.stats_views', $listing['views'])) ?></span>
 				</p>
@@ -239,7 +239,7 @@ require INC_DIR . '/header.php';
 
 			<section class="listing__section" aria-labelledby="location-title">
 				<h2 class="listing__section-title" id="location-title"><?= e(t('l.location')) ?></h2>
-				<p class="location"><?= icon('map-pin', 22) ?><?= e(city_name($listing['city'])) ?></p>
+				<p class="location"><?= icon('map-pin', 22) ?><?= e(listing_place($listing)) ?></p>
 			</section>
 		</div>
 	</div>

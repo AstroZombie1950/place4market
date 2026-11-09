@@ -1003,6 +1003,25 @@ button {
 	color: var(--color-text-subtle);
 }
 
+/* City chips; the other main places open under "More places" */
+.more-cities {
+	margin-top: var(--space-2);
+}
+
+.more-cities__toggle {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	cursor: pointer;
+	color: var(--color-text-muted);
+	font-size: var(--fs-sm);
+	font-weight: var(--fw-semibold);
+}
+
+.more-cities .chips {
+	margin-top: var(--space-2);
+}
+
 /* City chips */
 .chips {
 	display: flex;
@@ -1108,12 +1127,24 @@ button {
 
 .tint--vehicles { --ph-bg: var(--tint-vehicles-bg); --ph-fg: var(--tint-vehicles-fg); }
 .tint--real-estate { --ph-bg: var(--tint-real-estate-bg); --ph-fg: var(--tint-real-estate-fg); }
+.tint--jobs { --ph-bg: var(--tint-jobs-bg); --ph-fg: var(--tint-jobs-fg); }
+.tint--services { --ph-bg: var(--tint-services-bg); --ph-fg: var(--tint-services-fg); }
 .tint--electronics { --ph-bg: var(--tint-electronics-bg); --ph-fg: var(--tint-electronics-fg); }
-.tint--home-garden { --ph-bg: var(--tint-home-garden-bg); --ph-fg: var(--tint-home-garden-fg); }
+.tint--appliances { --ph-bg: var(--tint-appliances-bg); --ph-fg: var(--tint-appliances-fg); }
+.tint--furniture { --ph-bg: var(--tint-furniture-bg); --ph-fg: var(--tint-furniture-fg); }
+.tint--construction { --ph-bg: var(--tint-construction-bg); --ph-fg: var(--tint-construction-fg); }
+.tint--tools { --ph-bg: var(--tint-tools-bg); --ph-fg: var(--tint-tools-fg); }
+.tint--agriculture { --ph-bg: var(--tint-agriculture-bg); --ph-fg: var(--tint-agriculture-fg); }
 .tint--fashion { --ph-bg: var(--tint-fashion-bg); --ph-fg: var(--tint-fashion-fg); }
 .tint--kids { --ph-bg: var(--tint-kids-bg); --ph-fg: var(--tint-kids-fg); }
-.tint--jobs-services { --ph-bg: var(--tint-jobs-services-bg); --ph-fg: var(--tint-jobs-services-fg); }
-.tint--sports-hobby { --ph-bg: var(--tint-sports-hobby-bg); --ph-fg: var(--tint-sports-hobby-fg); }
+.tint--sports { --ph-bg: var(--tint-sports-bg); --ph-fg: var(--tint-sports-fg); }
+.tint--beauty-health { --ph-bg: var(--tint-beauty-health-bg); --ph-fg: var(--tint-beauty-health-fg); }
+.tint--pets { --ph-bg: var(--tint-pets-bg); --ph-fg: var(--tint-pets-fg); }
+.tint--holidays { --ph-bg: var(--tint-holidays-bg); --ph-fg: var(--tint-holidays-fg); }
+.tint--music { --ph-bg: var(--tint-music-bg); --ph-fg: var(--tint-music-fg); }
+.tint--books { --ph-bg: var(--tint-books-bg); --ph-fg: var(--tint-books-fg); }
+.tint--antiques { --ph-bg: var(--tint-antiques-bg); --ph-fg: var(--tint-antiques-fg); }
+.tint--other { --ph-bg: var(--tint-other-bg); --ph-fg: var(--tint-other-fg); }
 
 /* ==========================================================================
 	11. Tags, status badges
@@ -1511,6 +1542,40 @@ button {
 .pagination__link[aria-disabled="true"] {
 	opacity: 0.4;
 	pointer-events: none;
+}
+
+/* Under the results: landings one step further, the SEO text (compact, the rest under "More") */
+.next-links,
+.seo-text {
+	margin-top: var(--space-10);
+}
+
+.next-links__title,
+.seo-text__title {
+	margin-bottom: var(--space-3);
+	font-size: var(--fs-lg);
+}
+
+.next-links .chip {
+	white-space: normal;
+}
+
+.seo-text {
+	color: var(--color-text-muted);
+	font-size: var(--fs-sm);
+}
+
+.seo-text__toggle {
+	cursor: pointer;
+	font-weight: var(--fw-semibold);
+	color: var(--color-text);
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+}
+
+.seo-text__body p + p {
+	margin-top: var(--space-3);
 }
 
 /* ==========================================================================

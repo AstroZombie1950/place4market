@@ -43,11 +43,23 @@ require INC_DIR . '/header.php';
 
 			<h2 class="side-title side-title--cities"><?= e(t('home.cities')) ?></h2>
 			<nav aria-label="<?= e(t('home.cities')) ?>">
+				<!-- The 12 biggest places; the other main ones (cities and resorts) under "More places" -->
+				<?php $mainCities = main_cities(); ?>
 				<ul class="chips chips--scroll">
-					<?php foreach (active_cities() as $city): ?>
+					<?php foreach (array_slice($mainCities, 0, 12) as $city): ?>
 					<li><a class="chip" href="<?= e(url('category.php', ['city' => $city['latn']])) ?>"><?= e(city_name($city['latn'])) ?></a></li>
 					<?php endforeach; ?>
 				</ul>
+				<?php if (count($mainCities) > 12): ?>
+				<details class="more-cities">
+					<summary class="more-cities__toggle"><?= e(t('home.more_cities')) ?></summary>
+					<ul class="chips">
+						<?php foreach (array_slice($mainCities, 12) as $city): ?>
+						<li><a class="chip" href="<?= e(url('category.php', ['city' => $city['latn']])) ?>"><?= e(city_name($city['latn'])) ?></a></li>
+						<?php endforeach; ?>
+					</ul>
+				</details>
+				<?php endif; ?>
 			</nav>
 
 			<div class="sell-box">

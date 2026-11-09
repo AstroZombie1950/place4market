@@ -71,6 +71,18 @@ function icon(string $name, int $size = 20, string $class = ''): string
 		'stroller' => '<path d="M3 4h2.5l1.8 8H19"/><path d="M12 4a7 7 0 0 1 7 8h-7z"/><circle cx="8.5" cy="18.5" r="2"/><circle cx="17" cy="18.5" r="2"/>',
 		'briefcase' => '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M3 12.5h18"/>',
 		'ball' => '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3v18M5.6 5.6c3.2 3 3.2 9.8 0 12.8M18.4 5.6c-3.2 3-3.2 9.8 0 12.8"/>',
+		'wrench' => '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.4-3.4a6 6 0 0 1-7.9 7.9l-6.6 6.6a2.1 2.1 0 0 1-3-3l6.6-6.6a6 6 0 0 1 7.9-7.9z"/>',
+		'washer' => '<rect x="4" y="2.5" width="16" height="19" rx="2"/><path d="M4 7h16"/><circle cx="12" cy="14" r="4.5"/><path d="M7.5 4.8h.01M10.5 4.8h.01"/>',
+		'sofa' => '<path d="M5 11V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3"/><path d="M3 13a2 2 0 0 1 4 0v1h10v-1a2 2 0 0 1 4 0v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M6 18v2M18 18v2"/>',
+		'brick' => '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9.3h18M3 14.7h18M9 4v5.3M15 4v5.3M6 9.3v5.4M12 9.3v5.4M18 9.3v5.4M9 14.7V20M15 14.7V20"/>',
+		'drill' => '<path d="M4 5h10a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H4z"/><path d="M16 8h5"/><path d="M7 11l-1.4 8.6a1 1 0 0 0 1 1.2h2.6a1 1 0 0 0 1-.8L11.5 11"/>',
+		'tractor' => '<path d="M4 14V8h6l2 4h6a2 2 0 0 1 2 2v2"/><path d="M7 8V5h3"/><circle cx="7.5" cy="16.5" r="3.5"/><circle cx="18" cy="17.5" r="2.5"/><path d="M11 16.5h4.5"/>',
+		'paw' => '<circle cx="5.5" cy="10" r="2"/><circle cx="9.5" cy="5.5" r="2"/><circle cx="14.5" cy="5.5" r="2"/><circle cx="18.5" cy="10" r="2"/><path d="M12 11c-3 0-6 3.5-6 6.5 0 1.7 1.3 3 3 3 1.2 0 2-.6 3-.6s1.8.6 3 .6c1.7 0 3-1.3 3-3 0-3-3-6.5-6-6.5z"/>',
+		'sparkle' => '<path d="M11 3l1.8 5.2L18 10l-5.2 1.8L11 17l-1.8-5.2L4 10l5.2-1.8z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z"/>',
+		'sun' => '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
+		'music' => '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+		'book' => '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>',
+		'vase' => '<path d="M9 3h6"/><path d="M10 3v3c0 1-3 2.5-3 7 0 4 2 7 5 8 3-1 5-4 5-8 0-4.5-3-6-3-7V3"/><path d="M7.5 12h9"/>',
 	];
 
 	$body = $paths[$name] ?? $paths['image'];
@@ -82,5 +94,6 @@ function icon(string $name, int $size = 20, string $class = ''): string
 // List of category icon names (for icon pickers)
 function category_icon_names(): array
 {
-	return ['car', 'home', 'laptop', 'plant', 'shirt', 'stroller', 'briefcase', 'ball'];
+	return ['car', 'home', 'briefcase', 'wrench', 'laptop', 'washer', 'sofa', 'brick', 'drill', 'tractor', 'shirt', 'stroller',
+		'ball', 'sparkle', 'paw', 'sun', 'music', 'book', 'vase', 'grid', 'plant'];
 }

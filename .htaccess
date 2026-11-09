@@ -33,6 +33,14 @@ AddType application/manifest+json .webmanifest
 
 RewriteEngine On
 
+# Один адрес сайта: http:// и www → https://place4market.com (301, путь и параметры сохраняются).
+# Только для боевого домена; проверка Let's Encrypt (/.well-known/acme-challenge/) идёт без редиректа
+RewriteCond %{HTTP_HOST} ^(www\.)?place4market\.com$ [NC]
+RewriteCond %{HTTPS} !^on$ [OR]
+RewriteCond %{HTTP_HOST} ^www\. [NC]
+RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
+RewriteRule ^ https://place4market.com%{REQUEST_URI} [R=301,L]
+
 # Карта сайта генерируется PHP (sitemap.php тоже открывается напрямую)
 RewriteRule ^sitemap\.xml$ sitemap.php [L]
 

@@ -22,6 +22,7 @@ require INC_DIR . '/helpers.php';
 require INC_DIR . '/icons.php';
 require_once INC_DIR . '/i18n.php'; // route.php may have loaded it
 require INC_DIR . '/site.php';
+require INC_DIR . '/taxonomy.php';
 require INC_DIR . '/seo.php';
 security_headers();
 

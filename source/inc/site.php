@@ -13,18 +13,93 @@ function route_resolve(): void
 {
 	if (isset($GLOBALS['__route']['params']['cat_path'])) {
 		unset($_GET['cat_path']);
-		$key = category_key_by_word((string) end($GLOBALS['__route']['params']['cat_path']));
-		if ($key === null) {
+		$facets = route_facets($GLOBALS['__route']['params']['cat_path']);
+		if ($facets === null) {
 			require ROOT_DIR . '/404.php';
 			exit;
 		}
-		$_GET['cat'] = $key;
+		// The query wins over the path: a filter form sends the new values (empty = removed);
+		// a new place drops the district of the old one
+		if (array_key_exists('city', $_GET) && !array_key_exists('district', $_GET)) {
+			unset($facets['district']);
+		}
+		$_GET += $facets;
 	}
 
 	$script = current_script();
-	if (isset(page_routes()[$script]) && $script !== 'listing.php') {
+	if ($script === 'category.php') {
+		// Results: only known filters with a value (no ?currency=RSD without a price, no empty fields of the form)
+		// Campaign tags stay (analytics): utm_*, gclid, fbclid
+		$tags = array_filter($_GET, fn($value, $key) => is_string($value) && (str_starts_with((string) $key, 'utm_') || in_array($key, ['gclid', 'fbclid'], true)), ARRAY_FILTER_USE_BOTH);
+		enforce_url(lang_link(lang(), $script, search_query(search_filters($_GET)) + ['page' => $_GET['page'] ?? null] + $tags), true);
+	} elseif (isset(page_routes()[$script]) && $script !== 'listing.php') {
 		enforce_url(lang_link(lang(), $script, array_diff_key($_GET, ['lang' => true])));
 	}
+}
+
+// Words of a results address → its filters (cat, deal, type, brand, city, district), null = 404.
+// Order: category (section, subcategory), deal, kind or brand, place, district; every part optional.
+// Words of either language are accepted (the page then redirects to its exact address)
+function route_facets(array $words): ?array
+{
+	$f = [];
+	$i = 0;
+	$n = count($words);
+	[$parent, $child] = [null, null];
+
+	if ($i < $n && ($key = category_key_by_word($words[$i])) !== null) {
+		[$parent, $child] = find_category($key);
+		$f['cat'] = $key;
+		$i++;
+		if (!$child && $i < $n) {
+			foreach ($parent['children'] as $candidate) {
+				if (in_array($words[$i], [$candidate['slug_sr'], $candidate['slug']], true)) {
+					$child = $candidate;
+					$f['cat'] = $candidate['slug'];
+					$i++;
+					break;
+				}
+			}
+		}
+	}
+	if ($child && $i < $n && ($deal = deal_by_word($words[$i])) !== null && in_array($deal, category_deals($child['slug']), true)) {
+		$f['deal'] = $deal;
+		$i++;
+	}
+	if ($parent && $i < $n) {
+		$types = $child ? category_types($child['slug']) : section_types($parent['slug'], array_column($parent['children'], 'slug'));
+		foreach ($types as $type => $words2) {
+			if (in_array($words[$i], [$words2['sr'], $words2['en']], true)) {
+				$f['type'] = $type;
+				$i++;
+				break;
+			}
+		}
+		if (!isset($f['type']) && $child && $i < $n && isset(category_brands($child['slug'])[$words[$i]])) {
+			$f['brand'] = $words[$i];
+			$i++;
+		}
+	}
+	if ($i < $n) {
+		foreach (active_cities() as $city) {
+			if (in_array($words[$i], [$city['slug'], $city['slug_en']], true)) {
+				$f['city'] = $city['latn'];
+				$i++;
+				break;
+			}
+		}
+	}
+	if (isset($f['city']) && $i < $n) {
+		foreach (districts()[$f['city']] ?? [] as $district) {
+			if ($district['slug'] === $words[$i]) {
+				$f['district'] = $district['latn'];
+				$i++;
+				break;
+			}
+		}
+	}
+
+	return $i === $n ? $f : null;
 }
 
 // Category key for an address word: the Serbian or English word of the current or a
@@ -44,16 +119,25 @@ function category_key_by_word(string $word): ?string
 
 // A GET that reached the page by another address — old page.php?…&lang=…, ?lang= on a
 // human address, other case, a trailing slash, a word of another language, a former
-// title of a listing — goes to $expected with a 301 (one address per page)
-function enforce_url(string $expected): void
+// title of a listing — goes to $expected with a 301 (one address per page).
+// $withQuery: the query must match too (results: empty fields of a filter form, ?currency without a price)
+function enforce_url(string $expected, bool $withQuery = false): void
 {
 	if (!in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD'], true)) {
 		return;
 	}
 
 	$requested = rawurldecode((string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH));
+	$sameQuery = true;
+	if ($withQuery) {
+		parse_str((string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_QUERY), $have);
+		parse_str((string) parse_url($expected, PHP_URL_QUERY), $want);
+		ksort($have);
+		ksort($want);
+		$sameQuery = $have == $want;
+	}
 
-	if ($requested !== parse_url($expected, PHP_URL_PATH) || isset($_GET['lang'])) {
+	if ($requested !== parse_url($expected, PHP_URL_PATH) || isset($_GET['lang']) || !$sameQuery) {
 		redirect($expected, 301);
 	}
 }
@@ -110,35 +194,159 @@ function category_slugs(array $category): array
 	return $slugs;
 }
 
+// Heading of a category page in the current language: h1 from the admin (015), else the name
+function category_h1(array $category): string
+{
+	$h1 = $category['h1'][lang() === 'en' ? 'en' : 'sr'] ?? null;
+
+	if ($h1 === null || $h1 === '') {
+		return cat_name($category);
+	}
+
+	return lang() === 'sr-cyrl' ? sr_cyr($h1) : $h1;
+}
+
+// A Serbian text stored in Latin, in the current script (texts of the admin and landings)
+function sr_text(?string $sr, ?string $en): ?string
+{
+	$text = lang() === 'en' ? $en : $sr;
+
+	if ($text === null || $text === '') {
+		return null;
+	}
+
+	return lang() === 'sr-cyrl' ? sr_cyr($text) : $text;
+}
+
+// Heading of a results page from its filters (cat, deal, type, brand, city, district):
+// "Prodaja stanova Zemun, Beograd", "Polovni automobili Volkswagen", "Patike — Ženska obuća",
+// "Oglasi za posao Beograd", "Oglasi Novi Sad". A landing's own h1 (stage C) wins
+function results_h1(array $f, ?array $landing = null): string
+{
+	if ($landing && ($own = sr_text($landing['h1']['sr'], $landing['h1']['en'])) !== null) {
+		return $own;
+	}
+
+	[$parent, $child] = find_category($f['cat'] ?? '');
+	$category = $child ?? $parent;
+	$hasPlace = ($f['city'] ?? '') !== '';
+
+	if ($child && ($f['deal'] ?? '') !== '' && isset(DEAL_H1[$child['slug']][$f['deal']])) {
+		$pair = DEAL_H1[$child['slug']][$f['deal']];
+		$h1 = lang() === 'en' ? $pair[1] : (lang() === 'sr-cyrl' ? sr_cyr($pair[0]) : $pair[0]);
+	} elseif ($category) {
+		$h1 = category_h1($category);
+	} else {
+		$h1 = t($hasPlace ? 'cat.listings_in' : 'cat.all_listings');
+	}
+
+	if (($f['type'] ?? '') !== '' && $category) {
+		$types = $child ? category_types($child['slug']) : section_types($parent['slug'], array_column($parent['children'], 'slug'));
+		if (isset($types[$f['type']])) {
+			$h1 = type_name($types[$f['type']]) . ($child ? ' — ' . cat_name($child) : '');
+		}
+	} elseif (($f['brand'] ?? '') !== '' && $child && ($brand = brand_name($child['slug'], $f['brand'])) !== null) {
+		$h1 .= ' ' . $brand;
+	}
+
+	if ($hasPlace) {
+		$district = ($f['district'] ?? '') !== '' ? current(array_filter(districts()[$f['city']] ?? [], fn($d) => $d['latn'] === $f['district'])) : false;
+		$h1 .= ' ' . ($district ? district_name($district) . ', ' : '') . city_name($f['city']);
+	}
+
+	return $h1;
+}
+
+// Text in paragraphs (an empty line between them) → <p>…</p>, escaped
+function text_paragraphs(string $text): string
+{
+	$paragraphs = array_filter(array_map('trim', preg_split('/\n\s*\n/', str_replace("\r\n", "\n", $text))), 'strlen');
+
+	return implode('', array_map(fn($p) => '<p>' . nl2br(e($p)) . '</p>', $paragraphs));
+}
+
 /* ---------- Cities ---------- */
 
 // City name in the current script
+// City name in the current script; English pages use the English name where there is one
+// (its address word: belgrade → Belgrade, abroad → Abroad)
 function city_name(string $latn): string
 {
-	if (lang() !== 'sr-cyrl') {
+	if (lang() === 'sr-latn') {
 		return $latn;
 	}
 
 	foreach (cities() as $city) {
 		if ($city['latn'] === $latn) {
-			return $city['cyrl'];
+			if (lang() === 'sr-cyrl') {
+				return $city['cyrl'];
+			}
+
+			return $city['slug_en'] !== $city['slug'] ? ucwords(str_replace('-', ' ', $city['slug_en'])) : $latn;
 		}
 	}
 
-	return sr_cyr($latn);
+	return lang() === 'sr-cyrl' ? sr_cyr($latn) : $latn;
 }
 
-// <option>s for a city select
+// <option>s for a place select: "All places" (optional), the main ones, then the rest A–Z
 function city_select_options(string $selected = '', bool $withAll = true): string
 {
-	$html = $withAll ? '<option value="">' . e(t('search.all_cities')) . '</option>' : '';
+	$option = fn(array $city) => '<option value="' . e($city['latn']) . '"' . ($city['latn'] === $selected ? ' selected' : '') . '>' . e(city_name($city['latn'])) . '</option>';
+	$main = array_filter(active_cities(), fn($city) => $city['main'] !== null);
+	$rest = array_filter(active_cities(), fn($city) => $city['main'] === null);
+
+	return ($withAll ? '<option value="">' . e(t('search.all_cities')) . '</option>' : '')
+		. '<optgroup label="' . e(t('cat.main_places')) . '">' . implode('', array_map($option, $main)) . '</optgroup>'
+		. '<optgroup label="' . e(t('cat.other_places')) . '">' . implode('', array_map($option, $rest)) . '</optgroup>';
+}
+
+// Place typed into the form (Latin or Cyrillic, any case, with or without č ć š ž đ) → its
+// Latin name, or null when it is not one of the active places
+function city_by_input(string $text): ?string
+{
+	$word = url_slug(trim($text), 64);
 
 	foreach (active_cities() as $city) {
-		$isSelected = $city['latn'] === $selected ? ' selected' : '';
-		$html .= '<option value="' . e($city['latn']) . '"' . $isSelected . '>' . e(city_name($city['latn'])) . '</option>';
+		if ($word !== '' && ($city['slug'] === $word || url_slug($city['cyrl'], 64) === $word)) {
+			return $city['latn'];
+		}
+	}
+
+	return null;
+}
+
+// <option>s of a <datalist> with every active place, the main ones first (search as you type)
+function city_datalist_options(): string
+{
+	$html = '';
+
+	foreach (active_cities() as $city) {
+		$html .= '<option value="' . e(city_name($city['latn'])) . '"></option>';
 	}
 
 	return $html;
+}
+
+// District name in the current script
+function district_name(array $district): string
+{
+	return lang() === 'sr-cyrl' ? $district['cyrl'] : $district['latn'];
+}
+
+// "Beograd, Zemun": the place of a listing with its district
+function listing_place(array $listing): string
+{
+	$name = city_name($listing['city']);
+	if (!empty($listing['district'])) {
+		foreach (districts()[$listing['city']] ?? [] as $district) {
+			if ($district['latn'] === $listing['district']) {
+				return $name . ', ' . district_name($district);
+			}
+		}
+	}
+
+	return $name;
 }
 
 /* ---------- Listings ---------- */
@@ -223,14 +431,21 @@ function city_count(string $city): int
 
 /* ---------- Search filters (category.php, saved searches) ---------- */
 
-// Filters from a query (GET, the "save search" form, a saved search):
-// cat, q, city, price_from, price_to, currency, condition, negotiable, photos, sort
+// Filters from a query (GET, the "save search" form, a saved search): cat, q, city, district, deal,
+// type, brand, seller, damaged, financing, price_from, price_to, currency, condition, negotiable, photos, sort
 function search_filters(array $src): array
 {
 	return [
 		'cat' => (string) ($src['cat'] ?? ''),
 		'q' => trim(mb_substr((string) ($src['q'] ?? ''), 0, 100)),
 		'city' => (string) ($src['city'] ?? ''),
+		'district' => mb_substr((string) ($src['district'] ?? ''), 0, 64),
+		'deal' => isset(DEALS[$src['deal'] ?? '']) ? $src['deal'] : '',
+		'type' => preg_match('/^[a-z0-9-]{1,32}$/', (string) ($src['type'] ?? '')) ? $src['type'] : '',
+		'brand' => preg_match('/^[a-z0-9-]{1,32}$/', (string) ($src['brand'] ?? '')) ? $src['brand'] : '',
+		'seller' => in_array($src['seller'] ?? '', SELLER_TYPES, true) ? $src['seller'] : '',
+		'damaged' => !empty($src['damaged']),
+		'financing' => !empty($src['financing']),
 		'price_from' => substr(preg_replace('/\D/', '', (string) ($src['price_from'] ?? '')), 0, 12),
 		'price_to' => substr(preg_replace('/\D/', '', (string) ($src['price_to'] ?? '')), 0, 12),
 		'currency' => ($src['currency'] ?? 'RSD') === 'EUR' ? 'EUR' : 'RSD',
@@ -245,8 +460,9 @@ function search_filters(array $src): array
 function search_query(array $f): array
 {
 	$params = $f;
-	$params['negotiable'] = !empty($f['negotiable']) ? 1 : null;
-	$params['photos'] = !empty($f['photos']) ? 1 : null;
+	foreach (['negotiable', 'photos', 'damaged', 'financing'] as $flag) {
+		$params[$flag] = !empty($f[$flag]) ? 1 : null;
+	}
 	if (($f['sort'] ?? 'new') === 'new') {
 		$params['sort'] = null;
 	}
@@ -275,8 +491,33 @@ function search_filter_labels(array $f): array
 	if ($f['q'] !== '') {
 		$labels['q'] = '“' . $f['q'] . '”';
 	}
+	[, $child] = find_category($f['cat'] ?? '');
+	if (($f['deal'] ?? '') !== '') {
+		$labels['deal'] = t('deal.' . $f['deal']);
+	}
+	if (($f['type'] ?? '') !== '') {
+		[$parent] = find_category($f['cat'] ?? '');
+		$types = $child ? category_types($child['slug']) : ($parent ? section_types($parent['slug'], array_column($parent['children'], 'slug')) : []);
+		$labels['type'] = isset($types[$f['type']]) ? type_name($types[$f['type']]) : $f['type'];
+	}
+	if (($f['brand'] ?? '') !== '') {
+		$labels['brand'] = ($child ? brand_name($child['slug'], $f['brand']) : null) ?? $f['brand'];
+	}
 	if ($f['city'] !== '') {
 		$labels['city'] = city_name($f['city']);
+	}
+	if (($f['district'] ?? '') !== '') {
+		$district = current(array_filter(districts()[$f['city']] ?? [], fn($d) => $d['latn'] === $f['district']));
+		$labels['district'] = $district ? district_name($district) : $f['district'];
+	}
+	if (($f['seller'] ?? '') !== '') {
+		$labels['seller'] = t('seller.' . $f['seller']);
+	}
+	if (!empty($f['damaged'])) {
+		$labels['damaged'] = t('a.damaged');
+	}
+	if (!empty($f['financing'])) {
+		$labels['financing'] = t('a.financing');
 	}
 	if ($f['price_from'] !== '' || $f['price_to'] !== '') {
 		$from = $f['price_from'] !== '' ? price_text((int) $f['price_from'], $f['currency']) : '';

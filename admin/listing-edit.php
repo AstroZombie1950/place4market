@@ -3,8 +3,9 @@
 	Admin: Edit listing (tabs: Details, Photos, Seller, History)
 	POST here (csrf), action:
 	  save           the details: a correction by staff, the status, place in the
-	                 feed, term and moderation notes stay; details (attrs) stay,
-	                 a new category keeps the ones it has
+	                 feed, term and moderation notes stay; details (attrs) and the
+	                 deal, kind, brand, district, seller stay, a new category or
+	                 city keeps the ones it has
 	  photo_upload   photos[] (processed like on the site, added at the end)
 	  photo_cover    photo_id becomes the cover
 	  photo_delete   photo_id is removed with its files
@@ -93,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				'price' => $price, 'currency' => $v['currency'], 'negotiable' => $v['negotiable'] && $price !== null,
 				'condition' => $hasCondition ? $v['condition'] : null, 'attrs' => $attrs,
 				'phone' => $v['phone'] !== '' ? $v['phone'] : null, 'show_phone' => $v['show_phone'],
-			];
+			] + clean_facets($child['slug'], $parent['slug'], $v['city'], $listing, false)[0];
 			staff_save_listing($listing['id'], $new);
 
 			// What changed, for the history

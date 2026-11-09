@@ -17,6 +17,7 @@
 require __DIR__ . '/cli.php';
 require INC_DIR . '/media.php';
 require INC_DIR . '/site.php';
+require INC_DIR . '/taxonomy.php';
 require INC_DIR . '/seo.php';
 require INC_DIR . '/mail.php';
 

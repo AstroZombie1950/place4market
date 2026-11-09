@@ -189,12 +189,9 @@ function lang_link(string $code, string $path, array $params = []): string
 
 	$segments = $route[$meta['slugs'] === 'en' ? 1 : 0] === '' ? [] : [$route[$meta['slugs'] === 'en' ? 1 : 0]];
 
-	if ($path === 'category.php' && isset($params['cat'])) {
-		$catPath = category_url_path((string) $params['cat'], $meta['slugs']);
-		if ($catPath) {
-			array_push($segments, ...$catPath);
-			unset($params['cat']);
-		}
+	if ($path === 'category.php') {
+		[$words, $params] = category_route_words($params, $meta['slugs']);
+		array_push($segments, ...$words);
 	} elseif ($path === 'listing.php' && isset($params['id'])) {
 		$segments[] = (isset($params['slug']) ? $params['slug'] . '-' : '') . (int) $params['id'];
 		unset($params['id'], $params['slug']);
@@ -205,6 +202,62 @@ function lang_link(string $code, string $path, array $params = []): string
 
 	return ($meta['prefix'] === '' ? '' : '/' . $meta['prefix']) . '/' . implode('/', $segments)
 		. ($params ? '?' . http_build_query($params) : '');
+}
+
+// Address words of a results page in the sr | en set: the category, then the deal (real estate), the
+// kind or the brand, the place, the district (/oglasi/nekretnine/stanovi/prodaja/beograd/zemun). Values
+// that do not fit the category stay in the query. Returns [words, params left]. Without the
+// dictionaries (a console script) only the category goes into the path
+function category_route_words(array $params, string $set): array
+{
+	$words = [];
+	$key = isset($params['cat']) ? (string) $params['cat'] : '';
+	$catPath = $key !== '' ? category_url_path($key, $set) : null;
+
+	if ($key !== '' && $catPath === null) {
+		return [[], $params];
+	}
+	if ($catPath) {
+		$words = $catPath;
+		unset($params['cat']);
+	}
+
+	$isChild = $catPath !== null && count($catPath) === 2;
+	if (function_exists('category_types')) {
+		if ($isChild && isset($params['deal']) && in_array($params['deal'], category_deals($key), true)) {
+			$words[] = deal_word($params['deal'], $set);
+			unset($params['deal']);
+		}
+		if ($catPath !== null && isset($params['type'])) {
+			$types = $isChild ? category_types($key) : section_types($key, array_column(find_category($key)[0]['children'] ?? [], 'slug'));
+			if (isset($types[$params['type']])) {
+				$words[] = $types[$params['type']][$set === 'en' ? 'en' : 'sr'];
+				unset($params['type']);
+			}
+		}
+		if ($isChild && !isset($types[$params['type'] ?? '']) && isset($params['brand'], category_brands($key)[$params['brand']])) {
+			$words[] = $params['brand'];
+			unset($params['brand']);
+		}
+	}
+
+	if (isset($params['city']) && function_exists('cities')) {
+		foreach (cities() as $city) {
+			if ($city['latn'] === $params['city']) {
+				$words[] = $set === 'en' ? $city['slug_en'] : $city['slug'];
+				unset($params['city']);
+				foreach (function_exists('districts') ? districts()[$city['latn']] ?? [] : [] as $district) {
+					if ($district['latn'] === ($params['district'] ?? null)) {
+						$words[] = $district['slug'];
+						unset($params['district']);
+					}
+				}
+				break;
+			}
+		}
+	}
+
+	return [$words, $params];
 }
 
 // Address words of a category: [parent, child] in the sr | en set; null if unknown
@@ -255,7 +308,8 @@ function current_script(): string
 // Reads a human address (path without the query): ['lang', 'script', 'params'] or
 // null (404). Lenient: case, a trailing slash, a word from the other language or a
 // former word are accepted — the page then redirects to its exact address (301).
-// Category words stay raw in params['cat_path']: route_resolve() looks them up in the database
+// Results page words stay raw in params['cat_path']: route_resolve() looks them up (category, deal,
+// kind or brand, place, district)
 function route_match(string $path): ?array
 {
 	$segments = array_values(array_filter(explode('/', strtolower($path)), fn($s) => $s !== ''));
@@ -286,7 +340,7 @@ function route_match(string $path): ?array
 
 	return match (true) {
 		$script === null, $script === 'index.php' => null,
-		$script === 'category.php' && $rest <= 2 => ['lang' => $lang, 'script' => $script, 'params' => $rest ? ['cat_path' => $segments] : []],
+		$script === 'category.php' && $rest <= 7 => ['lang' => $lang, 'script' => $script, 'params' => $rest ? ['cat_path' => $segments] : []],
 		$script === 'listing.php' && $rest === 1 && preg_match('/^(?:([a-z0-9-]*)-)?(\d+)$/', $segments[0], $m) === 1
 			=> ['lang' => $lang, 'script' => $script, 'params' => ['id' => $m[2]]],
 		$script === 'seller.php' && $rest === 1 && ctype_digit($segments[0]) => ['lang' => $lang, 'script' => $script, 'params' => ['id' => $segments[0]]],

@@ -21,9 +21,10 @@ const LISTING_LIVE = "l.status = 'active' AND (l.expires_at IS NULL OR l.expires
 const LISTING_FROM = 'listings l
 	JOIN categories c ON c.id = l.category_id
 	JOIN cities ci ON ci.id = l.city_id
+	LEFT JOIN districts d ON d.id = l.district_id
 	JOIN users u ON u.id = l.user_id';
 
-const LISTING_SELECT = 'SELECT l.*, c.slug AS category, ci.latn AS city FROM ' . LISTING_FROM;
+const LISTING_SELECT = 'SELECT l.*, c.slug AS category, ci.latn AS city, d.latn AS district FROM ' . LISTING_FROM;
 
 // The listing's category and its parent are switched on in the admin
 const CATEGORY_VISIBLE = 'c.active = 1 AND NOT EXISTS (SELECT 1 FROM categories pc WHERE pc.id = c.parent_id AND pc.active = 0)';
@@ -110,6 +111,9 @@ function categories(): array
 				'sort' => $r['sort'], 'active' => (bool) $r['active'],
 				'names' => ['en' => $r['name_en'], 'sr-latn' => $r['name_sr_latn'], 'sr-cyrl' => $r['name_sr_cyrl']],
 				'seo' => ['en' => [$r['seo_title_en'], $r['meta_en']], 'sr' => [$r['seo_title_sr'], $r['meta_sr']]],
+				// Heading and SEO text of the page (015; null = the name / none)
+				'h1' => ['en' => $r['h1_en'] ?? null, 'sr' => $r['h1_sr'] ?? null],
+				'text' => ['en' => $r['text_en'] ?? null, 'sr' => $r['text_sr'] ?? null],
 			];
 
 			if ($r['parent_id'] === null) {
@@ -202,15 +206,42 @@ function delete_category(int $id): bool
 	return db_exec('DELETE FROM categories WHERE id = ?', [$id]) > 0;
 }
 
-// Cities, every one (admin): ['id', 'latn', 'cyrl', 'active'], sorted
+// Places, every one (admin): ['id', 'latn', 'cyrl', 'slug' (Serbian address word), 'slug_en',
+// 'kind' (city | resort | abroad), 'main' (rank 1–40 of the main ones, null = the rest), 'active'], sorted:
+// the main places first, then the rest A–Z
 function cities(): array
 {
 	static $cities = null;
 
 	return $cities ??= array_map(
-		fn($r) => ['id' => $r['id'], 'latn' => $r['latn'], 'cyrl' => $r['cyrl'], 'active' => (bool) $r['active']],
-		db_all('SELECT id, latn, cyrl, active FROM cities ORDER BY sort, id')
+		fn($r) => [
+			'id' => $r['id'], 'latn' => $r['latn'], 'cyrl' => $r['cyrl'],
+			'slug' => $r['slug'] ?? url_slug($r['latn'], 64), 'slug_en' => $r['slug_en'] ?? $r['slug'] ?? url_slug($r['latn'], 64),
+			'kind' => $r['kind'], 'main' => $r['main_rank'], 'active' => (bool) $r['active'],
+		],
+		db_all('SELECT * FROM cities ORDER BY sort, id')
 	);
+}
+
+// The main places (filters, home page, landing pages)
+function main_cities(): array
+{
+	return array_values(array_filter(active_cities(), fn($city) => $city['main'] !== null));
+}
+
+// Districts by city (Latin name): ['Beograd' => [['id', 'latn', 'cyrl', 'slug'], …]], in their order
+function districts(): array
+{
+	static $districts = null;
+
+	if ($districts === null) {
+		$districts = [];
+		foreach (db_all('SELECT d.id, d.latn, d.cyrl, d.slug, c.latn AS city FROM districts d JOIN cities c ON c.id = d.city_id WHERE d.active = 1 ORDER BY d.city_id, d.sort, d.id') as $r) {
+			$districts[$r['city']][] = ['id' => $r['id'], 'latn' => $r['latn'], 'cyrl' => $r['cyrl'], 'slug' => $r['slug']];
+		}
+	}
+
+	return $districts;
 }
 
 // Cities offered on the site (selects, filters, home); a switched-off one keeps its listings
@@ -219,13 +250,13 @@ function active_cities(): array
 	return array_values(array_filter(cities(), fn($city) => $city['active']));
 }
 
-// New city at the end of the list; false when the name is taken
+// New place at the end of the list (not a main one); false when the name is taken
 function add_city(string $latn, string $cyrl): bool
 {
 	if (db_value('SELECT 1 FROM cities WHERE latn = ?', [$latn])) {
 		return false;
 	}
-	db_exec('INSERT INTO cities (latn, cyrl, sort) SELECT ?, ?, COALESCE(MAX(sort), 0) + 1 FROM cities', [$latn, $cyrl]);
+	db_exec('INSERT INTO cities (latn, cyrl, slug, sort) SELECT ?, ?, ?, COALESCE(MAX(sort), 0) + 1 FROM cities', [$latn, $cyrl, url_slug($latn, 64)]);
 
 	return true;
 }
@@ -243,6 +274,60 @@ function delete_city(int $id): bool
 	}
 
 	return db_exec('DELETE FROM cities WHERE id = ?', [$id]) > 0;
+}
+
+/* ---------- Landing pages (016) ---------- */
+
+// Approved landings as filters: [['id', 'filters' => [cat, deal, type, brand, city, district] ('' = none),
+// 'demand', 'h1' => [en, sr], 'title' => […], 'meta' => […], 'text' => […]]], the biggest demand first.
+// $catSlug: only those of one category ('' = of all listings), null = every one
+function landings(?string $catSlug = null): array
+{
+	static $all = null;
+
+	$all ??= array_map(fn($r) => [
+		'id' => $r['id'],
+		'filters' => ['cat' => $r['cat'] ?? '', 'deal' => $r['deal'] ?? '', 'type' => $r['item_type'] ?? '', 'brand' => $r['brand'] ?? '',
+			'city' => $r['city'] ?? '', 'district' => $r['district'] ?? ''],
+		'demand' => (int) $r['demand'],
+		'h1' => ['en' => $r['h1_en'], 'sr' => $r['h1_sr']], 'title' => ['en' => $r['title_en'], 'sr' => $r['title_sr']],
+		'meta' => ['en' => $r['meta_en'], 'sr' => $r['meta_sr']], 'text' => ['en' => $r['text_en'], 'sr' => $r['text_sr']],
+	], db_all('SELECT la.*, c.slug AS cat, ci.latn AS city, d.latn AS district FROM landings la
+		LEFT JOIN categories c ON c.id = la.category_id LEFT JOIN cities ci ON ci.id = la.city_id LEFT JOIN districts d ON d.id = la.district_id
+		WHERE la.active = 1 ORDER BY la.demand DESC, la.id'));
+
+	return $catSlug === null ? $all : array_values(array_filter($all, fn($l) => $l['filters']['cat'] === $catSlug));
+}
+
+// The approved landing of exactly these filters (cat, deal, type, brand, city, district), or null
+function find_landing(array $f): ?array
+{
+	$keys = ['cat', 'deal', 'type', 'brand', 'city', 'district'];
+	$want = array_map(fn($key) => (string) ($f[$key] ?? ''), array_combine($keys, $keys));
+
+	foreach (landings($want['cat']) as $landing) {
+		if ($landing['filters'] === $want) {
+			return $landing;
+		}
+	}
+
+	return null;
+}
+
+// Landings with published listings, for the sitemap: [[filters, lastmod UTC], …]
+function sitemap_landings(): array
+{
+	$out = [];
+
+	foreach (landings() as $landing) {
+		[$where, $params] = listing_search_where($landing['filters']);
+		$last = db_value('SELECT MAX(l.updated_at) FROM ' . LISTING_FROM . ' WHERE ' . $where, $params);
+		if ($last) {
+			$out[] = [$landing['filters'], $last];
+		}
+	}
+
+	return $out;
 }
 
 /* ---------- Users ---------- */
@@ -286,6 +371,7 @@ function listing_from_row(array $r): array
 		'created' => db_local($r['created_at']),
 		'views' => $r['views'], 'favorites' => $r['favorites_count'], 'messages' => $r['messages_count'],
 		'condition' => $r['item_condition'],
+		'deal' => $r['deal'], 'type' => $r['item_type'], 'brand' => $r['brand'], 'district' => $r['district'], 'seller_type' => $r['seller_type'],
 		'attrs' => $r['attrs'] !== null ? json_decode($r['attrs'], true) : [],
 		'reject_reason' => $r['reject_reason'], 'reject_comment' => $r['reject_comment'], 'moderation_note' => $r['moderation_note'], 'expires' => $expires, 'sorted' => db_local($r['sorted_at']),
 		'phone' => $r['phone'], 'show_phone' => (bool) $r['show_phone'],
@@ -357,7 +443,8 @@ function listing_status_counts(): array
 }
 
 // WHERE for public search: published listings of active users + filters.
-// $f: cat, q, city, price_from, price_to, currency, condition, negotiable, photos, user, exclude (ids), since
+// $f: cat, q, city, district, deal, type, brand, seller, price_from, price_to, currency, condition, negotiable, photos,
+// user, exclude (ids), since
 function listing_search_where(array $f): array
 {
 	$where = [LISTING_LIVE, "u.status = 'active'", CATEGORY_VISIBLE];
@@ -382,6 +469,18 @@ function listing_search_where(array $f): array
 		$where[] = 'ci.latn = ?';
 		$params[] = $f['city'];
 	}
+	if (!empty($f['district'])) {
+		$where[] = 'd.latn = ?';
+		$params[] = $f['district'];
+	}
+
+	// Deal, kind, brand, seller: keys of taxonomy.php (a kind key on a section page gathers it from every subcategory)
+	foreach (['deal' => 'l.deal', 'type' => 'l.item_type', 'brand' => 'l.brand', 'seller' => 'l.seller_type'] as $key => $column) {
+		if (!empty($f[$key])) {
+			$where[] = $column . ' = ?';
+			$params[] = $f[$key];
+		}
+	}
 
 	// Price range, compared in RSD
 	$rate = ($f['currency'] ?? 'RSD') === 'EUR' ? (int) setting('eur_rate') : 1;
@@ -402,6 +501,12 @@ function listing_search_where(array $f): array
 
 	if (!empty($f['negotiable'])) {
 		$where[] = 'l.negotiable = 1';
+	}
+	// Checkbox details (attrs.php, type bool): damaged, instalments / leasing
+	foreach (['damaged', 'financing'] as $flag) {
+		if (!empty($f[$flag])) {
+			$where[] = "JSON_VALUE(l.attrs, '$." . $flag . "') = 'true'";
+		}
 	}
 	if (!empty($f['photos'])) {
 		$where[] = 'EXISTS (SELECT 1 FROM listing_photos p WHERE p.listing_id = l.id)';
@@ -533,16 +638,21 @@ function save_listing(array $f, ?int $id = null): int
 	return $id;
 }
 
-// SET of the listing's own fields for save_listing() and staff_save_listing(): [sql, values]
+// SET of the listing's own fields for save_listing() and staff_save_listing(): [sql, values].
+// deal, type, brand, seller_type: keys (taxonomy.php) or null; district: Latin name within the city or null
 function listing_set(array $f): array
 {
 	return [
 		'title = ?, description = ?, lang = ?, search_text = ?, price = ?, currency = ?, negotiable = ?, item_condition = ?, attrs = ?,
-		phone = ?, show_phone = ?, category_id = (SELECT id FROM categories WHERE slug = ?), city_id = (SELECT id FROM cities WHERE latn = ?)',
+		phone = ?, show_phone = ?, category_id = (SELECT id FROM categories WHERE slug = ?), city_id = (SELECT id FROM cities WHERE latn = ?),
+		deal = ?, item_type = ?, brand = ?, seller_type = ?,
+		district_id = (SELECT d.id FROM districts d JOIN cities dc ON dc.id = d.city_id WHERE dc.latn = ? AND d.latn = ?)',
 		[
 			$f['title'], $f['description'], $f['lang'], sr_lat($f['title'] . "\n" . $f['description']),
 			$f['price'], $f['currency'], (int) $f['negotiable'], $f['condition'], $f['attrs'] ? json_encode($f['attrs'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
 			$f['phone'], (int) $f['show_phone'], $f['category'], $f['city'],
+			$f['deal'] ?? null, $f['type'] ?? null, $f['brand'] ?? null, $f['seller_type'] ?? null,
+			$f['city'], $f['district'] ?? '',
 		],
 	];
 }
@@ -1324,7 +1434,7 @@ function admin_listing_rows(array $f, int $limit, int $offset): array
 	[$where, $params] = admin_listing_where($f);
 
 	return array_map(fn($r) => ['seller' => $r['seller_name'], 'seller_email' => $r['seller_email'], 'published' => db_local($r['published_at'])] + listing_from_row($r),
-		db_all('SELECT l.*, c.slug AS category, ci.latn AS city, u.name AS seller_name, u.email AS seller_email FROM ' . LISTING_FROM
+		db_all('SELECT l.*, c.slug AS category, ci.latn AS city, d.latn AS district, u.name AS seller_name, u.email AS seller_email FROM ' . LISTING_FROM
 			. ' WHERE ' . $where . ' ORDER BY l.id LIMIT ' . max(1, $limit) . ' OFFSET ' . max(0, $offset), $params));
 }
 
