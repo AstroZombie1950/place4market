@@ -1,6 +1,6 @@
 <?php
 /* ==========================================================================
-	Home: categories + cities (sidebar), recent listings
+	Home: categories + cities (sidebar), recent listings, popular searches
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
 
@@ -15,6 +15,9 @@ $recent = search_listings([], HOME_RECENT);
 // from the settings: nothing is skipped); only when there is more
 $morePage = intdiv(HOME_RECENT, setting('per_page')) + 1;
 $hasMore = count_listings([]) > HOME_RECENT;
+
+// Popular searches (interlinking): the landings with the biggest demand that have listings
+$popularLinks = landing_links(landings(), 20);
 
 require INC_DIR . '/header.php';
 ?>
@@ -86,6 +89,11 @@ require INC_DIR . '/header.php';
 			<div class="show-more">
 				<a class="btn btn--outline" href="<?= e(url('category.php', ['page' => $morePage > 1 ? $morePage : null])) ?>"><?= e(t('common.show_more')) ?></a>
 			</div>
+			<?php endif; ?>
+
+			<?php if ($popularLinks): [$links, $blockTitle, $blockId] = [$popularLinks, 'cat.popular', 'popular']; ?>
+			<!-- Popular searches: landings with listings (interlinking) -->
+			<?php include INC_DIR . '/partials/landing-links.php'; ?>
 			<?php endif; ?>
 		</section>
 	</div>

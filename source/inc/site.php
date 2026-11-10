@@ -262,6 +262,90 @@ function results_h1(array $f, ?array $landing = null): string
 	return $h1;
 }
 
+/* ---------- Interlinking: links to the approved landings (016) ---------- */
+
+// Chips of the landings that have published listings (an empty one is noindex, it gets no links):
+// [['label', 'href', 'n'], …] in the given order, up to $limit
+function landing_links(array $landings, int $limit = 24): array
+{
+	$counts = landing_counts();
+	$links = [];
+
+	foreach ($landings as $landing) {
+		if (($n = $counts[$landing['id']] ?? 0) > 0) {
+			$links[] = ['label' => results_h1($landing['filters'], $landing), 'href' => url('category.php', array_filter($landing['filters'])), 'n' => $n];
+			if (count($links) >= $limit) {
+				break;
+			}
+		}
+	}
+
+	return $links;
+}
+
+// Facets of a landing without the category, only the set ones: ['city' => 'Beograd', …]
+function landing_facets(array $filters): array
+{
+	return array_filter(array_diff_key($filters, ['cat' => true]), fn($value) => (string) $value !== '');
+}
+
+// Is category $slug inside $parent: any category inside all listings (''), a subcategory inside its section
+function category_inside(string $slug, string $parent): bool
+{
+	[$section, $child] = find_category($slug);
+
+	return $slug !== '' && ($parent === '' || ($child && $section['slug'] === $parent));
+}
+
+// The landings a listing belongs to (its subcategory, its section or all listings, with its
+// deal, kind, brand, place, district), the most precise first: "Izdavanje stanova Zemun, Beograd",
+// then "Izdavanje stanova Beograd", "Nekretnine Beograd", "Oglasi Beograd"
+function listing_landings(array $listing): array
+{
+	$cats = [$listing['category'] => 2, (parent_category($listing['category'])['slug'] ?? '') => 1, '' => 0];
+	$own = landing_facets(['deal' => $listing['deal'] ?? '', 'type' => $listing['type'] ?? '', 'brand' => $listing['brand'] ?? '',
+		'city' => $listing['city'] ?? '', 'district' => $listing['district'] ?? '']);
+
+	$found = array_filter(landings(), fn($l) => isset($cats[$l['filters']['cat']]) && array_diff_assoc(landing_facets($l['filters']), $own) === []);
+	$score = fn($l) => count(landing_facets($l['filters'])) * 3 + $cats[$l['filters']['cat']];
+	usort($found, fn($a, $b) => $score($b) <=> $score($a));
+
+	return $found;
+}
+
+// Landings around a results page with facets $f (cat, deal, type, brand, city, district), the biggest demand first:
+// 'deeper' — one step further: one more facet ("Polovni automobili" → "… Beograd", "… Volkswagen") or the same
+// facets in a category inside this one ("Oglasi Beograd" → "Nekretnine Beograd", "Polovni automobili Beograd");
+// 'sideways' — the same facets with one other value ("… Beograd" → "… Novi Sad", "Zemun" → "Vračar"),
+// then the same facets in another category ("Polovni automobili Beograd" → "Nekretnine Beograd", "Oglasi Beograd")
+function nearby_landings(array $f): array
+{
+	$cat = (string) ($f['cat'] ?? '');
+	$set = landing_facets($f);
+	$deeper = $same = $other = [];
+
+	foreach (landings() as $landing) {
+		$nextCat = $landing['filters']['cat'];
+		$next = landing_facets($landing['filters']);
+
+		if ($nextCat === $cat) {
+			if (array_diff_assoc($set, $next) === [] && count($next) === count($set) + 1) {
+				$deeper[] = $landing;
+			} elseif ($set && !array_diff_key($next, $set) && !array_diff_key($set, $next) && count(array_diff_assoc($next, $set)) === 1) {
+				$same[] = $landing;
+			}
+		} elseif ($set && $next == $set) {
+			if (category_inside($nextCat, $cat)) {
+				$deeper[] = $landing;
+			} else {
+				$other[] = $landing;
+			}
+		}
+	}
+
+	return ['deeper' => $deeper, 'sideways' => [...$same, ...$other]];
+}
+
 // Title of a results page without its own (stage C): the heading + the section's tail
 // ("Polovni automobili Beograd: oglasi i cene", jobs "…: poslovi i konkursi"), only while
 // the whole title with " — Place4Market" fits 60 characters; else the heading alone

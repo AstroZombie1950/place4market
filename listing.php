@@ -1,6 +1,6 @@
 <?php
 /* ==========================================================================
-	Listing page: gallery, price, contacts, seller, details, similar
+	Listing page: gallery, price, contacts, seller, details, similar, its landings
 	GET: id
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
@@ -44,12 +44,18 @@ $mediaCount = count($media);
 // Seller's other active listings
 $sellerCount = count_listings(['user' => $seller['id']]);
 
-// Similar: same parent category, newest first
-$similar = search_listings(['cat' => $parentCat['slug'], 'exclude' => [$listing['id']]], 4);
-if (count($similar) < 4) {
-	$exclude = [$listing['id'], ...array_column($similar, 'id')];
-	$similar = array_merge($similar, search_listings(['exclude' => $exclude], 4 - count($similar)));
+// Similar: the same subcategory, then the section, then any; newest first. "See all" opens the closest of them
+$similar = [];
+$similarCat = $childCat ?? $parentCat;
+foreach (array_unique([$listing['category'], $parentCat['slug'], '']) as $slug) {
+	$similar = array_merge($similar, search_listings(['cat' => $slug, 'exclude' => [$listing['id'], ...array_column($similar, 'id')]], 4 - count($similar)));
+	if (count($similar) >= 4) {
+		break;
+	}
 }
+
+// Interlinking: the landings this listing belongs to ("Polovni automobili Volkswagen", "… Beograd"), with listings
+$relatedLinks = $listing['status'] === 'active' ? landing_links(listing_landings($listing), 12) : [];
 
 // "Write to seller": messages.php opens the conversation about this listing or starts one
 $messageUrl = url('messages.php', ['listing' => $listing['id']]);
@@ -248,7 +254,7 @@ require INC_DIR . '/header.php';
 	<section class="listing-similar" aria-labelledby="similar-title">
 		<div class="section-head">
 			<h2 class="section-title" id="similar-title"><?= e(t('l.similar')) ?></h2>
-			<a class="link-underline" href="<?= e(url('category.php', ['cat' => $parentCat['slug']])) ?>"><?= e(t('common.see_all')) ?></a>
+			<a class="link-underline" href="<?= e(url('category.php', ['cat' => $similarCat['slug']])) ?>"><?= e(t('common.see_all')) ?></a>
 		</div>
 		<div class="cards cards--4">
 			<?php foreach ($similar as $listing): ?>
@@ -256,6 +262,11 @@ require INC_DIR . '/header.php';
 			<?php endforeach; ?>
 		</div>
 	</section>
+
+	<?php if ($relatedLinks): [$links, $blockTitle, $blockId] = [$relatedLinks, 'l.related', 'related']; ?>
+	<!-- Landings of this listing: its place, kind, brand (interlinking) -->
+	<?php include INC_DIR . '/partials/landing-links.php'; ?>
+	<?php endif; ?>
 </div>
 
 <!-- Contact bar (phones) -->

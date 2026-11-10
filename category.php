@@ -132,18 +132,13 @@ $seoText = $f['q'] === '' && $pageNum === 1
 	? ($landing ? sr_text($landing['text']['sr'], $landing['text']['en']) : (!$hasFacets && $currentCat ? sr_text($currentCat['text']['sr'], $currentCat['text']['en']) : null))
 	: null;
 
-// Links to the landings one step further (a place, a kind, a brand, a deal) that have listings: interlinking
-$nextLandings = [];
-if ($f['q'] === '' && !$isFiltered) {
-	// The 40 biggest by demand are counted, up to 24 with listings are shown
-	$set = array_filter($facets);
-	$candidates = array_slice(array_filter(landings($f['cat']), fn($next) => count(array_diff_assoc(array_filter($next['filters']), $set)) === 1
-		&& array_diff_assoc($set, array_filter($next['filters'])) === []), 0, 40);
-	foreach ($candidates as $next) {
-		if (($n = count_listings($next['filters'])) > 0 && count($nextLandings) < 24) {
-			$nextLandings[] = ['label' => results_h1($next['filters'], $next), 'href' => url('category.php', array_filter($next['filters'])), 'n' => $n];
-		}
-	}
+// Interlinking on indexed pages: landings with listings one step further (a place, a kind, a brand,
+// a deal, a lower category) and next to this one (another place or brand, another category here)
+$nextLandings = $sideLandings = [];
+if (!$isFiltered) {
+	$nearby = nearby_landings($facets);
+	$nextLandings = landing_links($nearby['deeper']);
+	$sideLandings = landing_links($nearby['sideways']);
 }
 $page['schema'][] = schema_breadcrumbs($crumbs);
 if ($pageItems) {
@@ -379,17 +374,11 @@ require INC_DIR . '/header.php';
 			</div>
 			<?php endif; ?>
 
-			<?php if ($nextLandings): ?>
-			<!-- Landings one step further (interlinking) -->
-			<nav class="next-links" aria-labelledby="next-links-title">
-				<h2 class="next-links__title" id="next-links-title"><?= e(t('cat.popular')) ?></h2>
-				<ul class="chips" role="list">
-					<?php foreach ($nextLandings as $link): ?>
-					<li><a class="chip" href="<?= e($link['href']) ?>"><?= e($link['label']) ?> <span class="muted"><?= (int) $link['n'] ?></span></a></li>
-					<?php endforeach; ?>
-				</ul>
-			</nav>
-			<?php endif; ?>
+			<?php $linkBlocks = ['next' => [$nextLandings, 'cat.popular'], 'side' => [$sideLandings, 'cat.related']]; ?>
+			<?php foreach ($linkBlocks as $blockId => [$links, $blockTitle]): if (!$links) continue; ?>
+			<!-- Landings one step further / next to this page (interlinking) -->
+			<?php include INC_DIR . '/partials/landing-links.php'; ?>
+			<?php endforeach; ?>
 
 			<?php if ($seoText !== null): ?>
 			<!-- About this page (stage C): visible, compact, the rest under "More" -->

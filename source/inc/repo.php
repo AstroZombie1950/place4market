@@ -351,6 +351,43 @@ function find_landing(array $f): ?array
 	return null;
 }
 
+// Published listings of every approved landing: [landing id => count], one grouped query a request
+// (the same rules as count_listings(): a section counts its subcategories). Interlinking shows only
+// landings with listings: an empty one is noindex
+function landing_counts(): array
+{
+	static $counts = null;
+
+	if ($counts !== null) {
+		return $counts;
+	}
+
+	// Listing groups by category (its own slug and its section's) and the facets of the landings
+	$groups = [];
+	foreach (db_all('SELECT c.slug AS cat, pc.slug AS section, ci.latn AS city, d.latn AS district, l.deal, l.item_type AS type, l.brand, COUNT(*) AS n
+		FROM ' . LISTING_FROM . ' LEFT JOIN categories pc ON pc.id = c.parent_id
+		WHERE ' . LISTING_LIVE . " AND u.status = 'active' AND " . CATEGORY_VISIBLE . '
+		GROUP BY c.slug, pc.slug, ci.latn, d.latn, l.deal, l.item_type, l.brand') as $row) {
+		foreach (array_unique(['', $row['cat'], $row['section'] ?? '']) as $cat) {
+			$groups[$cat][] = $row;
+		}
+	}
+
+	$counts = [];
+	foreach (landings() as $landing) {
+		$want = array_filter(array_diff_key($landing['filters'], ['cat' => true]));
+		$n = 0;
+		foreach ($groups[$landing['filters']['cat']] ?? [] as $row) {
+			if (array_intersect_assoc($want, array_map('strval', $row)) === $want) {
+				$n += (int) $row['n'];
+			}
+		}
+		$counts[$landing['id']] = $n;
+	}
+
+	return $counts;
+}
+
 // Landings with published listings, for the sitemap: [[filters, lastmod UTC], …]
 function sitemap_landings(): array
 {
