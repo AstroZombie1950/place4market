@@ -357,12 +357,89 @@ function seo_title_template(string $h1, string $section): string
 	return mb_strlen($title . ' — ' . SITE_NAME) <= 60 ? $title : $h1;
 }
 
-// Text in paragraphs (an empty line between them) → <p>…</p>, escaped
-function text_paragraphs(string $text): string
+/* ---------- SEO texts (categories.text_*, landings.text_*): paragraphs and links ---------- */
+
+// A link in a SEO text: [words](address of a results page)
+const TEXT_LINK = '/\[([^\[\]\n]+)\]\(([^()\s]+)\)/u';
+
+// Address in a text link → the filters of its results page (cat, deal, type, brand, city, district, '' = none).
+// The address of any language fits ("/oglasi/…", "/cir/oglasi/…", "/en/listings/…", also with our host);
+// null when it is not a results page
+function text_link_facets(string $href): ?array
 {
+	$host = parse_url($href, PHP_URL_HOST);
+	$path = rawurldecode((string) parse_url($href, PHP_URL_PATH));
+	if ($path === '' || ($host !== null && !in_array($host, [SITE_HOST, 'www.' . SITE_HOST, 'localhost'], true))) {
+		return null;
+	}
+
+	$route = route_match($path);
+	$facets = $route && $route['script'] === 'category.php' ? route_facets($route['params']['cat_path'] ?? []) : null;
+
+	return $facets === null ? null : array_map('strval', $facets) + ['cat' => '', 'deal' => '', 'type' => '', 'brand' => '', 'city' => '', 'district' => ''];
+}
+
+// May a results page of these filters be indexed at all: all listings, a visible category or an approved landing
+function results_page_known(array $facets): bool
+{
+	if (landing_facets($facets)) {
+		return find_landing($facets) !== null;
+	}
+	[$parent, $child] = find_category($facets['cat'] ?? '');
+
+	return ($facets['cat'] ?? '') === '' || ($parent && $parent['visible'] && (!$child || $child['visible']));
+}
+
+// Is it indexed now: known and with published listings (an empty page is noindex: texts do not link to it)
+function results_page_indexed(array $facets): bool
+{
+	static $categories = [];
+
+	if (!results_page_known($facets)) {
+		return false;
+	}
+	if (landing_facets($facets)) {
+		return (landing_counts()[find_landing($facets)['id']] ?? 0) > 0;
+	}
+
+	return ($categories[$facets['cat'] ?? ''] ??= count_listings(['cat' => $facets['cat'] ?? ''])) > 0;
+}
+
+// Addresses of the links in a text that can never work: not a results page, or neither a category
+// nor an approved landing (the admin warns about them)
+function text_dead_links(?string $text): array
+{
+	preg_match_all(TEXT_LINK, (string) $text, $m);
+
+	return array_values(array_unique(array_filter($m[2], fn($href) => ($facets = text_link_facets($href)) === null || !results_page_known($facets))));
+}
+
+// SEO text → <p>…</p>, escaped: paragraphs split by an empty line; "[stanovi u Zemunu](/oglasi/nekretnine/stanovi/beograd/zemun)"
+// becomes a link in the page's language while its page is indexed (has listings) and is not this page
+// ($self: the filters of the page); otherwise the words stay plain. $text is English or Serbian Latin:
+// the Cyrillic page converts it here (the addresses stay as they are)
+function seo_text_html(string $text, array $self = []): string
+{
+	$self = array_filter(array_map('strval', $self), 'strlen');
 	$paragraphs = array_filter(array_map('trim', preg_split('/\n\s*\n/', str_replace("\r\n", "\n", $text))), 'strlen');
 
-	return implode('', array_map(fn($p) => '<p>' . nl2br(e($p)) . '</p>', $paragraphs));
+	$html = implode('', array_map(function ($paragraph) use ($self) {
+		$parts = preg_split(TEXT_LINK, $paragraph, -1, PREG_SPLIT_DELIM_CAPTURE);
+		$out = '';
+		// Plain text, then (words, address) of a link, in turns
+		for ($i = 0, $n = count($parts); $i < $n; $i += 3) {
+			$out .= nl2br(e($parts[$i]));
+			if ($i + 2 < $n) {
+				$facets = text_link_facets($parts[$i + 2]);
+				$live = $facets !== null && array_filter($facets, 'strlen') != $self && results_page_indexed($facets);
+				$out .= $live ? '<a href="' . e(url('category.php', array_filter($facets, 'strlen'))) . '">' . e($parts[$i + 1]) . '</a>' : e($parts[$i + 1]);
+			}
+		}
+
+		return '<p>' . $out . '</p>';
+	}, $paragraphs));
+
+	return lang() === 'sr-cyrl' ? sr_cyr($html) : $html;
 }
 
 /* ---------- Cities ---------- */

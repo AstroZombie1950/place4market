@@ -113,6 +113,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				+ ($changed ? ['fields' => $changed] : []) + ($existing && $f['slug'] !== $existing['slug'] ? ['old_slug' => $existing['slug']] : [])
 				+ ($existing && $f['slug_sr'] !== $existing['slug_sr'] ? ['old_slug_sr' => $existing['slug_sr']] : []));
 			flash('success', $id ? ($changed ? at('common.saved_fields', ['fields' => field_labels($changed)]) : at('common.nothing_changed')) : at('cat.created', ['name' => $f['names']['en']]));
+			// Links in the SEO text that can never work: saved as written, the editor is told
+			if ($dead = [...text_dead_links($f['text']['en']), ...text_dead_links($f['text']['sr'])]) {
+				flash('danger', at('seo.dead_links', ['links' => implode(', ', $dead)]));
+			}
 			redirect('categories.php?edit=' . $savedId);
 		}
 
@@ -274,7 +278,7 @@ require ADMIN_INC . '/header.php';
 					<div class="field">
 						<label class="field__label" for="c-text-en"><?= e(at('seo.text')) ?></label>
 						<textarea class="textarea" id="c-text-en" name="text_en" rows="8" maxlength="<?= SEO_TEXT_MAX ?>" lang="en" placeholder="<?= e(at('seo.text_empty')) ?>"><?= e($current['text_en']) ?></textarea>
-						<span class="field__hint"><?= e(at('cat.text_hint')) ?></span>
+						<span class="field__hint"><?= e(at('cat.text_hint')) ?> <?= e(at('seo.links_hint')) ?></span>
 					</div>
 				</div>
 

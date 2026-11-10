@@ -38,6 +38,8 @@ return [
 	'seo.text_short' => 'Text',
 	'seo.text_empty' => 'Empty: no text',
 	'seo.cyrillic_hint' => 'The Cyrillic page converts the Latin texts.',
+	'seo.links_hint' => 'A link in the text: [link words](/oglasi/nekretnine/stanovi/prodaja/beograd) — the address of a category or a landing page, copied from the site in any language. It turns into a link once that page has listings; until then the words show as plain text.',
+	'seo.dead_links' => 'Saved, but these links in the text lead nowhere and will stay plain text (the address of a category or an approved landing page is needed): {links}',
 
 	/* ---------- Categories ---------- */
 	'cat.h1_empty' => 'Empty: the category name',

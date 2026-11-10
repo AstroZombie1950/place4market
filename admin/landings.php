@@ -107,6 +107,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		}
 		$names = ['h1' => 'H1', 'title' => 'SEO title', 'meta' => 'Meta description', 'text' => at('seo.text')];
 		flash('success', $changed ? at('common.saved_fields', ['fields' => implode(', ', array_map(fn($key) => $names[$key], $changed))]) : at('common.nothing_changed'));
+		// Links in the text that can never work: saved as written, the editor is told
+		if ($dead = [...text_dead_links($f['text']['en']), ...text_dead_links($f['text']['sr'])]) {
+			flash('danger', at('seo.dead_links', ['links' => implode(', ', $dead)]));
+		}
 		redirect('landings.php?edit=' . $landing['id']);
 	}
 
@@ -207,7 +211,7 @@ if (isset($_GET['edit'])) {
 					<div class="field">
 						<label class="field__label" for="l-text-<?= $lang ?>"><?= e(at('seo.text')) ?></label>
 						<textarea class="textarea" id="l-text-<?= $lang ?>" name="text_<?= $lang ?>" rows="8" maxlength="<?= SEO_TEXT_MAX ?>" lang="<?= $htmlLang ?>" placeholder="<?= e(at('seo.text_empty')) ?>"><?= e($landing['text'][$lang] ?? '') ?></textarea>
-						<span class="field__hint"><?= e(at('land.text_hint')) ?><?= $lang === 'sr' ? ' ' . e(at('seo.cyrillic_hint')) : '' ?></span>
+						<span class="field__hint"><?= e(at('land.text_hint')) ?> <?= e(at($lang === 'sr' ? 'seo.cyrillic_hint' : 'seo.links_hint')) ?></span>
 					</div>
 				</div>
 				<?php endforeach; ?>

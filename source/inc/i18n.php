@@ -386,13 +386,22 @@ function sr_cyr(string $text): string
 		'Vespa', 'Piaggio', 'Honda', 'Tomos', 'Audi', 'Fiat', 'Peugeot', 'Renault', 'Zetor', 'Belarus',
 		'Torpedo', 'John', 'Deere', 'Hohner', 'Paolo', 'Soprani', 'Marvel', 'Tex', 'Alan', 'Ford',
 		'Galaxy', 'Watch', 'Tab', 'Smart', 'LED', 'Mini', 'Pro',
+		'AirPods', 'iCloud', 'Google', 'Garmin', 'Škoda', 'Zagor', 'Dilan', 'Dog', 'Viler',
+		'bluetooth', 'Bluetooth', 'gaming', 'Gaming', 'trekking', 'online', 'Online',
 	];
+	// English word groups: kept as written (null) or said the Serbian way, as in the category name
+	static $phrases = ['rent a car' => 'рент а кар', 'all season' => null, 'hi-fi' => null];
 
-	return preg_replace_callback('/\{[a-z_]+\}|<[^>]*>|&[a-z#0-9]+;|[\p{L}\p{N}]+/u', function ($m) use ($map, $keep) {
+	return preg_replace_callback('/\{[a-z_]+\}|<[^>]*>|&[a-z#0-9]+;|(?<![\p{L}\p{N}])(?i:rent a car|all season|hi-fi)(?![\p{L}\p{N}])|[\p{L}\p{N}]+/u', function ($m) use ($map, $keep, $phrases) {
 		$word = $m[0];
 
 		if ($word[0] === '{' || $word[0] === '<' || $word[0] === '&') {
 			return $word;
+		}
+		if (array_key_exists($phrase = strtolower($word), $phrases)) {
+			$said = $phrases[$phrase];
+
+			return $said === null ? $word : ($word[0] === $phrase[0] ? $said : mb_strtoupper(mb_substr($said, 0, 1)) . mb_substr($said, 1));
 		}
 		// A brand, an abbreviation, a word with a digit, q/w/x/y or a letter Serbian has not (Kärcher)
 		if (in_array($word, $keep, true) || preg_match('/\d|[qwxyQWXY]|\p{Lu}{2,}|[^\x00-\x7FčćđšžČĆĐŠŽ\p{Cyrillic}]/u', $word)) {

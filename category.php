@@ -127,10 +127,10 @@ $page['canonical'] = ['category.php', array_filter($facets) + ['page' => $pageNu
 // An empty page is a thin page: kept out of the index (and of the sitemap) until it has listings
 $page['robots'] = $isFiltered || !$total ? 'noindex, follow' : 'index, follow';
 
-// SEO text under the listings (stage C): the landing's, else the category's on its clean page
-$seoText = $f['q'] === '' && $pageNum === 1
-	? ($landing ? sr_text($landing['text']['sr'], $landing['text']['en']) : (!$hasFacets && $currentCat ? sr_text($currentCat['text']['sr'], $currentCat['text']['en']) : null))
-	: null;
+// SEO text under the listings (stage C): the landing's, else the category's on its clean page.
+// As it is stored (English or Serbian Latin): seo_text_html() builds its links and converts it for the Cyrillic page
+$seoText = $f['q'] === '' && $pageNum === 1 ? ($landing['text'] ?? (!$hasFacets && $currentCat ? $currentCat['text'] : null)) : null;
+$seoText = (string) ($seoText[lang() === 'en' ? 'en' : 'sr'] ?? '') !== '' ? $seoText[lang() === 'en' ? 'en' : 'sr'] : null;
 
 // Interlinking on indexed pages: landings with listings one step further (a place, a kind, a brand,
 // a deal, a lower category) and next to this one (another place or brand, another category here)
@@ -386,7 +386,7 @@ require INC_DIR . '/header.php';
 				<h2 class="seo-text__title" id="seo-text-title"><?= e(t('cat.about', ['name' => $title])) ?></h2>
 				<details class="seo-text__more">
 					<summary class="seo-text__toggle"><?= e(t('cat.more')) ?></summary>
-					<div class="seo-text__body"><?= text_paragraphs($seoText) ?></div>
+					<div class="seo-text__body"><?= seo_text_html($seoText, $facets) ?></div>
 				</details>
 			</section>
 			<?php endif; ?>
