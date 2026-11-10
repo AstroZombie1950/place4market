@@ -388,11 +388,30 @@ function sr_cyr(string $text): string
 		'Galaxy', 'Watch', 'Tab', 'Smart', 'LED', 'Mini', 'Pro',
 		'AirPods', 'iCloud', 'Google', 'Garmin', 'Škoda', 'Zagor', 'Dilan', 'Dog', 'Viler',
 		'bluetooth', 'Bluetooth', 'gaming', 'Gaming', 'trekking', 'online', 'Online',
+		// Makes and models of the landing texts (020): letter by letter they come out wrong (Оцтавиа, Цхевролет)
+		'Opel', 'Mazda', 'Suzuki', 'Seat', 'Volvo', 'Kia', 'Nissan', 'Mitsubishi', 'Dacia', 'Jeep', 'Porsche',
+		'Chevrolet', 'Mercedes', 'Benz', 'Alfa', 'Romeo', 'Motorola', 'Intel', 'Redmi', 'Nike', 'Adidas', 'Puma',
+		'Deutz', 'Lattafa', 'Armaf', 'dCi',
+		'Polo', 'Passat', 'Touran', 'Tiguan', 'Octavia', 'Fabia', 'Superb', 'Ibiza', 'Leon', 'Altea', 'Alhambra',
+		'Arona', 'Ateca', 'Cupra', 'Punto', 'Panda', 'Stilo', 'Tipo', 'Doblo', 'Giulia', 'Giulietta', 'MiTo',
+		'Stelvio', 'Clio', 'Megane', 'Scenic', 'Laguna', 'Captur', 'Kadjar', 'Kangoo', 'Sandero', 'Logan',
+		'Duster', 'Dokker', 'Picasso', 'Berlingo', 'Corsa', 'Astra', 'Insignia', 'Vectra', 'Zafira', 'Meriva',
+		'Mokka', 'Fiesta', 'Focus', 'Mondeo', 'Kuga', 'Corolla', 'Auris', 'Avensis', 'Civic', 'Jazz', 'Accord',
+		'Micra', 'Note', 'Juke', 'Navara', 'Colt', 'Lancer', 'Outlander', 'Pajero', 'Vitara', 'Ignis',
+		'Picanto', 'Rio', 'Ceed', 'Sportage', 'Sorento', 'Getz', 'Accent', 'Tucson', 'Cooper', 'Clubman',
+		'Grand', 'Cherokee', 'Compass', 'Renegade', 'Macan', 'Panamera', 'Spark', 'Aveo', 'Lacetti', 'Cruze',
+		'Captiva', 'Tenere', 'Tracer', 'Duke', 'Adventure', 'Primavera', 'Forterra',
 	];
 	// English word groups: kept as written (null) or said the Serbian way, as in the category name
-	static $phrases = ['rent a car' => 'рент а кар', 'all season' => null, 'hi-fi' => null];
+	static $phrases = [
+		'rent a car' => 'рент а кар', 'all season' => null, 'hi-fi' => null,
+		// Model names with a hyphen: their one-letter half would turn Cyrillic (Ц-HR, CR-В)
+		'cr-v' => null, 'hr-v' => null, 'c-hr' => null, 'c-max' => null, 's-max' => null, 's-cross' => null, 'x-trail' => null,
+	];
+	static $pattern = null;
+	$pattern ??= '/\{[a-z_]+\}|<[^>]*>|&[a-z#0-9]+;|(?<![\p{L}\p{N}])(?i:' . implode('|', array_map('preg_quote', array_keys($phrases))) . ')(?![\p{L}\p{N}])|[\p{L}\p{N}]+/u';
 
-	return preg_replace_callback('/\{[a-z_]+\}|<[^>]*>|&[a-z#0-9]+;|(?<![\p{L}\p{N}])(?i:rent a car|all season|hi-fi)(?![\p{L}\p{N}])|[\p{L}\p{N}]+/u', function ($m) use ($map, $keep, $phrases) {
+	return preg_replace_callback($pattern, function ($m) use ($map, $keep, $phrases) {
 		$word = $m[0];
 
 		if ($word[0] === '{' || $word[0] === '<' || $word[0] === '&') {
