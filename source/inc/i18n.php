@@ -376,9 +376,15 @@ function sr_cyr(string $text): string
 		'n' => 'н', 'o' => 'о', 'p' => 'п', 'r' => 'р', 's' => 'с', 'š' => 'ш', 't' => 'т', 'u' => 'у',
 		'v' => 'в', 'z' => 'з', 'ž' => 'ж',
 	];
+	// Brands of the category texts (stage C) stay as they are written
 	static $keep = [
-		'Place4Market', 'iPhone', 'MacBook', 'Air', 'Golf', 'Gorenje', 'Atomic', 'Yamaha', 'Thule',
-		'PlayStation', 'Naked', 'Instagram', 'Facebook',
+		'Place4Market', 'iPhone', 'iPad', 'MacBook', 'Air', 'Golf', 'Gorenje', 'Atomic', 'Yamaha', 'Thule',
+		'PlayStation', 'Naked', 'Instagram', 'Facebook', 'Apple', 'Samsung', 'Huawei', 'Honor', 'Nokia',
+		'Lenovo', 'Asus', 'Acer', 'Dell', 'Nintendo', 'Switch', 'Kindle', 'Tesla', 'Orion', 'Bosch', 'Beko',
+		'Ariston', 'Tiki', 'Stihl', 'Echo', 'Casio', 'Tissot', 'Seiko', 'Guess', 'Swatch', 'Ban', 'Ninebot',
+		'Vespa', 'Piaggio', 'Honda', 'Tomos', 'Audi', 'Fiat', 'Peugeot', 'Renault', 'Zetor', 'Belarus',
+		'Torpedo', 'John', 'Deere', 'Hohner', 'Paolo', 'Soprani', 'Marvel', 'Tex', 'Alan', 'Ford',
+		'Galaxy', 'Watch', 'Tab', 'Smart', 'LED', 'Mini', 'Pro',
 	];
 
 	return preg_replace_callback('/\{[a-z_]+\}|<[^>]*>|&[a-z#0-9]+;|[\p{L}\p{N}]+/u', function ($m) use ($map, $keep) {
@@ -387,7 +393,8 @@ function sr_cyr(string $text): string
 		if ($word[0] === '{' || $word[0] === '<' || $word[0] === '&') {
 			return $word;
 		}
-		if (in_array($word, $keep, true) || preg_match('/\d|[qwxyQWXY]|\p{Lu}{2,}/u', $word)) {
+		// A brand, an abbreviation, a word with a digit, q/w/x/y or a letter Serbian has not (Kärcher)
+		if (in_array($word, $keep, true) || preg_match('/\d|[qwxyQWXY]|\p{Lu}{2,}|[^\x00-\x7FčćđšžČĆĐŠŽ\p{Cyrillic}]/u', $word)) {
 			return $word;
 		}
 

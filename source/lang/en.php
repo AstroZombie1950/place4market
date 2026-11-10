@@ -9,9 +9,16 @@ return [
 	'meta.title' => 'Place4Market — classifieds in Serbia',
 	'meta.description' => 'Buy and sell cars, apartments, electronics and more across Serbia. Post an ad for free.',
 	'meta.h1_home' => 'Classifieds in Serbia: cars, apartments, electronics and more',
-	'meta.category' => '{name}: listings across Serbia. Browse offers or post your ad for free on Place4Market.',
+	'meta.category' => '{name}: {count} across Serbia, with prices and photos. Browse offers or post your ad for free on Place4Market.',
+	'meta.category_empty' => '{name}: listings across Serbia. Post your ad for free on Place4Market.',
 	'meta.all_listings' => 'All listings across Serbia: cars, real estate, electronics and more. Free classifieds on Place4Market.',
-	'meta.landing' => '{name}: current listings with prices and photos. Browse offers or post your ad for free on Place4Market.',
+	'meta.landing' => '{name}: {count} with prices and photos. Browse offers or post your ad for free on Place4Market.',
+	'meta.count_none' => 'Listings',
+	'meta.landing_empty' => '{name}: new listings coming soon. Post your ad for free on Place4Market.',
+	'meta.tail' => '{h1}: listings and prices',
+	'meta.tail.jobs' => '{h1}: job offers',
+	'meta.tail.services' => '{h1}: offers and prices',
+	'meta.tail.holidays' => '{h1}: rooms and prices',
 	'meta.page' => 'page {n}',
 	'meta.page_desc' => 'Page {n}. {text}',
 
@@ -93,6 +100,7 @@ return [
 
 	// Category / search results
 	'cat.all_listings' => 'All listings',
+	'cat.stay_in' => 'Accommodation in {place}',
 	'cat.listings_in' => 'Listings',
 	'cat.any' => 'All',
 	'cat.whole_city' => 'Whole city',

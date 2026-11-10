@@ -246,15 +246,31 @@ function results_h1(array $f, ?array $landing = null): string
 			$h1 = type_name($types[$f['type']]) . ($child ? ' — ' . cat_name($child) : '');
 		}
 	} elseif (($f['brand'] ?? '') !== '' && $child && ($brand = brand_name($child['slug'], $f['brand'])) !== null) {
-		$h1 .= ' ' . $brand;
+		// Serbian keeps the search phrase ("Polovni automobili Volkswagen"), English reads like the kinds
+		$h1 = lang() === 'en' ? $brand . ' — ' . $h1 : $h1 . ' ' . $brand;
 	}
 
-	if ($hasPlace) {
+	// The place: "Polovni automobili Novi Sad" (the search phrase), "Used cars in Novi Sad";
+	// holiday stays name the resort only: "Smeštaj Zlatibor", "Accommodation in Zlatibor"
+	if ($hasPlace && $parent && $parent['slug'] === 'holidays' && ($f['type'] ?? '') === '') {
+		$h1 = t('cat.stay_in', ['place' => city_name($f['city'])]);
+	} elseif ($hasPlace) {
 		$district = ($f['district'] ?? '') !== '' ? current(array_filter(districts()[$f['city']] ?? [], fn($d) => $d['latn'] === $f['district'])) : false;
-		$h1 .= ' ' . ($district ? district_name($district) . ', ' : '') . city_name($f['city']);
+		$h1 .= (lang() === 'en' ? ' in ' : ' ') . ($district ? district_name($district) . ', ' : '') . city_name($f['city']);
 	}
 
 	return $h1;
+}
+
+// Title of a results page without its own (stage C): the heading + the section's tail
+// ("Polovni automobili Beograd: oglasi i cene", jobs "…: poslovi i konkursi"), only while
+// the whole title with " — Place4Market" fits 60 characters; else the heading alone
+function seo_title_template(string $h1, string $section): string
+{
+	$key = 'meta.tail.' . $section;
+	$title = t(t($key) !== $key ? $key : 'meta.tail', ['h1' => $h1]);
+
+	return mb_strlen($title . ' — ' . SITE_NAME) <= 60 ? $title : $h1;
 }
 
 // Text in paragraphs (an empty line between them) → <p>…</p>, escaped

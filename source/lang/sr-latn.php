@@ -10,9 +10,16 @@ return [
 	'meta.title' => 'Place4Market — mali oglasi u Srbiji',
 	'meta.description' => 'Kupujte i prodajte automobile, stanove, elektroniku i još mnogo toga širom Srbije. Postavite oglas besplatno.',
 	'meta.h1_home' => 'Oglasi u Srbiji: automobili, stanovi, elektronika i još mnogo toga',
-	'meta.category' => '{name}: oglasi širom Srbije. Pregledajte ponude ili besplatno postavite oglas na Place4Market.',
+	'meta.category' => '{name}: {count} širom Srbije, sa cenama i fotografijama. Pregledajte ponude ili besplatno postavite oglas na Place4Market.',
+	'meta.category_empty' => '{name}: oglasi širom Srbije. Postavite svoj oglas besplatno na Place4Market.',
 	'meta.all_listings' => 'Svi oglasi širom Srbije: automobili, nekretnine, elektronika i još mnogo toga. Besplatni oglasi na Place4Market.',
-	'meta.landing' => '{name}: aktuelni oglasi sa cenama i fotografijama. Pregledajte ponude ili besplatno postavite oglas na Place4Market.',
+	'meta.landing' => '{name}: {count} sa cenama i fotografijama. Pregledajte ponude ili besplatno postavite oglas na Place4Market.',
+	'meta.count_none' => 'Oglasi',
+	'meta.landing_empty' => '{name}: novi oglasi uskoro. Postavite svoj oglas besplatno na Place4Market.',
+	'meta.tail' => '{h1}: oglasi i cene',
+	'meta.tail.jobs' => '{h1}: poslovi i konkursi',
+	'meta.tail.services' => '{h1}: ponude i cene',
+	'meta.tail.holidays' => '{h1}: apartmani, sobe i cene',
 	'meta.page' => 'strana {n}',
 	'meta.page_desc' => 'Strana {n}. {text}',
 
@@ -94,6 +101,7 @@ return [
 
 	// Category / search results
 	'cat.all_listings' => 'Svi oglasi',
+	'cat.stay_in' => 'Smeštaj {place}',
 	'cat.listings_in' => 'Oglasi',
 	'cat.any' => 'Sve',
 	'cat.whole_city' => 'Ceo grad',

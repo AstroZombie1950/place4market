@@ -28,7 +28,7 @@ $deals = $childCat ? category_deals($childCat['slug']) : [];
 $types = $childCat ? category_types($childCat['slug']) : ($parentCat ? section_types($parentCat['slug'], array_column($parentCat['children'], 'slug')) : []);
 $brands = $childCat ? category_brands($childCat['slug']) : [];
 $cityDistricts = $parentCat && in_array($parentCat['slug'], DISTRICT_SECTIONS, true) ? districts()[$f['city']] ?? [] : [];
-$attrFlags = array_values(array_intersect(['damaged', 'financing'], CATEGORY_ATTRS[$childCat['slug'] ?? '']['fields'] ?? []));
+$attrFlags = array_values(array_intersect(['damaged', 'financing'], array_keys(category_attr_fields($childCat['slug'] ?? ''))));
 $clean = [
 	'deal' => in_array($f['deal'], $deals, true) ? $f['deal'] : '',
 	'type' => isset($types[$f['type']]) ? $f['type'] : '',
@@ -103,15 +103,20 @@ if ($hasFacets) {
 $isFiltered = $f['q'] !== '' || $f['price_from'] !== '' || $f['price_to'] !== '' || $f['condition'] !== '' || $f['negotiable']
 	|| $f['photos'] || $f['sort'] !== 'new' || $f['seller'] !== '' || $f['damaged'] || $f['financing'] || ($hasFacets && !$landing);
 
-// Title and description: the landing's own (stage C), a category's from the admin, else the templates
+// Title and description: the landing's own (stage C), a category's from the admin, else the templates.
+// Own texts may hold {count} ("1 234 oglasa"): it follows the listings without editing the text
 [$seoTitle, $seoDescription] = $currentCat && !$hasFacets ? category_seo($currentCat) : [null, null];
 if ($landing) {
 	[$seoTitle, $seoDescription] = [sr_text($landing['title']['sr'], $landing['title']['en']), sr_text($landing['meta']['sr'], $landing['meta']['en'])];
 }
-$page['title'] = ($f['q'] === '' && $seoTitle ? $seoTitle : $title) . ($pageNum > 1 ? ' · ' . t('meta.page', ['n' => $pageNum]) : '');
-$page['description'] = $seoDescription ?? match (true) {
-	$hasFacets => t('meta.landing', ['name' => $title]),
-	(bool) $currentCat => t('meta.category', ['name' => $title]),
+// ({count} opens a sentence: "12 oglasa sa cenama…", with none yet "Oglasi sa cenama…")
+$count = ['count' => $total ? tp('cat.count', $total) : t('meta.count_none')];
+$page['title'] = ($f['q'] === '' ? ($seoTitle !== null ? strtr($seoTitle, brace_keys($count)) : ($parentCat ? seo_title_template($title, $parentCat['slug']) : $title)) : $title)
+	. ($pageNum > 1 ? ' · ' . t('meta.page', ['n' => $pageNum]) : '');
+$page['description'] = $seoDescription !== null ? strtr($seoDescription, brace_keys($count)) : match (true) {
+	!$total => t($hasFacets ? 'meta.landing_empty' : ($currentCat ? 'meta.category_empty' : 'meta.all_listings'), ['name' => $title]),
+	$hasFacets => t('meta.landing', ['name' => $title] + $count),
+	(bool) $currentCat => t('meta.category', ['name' => $title] + $count),
 	default => t('meta.all_listings'),
 };
 if ($pageNum > 1) {

@@ -257,6 +257,7 @@ require ADMIN_INC . '/header.php';
 					<div class="field">
 						<label class="field__label" for="c-meta-en">Meta description</label>
 						<textarea class="textarea" id="c-meta-en" name="meta_en" rows="3" maxlength="160" lang="en" placeholder="Empty: the standard text with the category name"><?= e($current['meta_en']) ?></textarea>
+						<span class="field__hint"><code>{count}</code> becomes the number of listings ("12 listings"; none yet: "Listings").</span>
 					</div>
 				</div>
 
@@ -272,7 +273,7 @@ require ADMIN_INC . '/header.php';
 					<div class="field">
 						<label class="field__label" for="c-meta-sr">Meta description</label>
 						<textarea class="textarea" id="c-meta-sr" name="meta_sr" rows="3" maxlength="160" lang="sr-Latn" placeholder="Empty: the standard text with the category name"><?= e($current['meta_sr']) ?></textarea>
-						<span class="field__hint">The Cyrillic page uses these texts converted to Cyrillic.</span>
+						<span class="field__hint"><code>{count}</code> becomes the number of listings ("12 oglasa"; none yet: "Oglasi"). The Cyrillic page uses these texts converted to Cyrillic.</span>
 					</div>
 				</div>
 
