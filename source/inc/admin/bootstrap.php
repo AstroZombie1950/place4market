@@ -28,9 +28,10 @@ require SOURCE_DIR . '/inc/site.php';
 require SOURCE_DIR . '/inc/taxonomy.php';
 require SOURCE_DIR . '/inc/seo.php';
 
-// Admin texts (English / Russian, at()) and helpers; data access (shared with the site)
+// Admin texts (English / Russian, at()) and helpers; data access (shared with the site).
+// Before login — Russian (the default), then the language from the profile (018)
 require ADMIN_INC . '/i18n.php';
-admin_i18n_use('en');
+admin_i18n_use('ru');
 require ADMIN_INC . '/helpers.php';
 require SOURCE_DIR . '/inc/db.php';
 require SOURCE_DIR . '/inc/repo.php';
@@ -44,3 +45,6 @@ if (!defined('ADMIN_PUBLIC') && !is_staff()) {
 	redirect('login.php');
 }
 $currentAdmin = current_user();
+if ($currentAdmin) {
+	admin_i18n_use($currentAdmin['admin_lang']);
+}

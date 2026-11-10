@@ -6,21 +6,12 @@
 // Status → [label, badge modifier]
 function status_meta(string $status): array
 {
-	$map = [
-		'active' => ['Active', 'success'],
-		'pending' => ['Pending', 'warning'],
-		'rejected' => ['Rejected', 'danger'],
-		'expired' => ['Expired', 'neutral'],
-		'draft' => ['Draft', 'neutral'],
-		'inactive' => ['Inactive', 'neutral'],
-		'deleted' => ['Deleted', 'danger'],
-		'blocked' => ['Blocked', 'danger'],
-		'open' => ['Open', 'warning'],
-		'review' => ['In review', 'info'],
-		'resolved' => ['Resolved', 'success'],
+	$modifiers = [
+		'active' => 'success', 'pending' => 'warning', 'rejected' => 'danger', 'expired' => 'neutral', 'draft' => 'neutral',
+		'inactive' => 'neutral', 'deleted' => 'danger', 'blocked' => 'danger', 'open' => 'warning', 'review' => 'info', 'resolved' => 'success',
 	];
 
-	return $map[$status] ?? [ucfirst($status), 'neutral'];
+	return isset($modifiers[$status]) ? [at('status.' . $status), $modifiers[$status]] : [ucfirst($status), 'neutral'];
 }
 
 // Status badge HTML
@@ -31,26 +22,38 @@ function status_badge(string $status): string
 	return '<span class="badge badge--' . $modifier . '">' . e($label) . '</span>';
 }
 
-// Role badge HTML
+// Role name and badge HTML
+function role_name(string $role): string
+{
+	return in_array($role, ['user', 'moderator', 'admin'], true) ? at('role.' . $role) : ucfirst($role);
+}
+
 function role_badge(string $role): string
 {
 	$modifier = $role === 'admin' ? 'info' : 'neutral';
 
-	return '<span class="badge badge--plain badge--' . $modifier . '">' . e(ucfirst($role)) . '</span>';
+	return '<span class="badge badge--plain badge--' . $modifier . '">' . e(role_name($role)) . '</span>';
+}
+
+// Name of a field in "Saved: …" and the history ("title", "seller_type"); an unknown one as it is
+function field_label(string $field): string
+{
+	$label = at('field.' . $field);
+
+	return $label !== 'field.' . $field ? $label : $field;
+}
+
+function field_labels(array $fields): string
+{
+	return implode(', ', array_map('field_label', $fields));
 }
 
 // Reject reasons (moderation)
 function reject_reasons(): array
 {
-	return [
-		'prohibited' => 'Prohibited item',
-		'contacts' => 'Contact details in title or photos',
-		'category' => 'Wrong category',
-		'duplicate' => 'Duplicate listing',
-		'photos' => 'Low quality or stock photos',
-		'price' => 'Misleading price',
-		'other' => 'Other',
-	];
+	$keys = ['prohibited', 'contacts', 'category', 'duplicate', 'photos', 'price', 'other'];
+
+	return array_combine($keys, array_map(fn($key) => at('reject.' . $key), $keys));
 }
 
 // Parent category for any slug (parent or child)
@@ -77,7 +80,13 @@ function admin_title(?array $listing): string
 		return '—';
 	}
 
-	return $listing['title'] !== '' ? $listing['title'] : 'Untitled (' . status_meta($listing['status'])[0] . ')';
+	return $listing['title'] !== '' ? $listing['title'] : at('common.untitled', ['status' => status_meta($listing['status'])[0]]);
+}
+
+// Price of a listing in the admin language ("By agreement" without one)
+function admin_price(array $listing): string
+{
+	return $listing['price'] === null ? at('common.by_agreement') : format_price($listing['price'], $listing['currency']);
 }
 
 // Category name (EN) for any slug
@@ -155,7 +164,7 @@ function category_payload(?array $category, ?array $parent = null): array
 		'sort' => 0, 'active' => true];
 
 	return [
-		'formTitle' => $category['id'] ? 'Edit: ' . $category['names']['en'] : 'New category',
+		'formTitle' => $category['id'] ? at('cat.form_edit', ['name' => $category['names']['en']]) : at('cat.form_new'),
 		'id' => (string) $category['id'],
 		'name_en' => $category['names']['en'],
 		'name_srl' => $category['names']['sr-latn'],
@@ -216,13 +225,14 @@ function category_options(string $selected = '', bool $withParents = false): str
 	$html = '';
 
 	foreach (categories() as $parent) {
-		$html .= '<optgroup label="' . e($parent['names']['en'] . ($parent['visible'] ? '' : ' (hidden)')) . '">';
+		$hidden = ' ' . at('common.hidden_mark');
+		$html .= '<optgroup label="' . e($parent['names']['en'] . ($parent['visible'] ? '' : $hidden)) . '">';
 		if ($withParents) {
-			$html .= '<option value="' . e($parent['slug']) . '"' . ($parent['slug'] === $selected ? ' selected' : '') . '>All in ' . e($parent['names']['en']) . '</option>';
+			$html .= '<option value="' . e($parent['slug']) . '"' . ($parent['slug'] === $selected ? ' selected' : '') . '>' . e(at('common.all_in', ['name' => $parent['names']['en']])) . '</option>';
 		}
 		foreach ($parent['children'] as $child) {
 			$isSelected = $child['slug'] === $selected ? ' selected' : '';
-			$html .= '<option value="' . e($child['slug']) . '"' . $isSelected . '>' . e($child['names']['en'] . ($child['visible'] ? '' : ' (hidden)')) . '</option>';
+			$html .= '<option value="' . e($child['slug']) . '"' . $isSelected . '>' . e($child['names']['en'] . ($child['visible'] ? '' : $hidden)) . '</option>';
 		}
 		$html .= '</optgroup>';
 	}
@@ -233,19 +243,13 @@ function category_options(string $selected = '', bool $withParents = false): str
 // Pre-built city list for selects
 function city_options(string $selected = '', bool $withAll = false): string
 {
-	$items = $withAll ? ['' => 'All cities'] : [];
+	$items = $withAll ? ['' => at('common.all_cities')] : [];
 
 	foreach (cities() as $city) {
 		$items[$city['latn']] = $city['latn'];
 	}
 
 	return options($items, $selected);
-}
-
-// "1 listing" / "3 listings"
-function plural(int $count, string $one, string $many): string
-{
-	return $count . ' ' . ($count === 1 ? $one : $many);
 }
 
 /* ---------- Lists: filters in the address, pages ---------- */
@@ -285,9 +289,10 @@ function admin_pagination(int $total, int $page, callable $url): string
 	$to = min($total, $page * ADMIN_PAGE_SIZE);
 	$link = fn(int $n, string $label, string $attrs = '') => '<li><a class="pagination__page" href="' . e($url($n)) . '"' . $attrs . '>' . $label . '</a></li>';
 
-	$html = '<nav class="pagination" aria-label="Pagination"><span>' . ($total ? 'Showing ' . $from . '–' . $to . ' of ' . number_format($total, 0, ',', ' ') : 'Nothing found') . '</span>';
+	$html = '<nav class="pagination" aria-label="' . e(at('pager.aria')) . '"><span>'
+		. e($total ? at('pager.showing', ['from' => $from, 'to' => $to, 'total' => number_format($total, 0, ',', ' ')]) : at('pager.none')) . '</span>';
 	if ($pages > 1) {
-		$html .= '<ul class="pagination__pages">' . $link(max(1, $page - 1), icon('chevron-left', 16), ' aria-label="Previous page"' . ($page === 1 ? ' aria-disabled="true"' : ''));
+		$html .= '<ul class="pagination__pages">' . $link(max(1, $page - 1), icon('chevron-left', 16), ' aria-label="' . e(at('pager.prev')) . '"' . ($page === 1 ? ' aria-disabled="true"' : ''));
 		$last = 0;
 		foreach (array_unique([1, $page - 2, $page - 1, $page, $page + 1, $page + 2, $pages]) as $n) {
 			if ($n < 1 || $n > $pages) {
@@ -299,7 +304,7 @@ function admin_pagination(int $total, int $page, callable $url): string
 			$html .= $link($n, (string) $n, $n === $page ? ' aria-current="page"' : '');
 			$last = $n;
 		}
-		$html .= $link(min($pages, $page + 1), icon('chevron-right', 16), ' aria-label="Next page"' . ($page === $pages ? ' aria-disabled="true"' : '')) . '</ul>';
+		$html .= $link(min($pages, $page + 1), icon('chevron-right', 16), ' aria-label="' . e(at('pager.next')) . '"' . ($page === $pages ? ' aria-disabled="true"' : '')) . '</ul>';
 	}
 
 	return $html . '</nav>';
@@ -310,25 +315,17 @@ function admin_pagination(int $total, int $page, callable $url): string
 // Report reasons (keys as in the form on the site: r.<key>)
 function report_reasons(): array
 {
-	return [
-		'fraud' => 'Suspected fraud',
-		'sold' => 'Item already sold',
-		'duplicate' => 'Duplicate listing',
-		'wrong_category' => 'Wrong category',
-		'inappropriate' => 'Inappropriate content',
-		'other' => 'Other',
-	];
+	$keys = ['fraud', 'sold', 'duplicate', 'wrong_category', 'inappropriate', 'other'];
+
+	return array_combine($keys, array_map(fn($key) => at('report.' . $key), $keys));
 }
 
 // Report resolutions
 function report_resolutions(): array
 {
-	return [
-		'dismiss' => 'Dismiss: no violation',
-		'edit' => 'Ask the seller to edit the listing',
-		'remove' => 'Remove the listing',
-		'remove_block' => 'Remove the listing and block the seller',
-	];
+	$keys = ['dismiss', 'edit', 'remove', 'remove_block'];
+
+	return array_combine($keys, array_map(fn($key) => at('resolution.' . $key), $keys));
 }
 
 // Letter to the seller about a decision (approved | rejected), in the language the ad
@@ -363,49 +360,77 @@ function safe_back(string $back, string $fallback = 'listings.php'): string
 	return preg_match('/^[a-z-]+\.php(\?[\w=&%.\-]*)?(#[\w-]+)?$/', $back) ? $back : $fallback;
 }
 
-// Audit record → dashboard / history line: ['type', 'icon', 'text']
+// Audit record → dashboard / history line: ['type', 'icon', 'text'] (texts: audit.<action>,
+// {who} — the actor, {listing} — "#1048", {user} — the account acted upon)
 function audit_line(array $entry): array
 {
 	$c = $entry['context'];
-	$who = $entry['user_id'] ? user_name($entry['user_id']) : 'System';
-	$listing = isset($c['listing_id']) ? '#' . $c['listing_id'] : '';
+	$p = [
+		'who' => $entry['user_id'] ? user_name($entry['user_id']) : at('audit.system'),
+		'listing' => isset($c['listing_id']) ? '#' . $c['listing_id'] : '',
+		'user' => user_name($c['user_id'] ?? null),
+		'report' => '#' . ($c['report_id'] ?? ''),
+		'message' => '#' . ($c['contact_id'] ?? ''),
+		'id' => (string) ($c['landing_id'] ?? $c['category_id'] ?? ''),
+		// A landing's "title" is its SEO title, not a listing title
+		'fields' => field_labels(array_map(fn($f) => $entry['action'] === 'admin.landing_update' && $f === 'title' ? 'seo_title' : $f, $c['fields'] ?? [])),
+	];
+	// ": wrong category", ": title, price" after the line, when there is one
+	$tail = fn(string $text) => $text !== '' ? ': ' . $text : '';
 
-	return match ($entry['action']) {
-		'listing.create' => ['listing', 'tag', $who . ' posted listing ' . $listing . ', waiting for moderation'],
-		'listing.update' => ['listing', 'edit', $who . ' edited listing ' . $listing . ', back to moderation'],
-		'listing.draft' => ['listing', 'edit', $who . ' saved draft ' . $listing],
-		'listing.approve' => ['user', 'check', $who . ' approved listing ' . $listing],
-		'listing.reject' => ['moderation', 'ban', $who . ' rejected listing ' . $listing . (isset($c['reason']) ? ': ' . (reject_reasons()[$c['reason']] ?? $c['reason']) : '')],
-		'listing.remove' => ['moderation', 'trash', $who . ' removed listing ' . $listing],
-		'listing.staff_edit' => ['moderation', 'edit', $who . ' corrected listing ' . $listing . (!empty($c['fields']) ? ': ' . implode(', ', $c['fields']) : '')],
-		'listing.staff_photos' => ['moderation', 'image', $who . match ($c['op'] ?? '') {
-			'add' => ' added ' . plural((int) ($c['photos'] ?? 0), 'photo', 'photos') . ' to listing ',
-			'cover' => ' changed the cover of listing ',
-			default => ' deleted a photo of listing ',
-		} . $listing],
-		'listing.delete' => ['listing', 'trash', $who . ' deleted their listing ' . $listing],
-		'listing.raise' => ['listing', 'arrow-up', $who . ' bumped listing ' . $listing],
-		'listing.deactivate' => ['listing', 'power', $who . ' deactivated listing ' . $listing],
-		'listing.activate' => ['listing', 'power', $who . ' activated listing ' . $listing],
-		'listing.renew' => ['listing', 'refresh', $who . ' renewed listing ' . $listing],
-		'report.create' => ['report', 'flag', $who . ' reported listing ' . $listing . (isset($c['reason']) ? ': ' . (report_reasons()[$c['reason']] ?? $c['reason']) : '')],
-		'report.review' => ['report', 'flag', $who . ' took report #' . ($c['report_id'] ?? '') . ' into review'],
-		'report.resolve' => ['report', 'check', $who . ' resolved report #' . ($c['report_id'] ?? '') . ' (' . (report_resolutions()[$c['resolution'] ?? ''] ?? '—') . ')'],
-		'admin.user_block' => ['moderation', 'lock', $who . ' blocked ' . user_name($c['user_id'] ?? null)],
-		'admin.user_unblock' => ['user', 'lock', $who . ' unblocked ' . user_name($c['user_id'] ?? null)],
-		'admin.user_update' => ['user', 'edit', $who . ' changed ' . user_name($c['user_id'] ?? null) . ': ' . implode(', ', $c['fields'] ?? []) . (isset($c['role']) ? ' (role ' . $c['role'] . ')' : '')],
-		'admin.user_note' => ['user', 'edit', $who . ' updated the note about ' . user_name($c['user_id'] ?? null)],
-		'admin.user_reset_link' => ['user', 'lock', $who . ' sent a password reset link to ' . user_name($c['user_id'] ?? null)],
-		'admin.user_sessions_end' => ['moderation', 'logout', $who . ' ended all sessions of ' . user_name($c['user_id'] ?? null)],
-		'admin.user_delete' => ['moderation', 'trash', $who . ' deleted the account ' . user_name($c['user_id'] ?? null)],
-		'auth.login' => ['user', 'user', $who . ' logged in'],
-		'auth.password_changed', 'auth.password_reset' => ['user', 'lock', $who . ' changed the password'],
-		'account.update' => ['user', 'edit', $who . ' updated the profile'],
-		'account.delete' => ['moderation', 'trash', $who . ' deleted their account'],
-		'auth.register' => ['user', 'user', 'New user registered: ' . user_name($c['user_id'] ?? null)],
-		'contact.message' => ['user', 'mail', $who . ' wrote to support (message #' . ($c['contact_id'] ?? '') . ')'],
-		'contact.answered' => ['user', 'check', $who . ' answered message #' . ($c['contact_id'] ?? '')],
-		'contact.reopened' => ['user', 'mail', $who . ' marked message #' . ($c['contact_id'] ?? '') . ' as new'],
-		default => ['listing', 'info', $who . ': ' . $entry['action'] . ($listing ? ' ' . $listing : '')],
+	[$type, $iconName, $key] = match ($entry['action']) {
+		'listing.create' => ['listing', 'tag', 'listing_create'],
+		'listing.update' => ['listing', 'edit', 'listing_update'],
+		'listing.draft' => ['listing', 'edit', 'listing_draft'],
+		'listing.approve' => ['user', 'check', 'listing_approve'],
+		'listing.reject' => ['moderation', 'ban', 'listing_reject'],
+		'listing.remove' => ['moderation', 'trash', 'listing_remove'],
+		'listing.staff_edit' => ['moderation', 'edit', 'listing_staff_edit'],
+		'listing.staff_photos' => ['moderation', 'image', 'listing_photos_' . (in_array($c['op'] ?? '', ['add', 'cover'], true) ? $c['op'] : 'delete')],
+		'listing.delete' => ['listing', 'trash', 'listing_delete'],
+		'listing.raise' => ['listing', 'arrow-up', 'listing_raise'],
+		'listing.deactivate' => ['listing', 'power', 'listing_deactivate'],
+		'listing.activate' => ['listing', 'power', 'listing_activate'],
+		'listing.renew' => ['listing', 'refresh', 'listing_renew'],
+		'report.create' => ['report', 'flag', 'report_create'],
+		'report.review' => ['report', 'flag', 'report_review'],
+		'report.resolve' => ['report', 'check', 'report_resolve'],
+		'admin.user_block' => ['moderation', 'lock', 'user_block'],
+		'admin.user_unblock' => ['user', 'lock', 'user_unblock'],
+		'admin.user_update' => ['user', 'edit', 'user_update'],
+		'admin.user_note' => ['user', 'edit', 'user_note'],
+		'admin.user_reset_link' => ['user', 'lock', 'user_reset_link'],
+		'admin.user_sessions_end' => ['moderation', 'logout', 'user_sessions_end'],
+		'admin.user_delete' => ['moderation', 'trash', 'user_delete'],
+		'admin.category_create', 'admin.category_update', 'admin.category_hide', 'admin.category_show', 'admin.category_delete'
+			=> ['moderation', 'layers', substr($entry['action'], 6)],
+		'admin.landing_update', 'admin.landing_hide', 'admin.landing_show' => ['moderation', 'filter', substr($entry['action'], 6)],
+		'auth.login' => ['user', 'user', 'login'],
+		'auth.password_changed', 'auth.password_reset' => ['user', 'lock', 'password'],
+		'account.update' => ['user', 'edit', 'account_update'],
+		'account.delete' => ['moderation', 'trash', 'account_delete'],
+		'auth.register' => ['user', 'user', 'register'],
+		'contact.message' => ['user', 'mail', 'contact_message'],
+		'contact.answered' => ['user', 'check', 'contact_answered'],
+		'contact.reopened' => ['user', 'mail', 'contact_reopened'],
+		default => ['listing', 'info', ''],
 	};
+
+	if ($key === '') {
+		return [$type, $iconName, $p['who'] . ': ' . $entry['action'] . ($p['listing'] !== '' ? ' ' . $p['listing'] : '')];
+	}
+
+	$text = at('audit.' . $key, $p) . match ($entry['action']) {
+		'listing.reject' => $tail(isset($c['reason']) ? reject_reasons()[$c['reason']] ?? $c['reason'] : ''),
+		'report.create' => $tail(isset($c['reason']) ? report_reasons()[$c['reason']] ?? $c['reason'] : ''),
+		'report.resolve' => ' (' . (report_resolutions()[$c['resolution'] ?? ''] ?? '—') . ')',
+		'listing.staff_photos' => '',
+		'admin.user_update' => $tail($p['fields']) . (isset($c['role']) ? ' (' . role_name($c['role']) . ')' : ''),
+		default => isset($c['fields']) ? $tail($p['fields']) : '',
+	};
+	if ($entry['action'] === 'listing.staff_photos' && ($c['op'] ?? '') === 'add') {
+		$text = at('audit.listing_photos_add', $p + ['photos' => atp('common.photos', (int) ($c['photos'] ?? 0))]);
+	}
+
+	return [$type, $iconName, $text];
 }

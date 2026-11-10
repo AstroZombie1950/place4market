@@ -11,27 +11,27 @@
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
 
 if (!is_admin()) {
-	flash('danger', 'Migrations are available to administrators only.');
+	flash('danger', at('mig.admins_only'));
 	redirect('index.php');
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 	if (!csrf_valid()) {
-		flash('danger', 'The form has expired. Please try again.');
+		flash('danger', at('common.form_expired'));
 		redirect('migrations.php');
 	}
 
 	try {
 		$done = migrations_apply('admin');
 		log_action('admin.migrate', ['applied' => $done]);
-		flash('success', $done ? 'Applied: ' . implode(', ', $done) . '.' : 'Nothing to apply, the schema is up to date.');
+		flash('success', $done ? at('mig.applied_list', ['list' => implode(', ', $done)]) : at('mig.none'));
 	} catch (RuntimeException $e) {
-		flash('danger', $e->getMessage() . ' (code ' . request_id() . ')');
+		flash('danger', $e->getMessage() . ' (' . at('mig.code', ['code' => request_id()]) . ')');
 	}
 	redirect('migrations.php');
 }
 
-$pageTitle = 'Migrations';
+$pageTitle = at('mig.title');
 $activeNav = 'migrations';
 $applied = migrations_applied();
 $pending = migrations_pending();
@@ -43,13 +43,13 @@ require ADMIN_INC . '/header.php';
 <!-- Page head -->
 <div class="page-head">
 	<div>
-		<h1 class="page-head__title">Migrations</h1>
-		<p class="page-head__sub">Database schema changes. Applied automatically by the deploy before the new code goes live; run them here if that did not happen.</p>
+		<h1 class="page-head__title"><?= e(at('mig.title')) ?></h1>
+		<p class="page-head__sub"><?= e(at('mig.sub')) ?></p>
 	</div>
 	<?php if ($pending): ?>
 	<form method="post" action="migrations.php">
 		<?= csrf_field() ?>
-		<button type="submit" class="btn btn--primary" data-confirm="Apply <?= e(plural(count($pending), 'migration', 'migrations')) ?> to the database now?" data-confirm-label="Apply"><?= icon('check', 18) ?>Apply <?= e(plural(count($pending), 'migration', 'migrations')) ?></button>
+		<button type="submit" class="btn btn--primary" data-confirm="<?= e(at('mig.apply_q', ['migrations' => atp('mig.count', count($pending))])) ?>" data-confirm-label="<?= e(at('mig.apply')) ?>"><?= icon('check', 18) ?><?= e(at('mig.apply_btn', ['migrations' => atp('mig.count', count($pending))])) ?></button>
 	</form>
 	<?php endif; ?>
 </div>
@@ -59,9 +59,9 @@ require ADMIN_INC . '/header.php';
 		<table class="table">
 			<thead>
 				<tr>
-					<th>Version</th>
-					<th>Status</th>
-					<th>Applied</th>
+					<th><?= e(at('mig.version')) ?></th>
+					<th><?= e(at('common.status')) ?></th>
+					<th><?= e(at('mig.applied_at')) ?></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -70,9 +70,9 @@ require ADMIN_INC . '/header.php';
 					<td><code><?= e($version) ?></code></td>
 					<td>
 						<?php if (isset($applied[$version])): ?>
-						<span class="badge badge--success">Applied</span>
+						<span class="badge badge--success"><?= e(at('mig.applied')) ?></span>
 						<?php else: ?>
-						<span class="badge badge--warning">Pending</span>
+						<span class="badge badge--warning"><?= e(at('mig.pending')) ?></span>
 						<?php endif; ?>
 					</td>
 					<td class="nowrap"><?= isset($applied[$version]) ? e(date('d.m.Y H:i', strtotime(db_local($applied[$version])))) : '—' ?></td>

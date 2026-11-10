@@ -7,19 +7,19 @@
 	========================================================================== */
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
 
-$pageTitle = 'Listings';
+$pageTitle = at('list.title');
 $activeNav = 'listings';
 
 // Status tabs: value => label
 $statusTabs = [
-	'' => 'All',
-	'pending' => 'Pending',
-	'active' => 'Active',
-	'rejected' => 'Rejected',
-	'expired' => 'Expired',
-	'inactive' => 'Inactive',
-	'draft' => 'Draft',
-	'deleted' => 'Deleted',
+	'' => at('common.all'),
+	'pending' => at('status.pending'),
+	'active' => at('status.active'),
+	'rejected' => at('status.rejected'),
+	'expired' => at('status.expired'),
+	'inactive' => at('status.inactive'),
+	'draft' => at('status.draft'),
+	'deleted' => at('status.deleted'),
 ];
 
 $f = [
@@ -41,17 +41,17 @@ require ADMIN_INC . '/header.php';
 <!-- Page head -->
 <div class="page-head">
 	<div>
-		<h1 class="page-head__title">Listings</h1>
-		<p class="page-head__sub">Moderate, edit and remove listings.</p>
+		<h1 class="page-head__title"><?= e(at('list.title')) ?></h1>
+		<p class="page-head__sub"><?= e(at('list.sub')) ?></p>
 	</div>
 	<div class="page-head__actions">
-		<a class="btn btn--secondary" href="<?= e(list_url('export.php', ['type' => 'listings'] + $f)) ?>"><?= icon('download', 18) ?>Export CSV</a>
+		<a class="btn btn--secondary" href="<?= e(list_url('export.php', ['type' => 'listings'] + $f)) ?>"><?= icon('download', 18) ?><?= e(at('common.export_csv')) ?></a>
 	</div>
 </div>
 
-<section class="card" aria-label="Listings table">
+<section class="card" aria-label="<?= e(at('list.table')) ?>">
 	<!-- Status tabs (keep the other filters) -->
-	<nav class="tabs__list tabs__list--flush" aria-label="Filter by status">
+	<nav class="tabs__list tabs__list--flush" aria-label="<?= e(at('list.filter_status')) ?>">
 		<?php foreach ($statusTabs as $value => $label): ?>
 		<a class="tabs__tab" href="<?= e(list_url('listings.php', ['status' => $value] + $f)) ?>"<?= $value === $f['status'] ? ' aria-current="page"' : '' ?>>
 			<?= e($label) ?>
@@ -66,22 +66,22 @@ require ADMIN_INC . '/header.php';
 		<?php if ($f['user']): ?><input type="hidden" name="user" value="<?= e($f['user']) ?>"><?php endif; ?>
 		<div class="input-icon toolbar__search">
 			<?= icon('search', 18) ?>
-			<label class="visually-hidden" for="listings-search">Search listings</label>
-			<input class="input" id="listings-search" name="q" type="search" placeholder="Title, #ID, seller name or email…" value="<?= e($f['q']) ?>">
+			<label class="visually-hidden" for="listings-search"><?= e(at('list.search')) ?></label>
+			<input class="input" id="listings-search" name="q" type="search" placeholder="<?= e(at('list.search_ph')) ?>" value="<?= e($f['q']) ?>">
 		</div>
-		<label class="visually-hidden" for="listings-category">Category</label>
+		<label class="visually-hidden" for="listings-category"><?= e(at('common.category')) ?></label>
 		<select class="select" id="listings-category" name="cat">
-			<option value="">All categories</option>
+			<option value=""><?= e(at('common.all_categories')) ?></option>
 			<?= category_options($f['cat'], true) ?>
 		</select>
-		<label class="visually-hidden" for="listings-city">City</label>
+		<label class="visually-hidden" for="listings-city"><?= e(at('common.city')) ?></label>
 		<select class="select" id="listings-city" name="city">
 			<?= city_options($f['city'], true) ?>
 		</select>
-		<button type="submit" class="btn btn--primary"><?= icon('search', 18) ?>Show</button>
-		<a class="btn btn--ghost" href="<?= e(list_url('listings.php', ['status' => $f['status']])) ?>"><?= icon('refresh', 18) ?>Reset</a>
+		<button type="submit" class="btn btn--primary"><?= icon('search', 18) ?><?= e(at('common.show')) ?></button>
+		<a class="btn btn--ghost" href="<?= e(list_url('listings.php', ['status' => $f['status']])) ?>"><?= icon('refresh', 18) ?><?= e(at('common.reset')) ?></a>
 		<?php if ($f['user']): ?>
-		<span class="muted">Seller: <a href="user.php?id=<?= (int) $f['user'] ?>"><?= e(user_name((int) $f['user'])) ?></a></span>
+		<span class="muted"><?= e(at('list.seller')) ?> <a href="user.php?id=<?= (int) $f['user'] ?>"><?= e(user_name((int) $f['user'])) ?></a></span>
 		<?php endif; ?>
 	</form>
 
@@ -89,11 +89,11 @@ require ADMIN_INC . '/header.php';
 	<form class="bulkbar" data-bulk="listings-table" data-bulk-form="listings-table" method="post" action="moderate.php" hidden>
 		<?= csrf_field() ?>
 		<input type="hidden" name="back" value="<?= e($back) ?>">
-		<span class="bulkbar__count"><span data-bulk-count>0</span> selected</span>
-		<button type="submit" class="btn btn--success btn--sm" name="action" value="approve"><?= icon('check', 16) ?>Approve</button>
-		<button type="button" class="btn btn--secondary btn--sm" data-modal-open="reject-dialog" data-bulk-ids="listings-table" data-payload="<?= attr_json(['title' => 'Selected listings']) ?>"><?= icon('ban', 16) ?>Reject</button>
-		<button type="submit" class="btn btn--danger-ghost btn--sm" name="action" value="delete" data-confirm="Delete the selected listings? Their photos are removed, this cannot be undone." data-confirm-label="Delete"><?= icon('trash', 16) ?>Delete</button>
-		<button type="button" class="btn btn--ghost btn--sm" data-bulk-clear="listings-table">Clear</button>
+		<span class="bulkbar__count"><span data-bulk-count>0</span> <?= e(at('common.selected')) ?></span>
+		<button type="submit" class="btn btn--success btn--sm" name="action" value="approve"><?= icon('check', 16) ?><?= e(at('common.approve')) ?></button>
+		<button type="button" class="btn btn--secondary btn--sm" data-modal-open="reject-dialog" data-bulk-ids="listings-table" data-payload="<?= attr_json(['title' => at('list.selected_title')]) ?>"><?= icon('ban', 16) ?><?= e(at('common.reject')) ?></button>
+		<button type="submit" class="btn btn--danger-ghost btn--sm" name="action" value="delete" data-confirm="<?= e(at('list.delete_selected')) ?>" data-confirm-label="<?= e(at('common.delete')) ?>"><?= icon('trash', 16) ?><?= e(at('common.delete')) ?></button>
+		<button type="button" class="btn btn--ghost btn--sm" data-bulk-clear="listings-table"><?= e(at('common.clear')) ?></button>
 	</form>
 
 	<!-- Table -->
@@ -101,27 +101,27 @@ require ADMIN_INC . '/header.php';
 		<table class="table" id="listings-table" data-table>
 			<thead>
 				<tr>
-					<th class="col-check"><input type="checkbox" data-check-all aria-label="Select all listings"></th>
-					<th>Listing</th>
-					<th>Category</th>
-					<th class="num">Price</th>
-					<th>Seller / city</th>
-					<th>Status</th>
-					<th>Created</th>
-					<th class="num">Views</th>
-					<th class="col-actions"><span class="visually-hidden">Actions</span></th>
+					<th class="col-check"><input type="checkbox" data-check-all aria-label="<?= e(at('list.select_all')) ?>"></th>
+					<th><?= e(at('list.col_listing')) ?></th>
+					<th><?= e(at('common.category')) ?></th>
+					<th class="num"><?= e(at('common.price')) ?></th>
+					<th><?= e(at('list.col_seller')) ?></th>
+					<th><?= e(at('common.status')) ?></th>
+					<th><?= e(at('common.created')) ?></th>
+					<th class="num"><?= e(at('common.views')) ?></th>
+					<th class="col-actions"><span class="visually-hidden"><?= e(at('common.actions')) ?></span></th>
 				</tr>
 			</thead>
 			<tbody>
 				<?php foreach ($listings as $listing): ?>
 				<tr data-row data-id="<?= (int) $listing['id'] ?>">
-					<td class="col-check"><input type="checkbox" data-row-check aria-label="Select “<?= e(admin_title($listing)) ?>”"></td>
+					<td class="col-check"><input type="checkbox" data-row-check aria-label="<?= e(at('common.select_name', ['name' => admin_title($listing)])) ?>"></td>
 					<td>
 						<div class="cell-main">
 							<?= thumb($listing) ?>
 							<div class="cell-main__text">
 								<a class="cell-main__title" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= e(admin_title($listing)) ?></a>
-								<div class="cell-main__sub">#<?= (int) $listing['id'] ?><?= $listing['negotiable'] ? ' · Negotiable' : '' ?></div>
+								<div class="cell-main__sub">#<?= (int) $listing['id'] ?><?= $listing['negotiable'] ? ' · ' . e(at('common.negotiable')) : '' ?></div>
 								<?php if ($listing['moderation_note'] && $listing['status'] === 'pending'): ?><div class="cell-main__sub text-danger"><?= e($listing['moderation_note']) ?></div><?php endif; ?>
 							</div>
 						</div>
@@ -130,7 +130,7 @@ require ADMIN_INC . '/header.php';
 						<?= e(category_name($listing['category'])) ?>
 						<div class="cell-main__sub"><?= e(category_parent($listing['category'])['names']['en'] ?? '') ?></div>
 					</td>
-					<td class="num"><?= e(format_price($listing['price'], $listing['currency'])) ?></td>
+					<td class="num"><?= e(admin_price($listing)) ?></td>
 					<td class="nowrap">
 						<a href="user.php?id=<?= (int) $listing['user_id'] ?>"><?= e(user_name($listing['user_id'])) ?></a>
 						<div class="cell-main__sub"><?= e($listing['city']) ?></div>
@@ -143,22 +143,22 @@ require ADMIN_INC . '/header.php';
 					<td class="num"><?= (int) $listing['views'] ?></td>
 					<td class="col-actions">
 						<div class="dropdown" data-dropdown>
-							<button type="button" class="btn btn--ghost btn--icon btn--sm" data-dropdown-toggle aria-expanded="false" aria-label="Actions for “<?= e(admin_title($listing)) ?>”"><?= icon('more', 18) ?></button>
+							<button type="button" class="btn btn--ghost btn--icon btn--sm" data-dropdown-toggle aria-expanded="false" aria-label="<?= e(at('common.actions_for', ['name' => admin_title($listing)])) ?>"><?= icon('more', 18) ?></button>
 							<form class="dropdown__menu" method="post" action="moderate.php">
 								<?= csrf_field() ?>
 								<input type="hidden" name="id" value="<?= (int) $listing['id'] ?>">
 								<input type="hidden" name="back" value="<?= e($back) ?>">
-								<a class="dropdown__item" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= icon('edit', 18) ?>Edit</a>
-								<a class="dropdown__item" href="<?= e(listing_url($listing)) ?>" target="_blank" rel="noopener"><?= icon('external', 18) ?>View on site</a>
+								<a class="dropdown__item" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= icon('edit', 18) ?><?= e(at('common.edit')) ?></a>
+								<a class="dropdown__item" href="<?= e(listing_url($listing)) ?>" target="_blank" rel="noopener"><?= icon('external', 18) ?><?= e(at('common.view_on_site')) ?></a>
 								<?php if (in_array($listing['status'], ['pending', 'rejected'], true)): ?>
-								<button type="submit" class="dropdown__item" name="action" value="approve"><?= icon('check', 18) ?>Approve</button>
+								<button type="submit" class="dropdown__item" name="action" value="approve"><?= icon('check', 18) ?><?= e(at('common.approve')) ?></button>
 								<?php endif; ?>
 								<?php if (in_array($listing['status'], ['pending', 'active', 'inactive', 'expired'], true)): ?>
-								<button type="button" class="dropdown__item" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => admin_title($listing), 'id_list' => (string) $listing['id']]) ?>"><?= icon('ban', 18) ?>Reject</button>
+								<button type="button" class="dropdown__item" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => admin_title($listing), 'id_list' => (string) $listing['id']]) ?>"><?= icon('ban', 18) ?><?= e(at('common.reject')) ?></button>
 								<?php endif; ?>
 								<?php if ($listing['status'] !== 'deleted'): ?>
 								<div class="dropdown__sep"></div>
-								<button type="submit" class="dropdown__item dropdown__item--danger" name="action" value="delete" data-confirm="Delete “<?= e(admin_title($listing)) ?>”? Its photos are removed, this cannot be undone." data-confirm-label="Delete"><?= icon('trash', 18) ?>Delete</button>
+								<button type="submit" class="dropdown__item dropdown__item--danger" name="action" value="delete" data-confirm="<?= e(at('list.delete_one', ['name' => admin_title($listing)])) ?>" data-confirm-label="<?= e(at('common.delete')) ?>"><?= icon('trash', 18) ?><?= e(at('common.delete')) ?></button>
 								<?php endif; ?>
 							</form>
 						</div>
@@ -167,7 +167,7 @@ require ADMIN_INC . '/header.php';
 				<?php endforeach; ?>
 				<?php if (!$listings): ?>
 				<tr class="table__empty">
-					<td colspan="9">No listings match the filters.</td>
+					<td colspan="9"><?= e(at('list.empty')) ?></td>
 				</tr>
 				<?php endif; ?>
 			</tbody>

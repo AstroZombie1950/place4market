@@ -411,7 +411,8 @@
 			closeDropdowns();
 			pending = el;
 			text.textContent = el.dataset.confirm;
-			ok.textContent = el.dataset.confirmLabel || 'Confirm';
+			// The default label comes in the admin language from the button itself (data-label)
+			ok.textContent = el.dataset.confirmLabel || ok.dataset.label || 'Confirm';
 			dialog.showModal();
 		});
 
@@ -494,7 +495,8 @@
 				const show = input.type === 'password';
 				input.type = show ? 'text' : 'password';
 				btn.setAttribute('aria-pressed', String(show));
-				btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+				// Labels in the admin language: data-label-show / data-label-hide
+				btn.setAttribute('aria-label', show ? (btn.dataset.labelHide || 'Hide password') : (btn.dataset.labelShow || 'Show password'));
 			});
 		});
 

@@ -105,7 +105,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		if ($changed) {
 			log_action('admin.landing_update', ['landing_id' => $landing['id'], 'path' => landing_site_url($landing, 'sr-latn'), 'fields' => $changed]);
 		}
-		flash('success', $changed ? at('common.saved_fields', ['fields' => implode(', ', $changed)]) : at('common.nothing_changed'));
+		$names = ['h1' => 'H1', 'title' => 'SEO title', 'meta' => 'Meta description', 'text' => at('seo.text')];
+		flash('success', $changed ? at('common.saved_fields', ['fields' => implode(', ', array_map(fn($key) => $names[$key], $changed))]) : at('common.nothing_changed'));
 		redirect('landings.php?edit=' . $landing['id']);
 	}
 

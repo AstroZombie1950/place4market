@@ -379,6 +379,8 @@ function user_from_row(array $r): array
 		'notify' => ['messages' => (bool) $r['notify_messages'], 'saved' => (bool) $r['notify_saved'], 'price' => (bool) $r['notify_price'], 'news' => (bool) $r['notify_news']],
 		'registered' => db_local($r['created_at']), 'last_active' => db_local($r['last_active_at']),
 		'session_version' => $r['session_version'], 'note' => $r['staff_note'],
+		// Language of the admin (018; before it — Russian, the default)
+		'admin_lang' => $r['admin_lang'] ?? 'ru',
 	];
 }
 
@@ -1232,6 +1234,12 @@ function set_staff_note(int $id, ?string $note): void
 }
 
 // "Last seen": written at most every 5 minutes per user
+// Language of the admin for a staff account ('en' | 'ru', 018)
+function set_user_admin_lang(int $id, string $lang): void
+{
+	db_exec('UPDATE users SET admin_lang = ? WHERE id = ?', [$lang, $id]);
+}
+
 function touch_user(int $id): void
 {
 	db_exec('UPDATE users SET last_active_at = UTC_TIMESTAMP()

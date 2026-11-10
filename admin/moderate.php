@@ -21,7 +21,7 @@ $action = (string) ($_POST['action'] ?? '');
 $back = safe_back((string) ($_POST['back'] ?? ''));
 
 if (!csrf_valid()) {
-	flash('danger', 'The form has expired. Please try again.');
+	flash('danger', at('common.form_expired'));
 	redirect($back);
 }
 
@@ -52,7 +52,7 @@ function remove_listing(int $id, array $context = []): bool
 	log_action('listing.remove', ['listing_id' => $id, 'photos' => count($paths)] + $context);
 
 	// Other open reports about it have nothing left to review
-	$note = 'Closed with the listing' . (isset($context['report_id']) ? ' (report #' . $context['report_id'] . ')' : '');
+	$note = isset($context['report_id']) ? at('mod.closed_with_report', ['id' => $context['report_id']]) : at('mod.closed_with');
 	foreach (resolve_listing_reports($id, $note, current_user_id()) as $reportId) {
 		log_action('report.resolve', ['report_id' => $reportId, 'listing_id' => $id, 'resolution' => 'remove', 'auto' => true]);
 	}
@@ -85,7 +85,7 @@ switch ($action) {
 				notify_seller(find_listing($id), 'approved');
 			}
 		}
-		flash($done ? 'success' : 'info', $done ? plural($done, 'listing', 'listings') . ' approved, sellers notified' : 'Nothing to approve: the listings are not waiting for moderation.');
+		flash($done ? 'success' : 'info', $done ? atp('mod.approved', $done) : at('mod.approve_none'));
 		break;
 
 	case 'reject':
@@ -93,17 +93,17 @@ switch ($action) {
 		$comment = trim(mb_substr((string) ($_POST['comment'] ?? ''), 0, 1000));
 
 		if (!isset(reject_reasons()[$reason])) {
-			flash('danger', 'Choose a reason.');
+			flash('danger', at('mod.choose_reason'));
 			break;
 		}
 
 		$done = count(array_filter($ids, fn($id) => reject_one($id, $reason, $comment, !empty($_POST['notify']))));
-		flash($done ? 'success' : 'info', $done ? plural($done, 'listing', 'listings') . ' rejected' : 'Nothing to reject.');
+		flash($done ? 'success' : 'info', $done ? atp('mod.rejected', $done) : at('mod.reject_none'));
 		break;
 
 	case 'delete':
 		$done = count(array_filter($ids, fn($id) => remove_listing($id)));
-		flash($done ? 'success' : 'info', $done ? plural($done, 'listing', 'listings') . ' removed' : 'Nothing to remove.');
+		flash($done ? 'success' : 'info', $done ? atp('mod.removed', $done) : at('mod.remove_none'));
 		if ($done && str_starts_with($back, 'listing-edit.php')) {
 			$back = 'listings.php';
 		}
@@ -117,17 +117,17 @@ switch ($action) {
 		foreach ($done as $userId) {
 			log_action('admin.user_' . $action, ['user_id' => $userId]);
 		}
-		$who = count($done) === 1 ? user_name($done[0]) : plural(count($done), 'user', 'users');
-		flash($done ? 'success' : 'info', $done ? $who . ($action === 'block' ? ' blocked: logged out, listings hidden' : ' unblocked') : 'Nothing changed (staff and deleted accounts cannot be blocked).');
+		$who = count($done) === 1 ? user_name($done[0]) : atp('common.users', count($done));
+		flash($done ? 'success' : 'info', $done ? at($action === 'block' ? 'mod.blocked' : 'mod.unblocked', ['who' => $who]) : at('mod.block_none'));
 		break;
 
 	case 'report_review':
 		$reportId = (int) ($_POST['report_id'] ?? 0);
 		if (review_report($reportId)) {
 			log_action('report.review', ['report_id' => $reportId, 'listing_id' => find_report($reportId)['listing_id']]);
-			flash('success', 'Report #' . $reportId . ' is in review');
+			flash('success', at('mod.report_review', ['id' => $reportId]));
 		} else {
-			flash('info', 'Report #' . $reportId . ' is already in review or resolved.');
+			flash('info', at('mod.report_review_none', ['id' => $reportId]));
 		}
 		break;
 
@@ -137,7 +137,7 @@ switch ($action) {
 		$note = trim(mb_substr((string) ($_POST['note'] ?? ''), 0, 2000));
 
 		if (!$report || $report['status'] === 'resolved' || !isset(report_resolutions()[$resolution])) {
-			flash('danger', 'This report is already resolved or the resolution is unknown.');
+			flash('danger', at('mod.report_bad'));
 			break;
 		}
 
@@ -165,11 +165,11 @@ switch ($action) {
 			log_action('admin.user_block', ['user_id' => $listing['user_id']] + $context);
 		}
 
-		flash('success', 'Report #' . $report['id'] . ' resolved: ' . report_resolutions()[$resolution]);
+		flash('success', at('mod.report_resolved', ['id' => $report['id'], 'resolution' => report_resolutions()[$resolution]]));
 		break;
 
 	default:
-		flash('danger', 'Unknown action.');
+		flash('danger', at('common.unknown_action'));
 }
 
 redirect($back);

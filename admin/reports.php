@@ -9,15 +9,15 @@
 	========================================================================== */
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
 
-$pageTitle = 'Reports';
+$pageTitle = at('rep.title');
 $activeNav = 'reports';
 
 // Filter tabs: value => label (Open when none is given)
 $reportTabs = [
-	'open' => 'Open',
-	'review' => 'In review',
-	'resolved' => 'Resolved',
-	'all' => 'All',
+	'open' => at('status.open'),
+	'review' => at('status.review'),
+	'resolved' => at('status.resolved'),
+	'all' => at('common.all'),
 ];
 
 $f = [
@@ -39,14 +39,14 @@ require ADMIN_INC . '/header.php';
 <!-- Page head -->
 <div class="page-head">
 	<div>
-		<h1 class="page-head__title">Reports</h1>
-		<p class="page-head__sub">Complaints from users about listings.</p>
+		<h1 class="page-head__title"><?= e(at('rep.title')) ?></h1>
+		<p class="page-head__sub"><?= e(at('rep.sub')) ?></p>
 	</div>
 </div>
 
-<section class="card" aria-label="Reports table">
+<section class="card" aria-label="<?= e(at('rep.table')) ?>">
 	<!-- Status tabs (keep the other filters) -->
-	<nav class="tabs__list tabs__list--flush" aria-label="Filter by status">
+	<nav class="tabs__list tabs__list--flush" aria-label="<?= e(at('list.filter_status')) ?>">
 		<?php foreach ($reportTabs as $value => $label): ?>
 		<a class="tabs__tab" href="<?= e(list_url('reports.php', ['status' => $value === 'open' ? null : $value] + $f)) ?>"<?= $value === $f['status'] ? ' aria-current="page"' : '' ?>>
 			<?= e($label) ?>
@@ -60,15 +60,15 @@ require ADMIN_INC . '/header.php';
 		<input type="hidden" name="status" value="<?= e($f['status']) ?>">
 		<div class="input-icon toolbar__search">
 			<?= icon('search', 18) ?>
-			<label class="visually-hidden" for="reports-search">Search reports</label>
-			<input class="input" id="reports-search" name="q" type="search" placeholder="#ID, listing, reporter…" value="<?= e($f['q']) ?>">
+			<label class="visually-hidden" for="reports-search"><?= e(at('rep.search')) ?></label>
+			<input class="input" id="reports-search" name="q" type="search" placeholder="<?= e(at('rep.search_ph')) ?>" value="<?= e($f['q']) ?>">
 		</div>
-		<label class="visually-hidden" for="reports-reason">Reason</label>
+		<label class="visually-hidden" for="reports-reason"><?= e(at('rep.reason')) ?></label>
 		<select class="select" id="reports-reason" name="reason">
-			<?= options(['' => 'All reasons'] + report_reasons(), $f['reason']) ?>
+			<?= options(['' => at('rep.all_reasons')] + report_reasons(), $f['reason']) ?>
 		</select>
-		<button type="submit" class="btn btn--primary"><?= icon('search', 18) ?>Show</button>
-		<a class="btn btn--ghost" href="<?= e(list_url('reports.php', ['status' => $f['status'] === 'open' ? null : $f['status']])) ?>"><?= icon('refresh', 18) ?>Reset</a>
+		<button type="submit" class="btn btn--primary"><?= icon('search', 18) ?><?= e(at('common.show')) ?></button>
+		<a class="btn btn--ghost" href="<?= e(list_url('reports.php', ['status' => $f['status'] === 'open' ? null : $f['status']])) ?>"><?= icon('refresh', 18) ?><?= e(at('common.reset')) ?></a>
 	</form>
 
 	<!-- Table -->
@@ -76,13 +76,13 @@ require ADMIN_INC . '/header.php';
 		<table class="table">
 			<thead>
 				<tr>
-					<th>Report</th>
-					<th>Listing</th>
-					<th>Reporter</th>
-					<th>Comment</th>
-					<th>Date</th>
-					<th>Status</th>
-					<th class="col-actions"><span class="visually-hidden">Actions</span></th>
+					<th><?= e(at('rep.col_report')) ?></th>
+					<th><?= e(at('list.col_listing')) ?></th>
+					<th><?= e(at('rep.col_reporter')) ?></th>
+					<th><?= e(at('rep.col_comment')) ?></th>
+					<th><?= e(at('rep.col_date')) ?></th>
+					<th><?= e(at('common.status')) ?></th>
+					<th class="col-actions"><span class="visually-hidden"><?= e(at('common.actions')) ?></span></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -97,7 +97,7 @@ require ADMIN_INC . '/header.php';
 						'r_seller' => user_name($listing['user_id'] ?? 0),
 						'r_reporter' => user_name($report['reporter_id']),
 						'r_date' => format_date($report['created'], true),
-						'r_comment' => $report['comment'] !== '' ? $report['comment'] : 'No comment.',
+						'r_comment' => $report['comment'] !== '' ? $report['comment'] : at('rep.no_comment'),
 					];
 				?>
 				<tr>
@@ -110,7 +110,7 @@ require ADMIN_INC . '/header.php';
 							<?= thumb($listing, 'sm') ?>
 							<div class="cell-main__text">
 								<a class="cell-main__title" href="listing-edit.php?id=<?= (int) $listing['id'] ?>"><?= e(admin_title($listing)) ?></a>
-								<div class="cell-main__sub">Seller: <?= e(user_name($listing['user_id'])) ?></div>
+								<div class="cell-main__sub"><?= e(at('rep.seller', ['name' => user_name($listing['user_id'])])) ?></div>
 							</div>
 						</div>
 					</td>
@@ -120,20 +120,20 @@ require ADMIN_INC . '/header.php';
 					<td>
 						<?= status_badge($report['status']) ?>
 						<?php if ($report['status'] === 'resolved'): ?>
-						<div class="cell-main__sub"><?= e(report_resolutions()[$report['resolution'] ?? ''] ?? 'Resolved') ?><?= $report['resolved_by'] ? ' · ' . e(user_name($report['resolved_by'])) : '' ?></div>
+						<div class="cell-main__sub"><?= e(report_resolutions()[$report['resolution'] ?? ''] ?? at('status.resolved')) ?><?= $report['resolved_by'] ? ' · ' . e(user_name($report['resolved_by'])) : '' ?></div>
 						<?php if ($report['note']): ?><div class="cell-main__sub"><?= e($report['note']) ?></div><?php endif; ?>
 						<?php endif; ?>
 					</td>
 					<td class="col-actions">
 						<?php if ($report['status'] !== 'resolved'): ?>
-						<button type="button" class="btn btn--secondary btn--sm" data-modal-open="report-dialog" data-payload="<?= attr_json($payload) ?>">Review</button>
+						<button type="button" class="btn btn--secondary btn--sm" data-modal-open="report-dialog" data-payload="<?= attr_json($payload) ?>"><?= e(at('dash.review')) ?></button>
 						<?php endif; ?>
 					</td>
 				</tr>
 				<?php endforeach; ?>
 				<?php if (!$reports): ?>
 				<tr class="table__empty">
-					<td colspan="7">No reports here. All clear.</td>
+					<td colspan="7"><?= e(at('rep.empty')) ?></td>
 				</tr>
 				<?php endif; ?>
 			</tbody>
@@ -150,16 +150,16 @@ require ADMIN_INC . '/header.php';
 		<input type="hidden" name="report_id" value="" data-fill="report_id">
 		<input type="hidden" name="back" value="<?= e($back) ?>">
 		<div class="modal__head">
-			<h2 class="modal__title" id="report-title">Report <span data-fill="r_id"></span></h2>
-			<button type="button" class="btn btn--ghost btn--icon" data-modal-close aria-label="Close"><?= icon('x') ?></button>
+			<h2 class="modal__title" id="report-title"><?= e(at('rep.dialog')) ?> <span data-fill="r_id"></span></h2>
+			<button type="button" class="btn btn--ghost btn--icon" data-modal-close aria-label="<?= e(at('common.close')) ?>"><?= icon('x') ?></button>
 		</div>
 		<div class="modal__body">
 			<dl class="dl dl--left">
-				<dt>Reason</dt><dd data-fill="r_reason"></dd>
-				<dt>Listing</dt><dd data-fill="r_listing"></dd>
-				<dt>Seller</dt><dd data-fill="r_seller"></dd>
-				<dt>Reported by</dt><dd data-fill="r_reporter"></dd>
-				<dt>Date</dt><dd data-fill="r_date"></dd>
+				<dt><?= e(at('rep.reason')) ?></dt><dd data-fill="r_reason"></dd>
+				<dt><?= e(at('list.col_listing')) ?></dt><dd data-fill="r_listing"></dd>
+				<dt><?= e(at('edit.tab_seller')) ?></dt><dd data-fill="r_seller"></dd>
+				<dt><?= e(at('rep.reported_by')) ?></dt><dd data-fill="r_reporter"></dd>
+				<dt><?= e(at('rep.col_date')) ?></dt><dd data-fill="r_date"></dd>
 			</dl>
 
 			<div class="notice notice--info">
@@ -168,25 +168,25 @@ require ADMIN_INC . '/header.php';
 			</div>
 
 			<div class="field">
-				<label class="field__label" for="report-resolution">Resolution</label>
+				<label class="field__label" for="report-resolution"><?= e(at('rep.resolution')) ?></label>
 				<select class="select" id="report-resolution" name="resolution">
 					<?= options(report_resolutions()) ?>
 				</select>
 			</div>
 
 			<div class="field">
-				<label class="field__label" for="report-message">Message to the seller</label>
-				<textarea class="textarea" id="report-message" name="message" rows="3" maxlength="1000" placeholder="For “Ask the seller to edit”: what to fix. The listing is taken off until fixed."></textarea>
+				<label class="field__label" for="report-message"><?= e(at('dlg.message')) ?></label>
+				<textarea class="textarea" id="report-message" name="message" rows="3" maxlength="1000" placeholder="<?= e(at('rep.message_ph')) ?>"></textarea>
 			</div>
 
 			<div class="field">
-				<label class="field__label" for="report-note">Internal note</label>
-				<textarea class="textarea" id="report-note" name="note" rows="3" placeholder="Visible to staff only"></textarea>
+				<label class="field__label" for="report-note"><?= e(at('rep.note')) ?></label>
+				<textarea class="textarea" id="report-note" name="note" rows="3" placeholder="<?= e(at('rep.note_ph')) ?>"></textarea>
 			</div>
 		</div>
 		<div class="modal__foot">
-			<button type="submit" class="btn btn--secondary" name="action" value="report_review">Mark in review</button>
-			<button type="submit" class="btn btn--primary" name="action" value="report_resolve">Resolve</button>
+			<button type="submit" class="btn btn--secondary" name="action" value="report_review"><?= e(at('rep.mark_review')) ?></button>
+			<button type="submit" class="btn btn--primary" name="action" value="report_resolve"><?= e(at('rep.resolve')) ?></button>
 		</div>
 	</form>
 </dialog>

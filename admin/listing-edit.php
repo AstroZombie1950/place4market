@@ -21,7 +21,7 @@ $listingId = (int) ($_GET['id'] ?? 0);
 $listing = find_listing($listingId);
 
 if (!$listing) {
-	flash('danger', 'Listing #' . $listingId . ' not found.');
+	flash('danger', at('edit.not_found', ['id' => $listingId]));
 	redirect('listings.php');
 }
 
@@ -53,11 +53,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$action = (string) ($_POST['action'] ?? '');
 
 	if (!csrf_valid()) {
-		flash('danger', 'The form has expired. Please try again.');
+		flash('danger', at('common.form_expired'));
 		redirect($back);
 	}
 	if (!$editable) {
-		flash('danger', 'A deleted listing cannot be changed.');
+		flash('danger', at('edit.deleted_locked'));
 		redirect($back);
 	}
 
@@ -84,13 +84,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$price = $v['price'] !== '' ? (int) $v['price'] : null;
 
 		$error = match (true) {
-			!$child => 'Choose a subcategory.',
-			mb_strlen($v['title']) < 3 || mb_strlen($v['title']) > 80 => 'The title takes 3 to 80 characters.',
-			mb_strlen($v['description']) < 10 || mb_strlen($v['description']) > 3000 => 'The description takes 10 to 3000 characters.',
-			$hasCondition && !in_array($v['condition'], ['new', 'like_new', 'used'], true) => 'Choose the condition: this category has it.',
-			$price !== null && ($price < 1 || $price > 2_000_000_000) => 'The price is 1 to 2 000 000 000, or empty for “By agreement”.',
-			!in_array($v['city'], array_column(cities(), 'latn'), true) => 'Choose a city.',
-			$v['phone'] !== '' && !preg_match('/^\+?[0-9 ()\-]{6,20}$/', $v['phone']) => 'The phone takes digits, spaces, + ( ) -, 6 to 20 characters.',
+			!$child => at('edit.err_sub'),
+			mb_strlen($v['title']) < 3 || mb_strlen($v['title']) > 80 => at('edit.err_title'),
+			mb_strlen($v['description']) < 10 || mb_strlen($v['description']) > 3000 => at('edit.err_desc'),
+			$hasCondition && !in_array($v['condition'], ['new', 'like_new', 'used'], true) => at('edit.err_condition'),
+			$price !== null && ($price < 1 || $price > 2_000_000_000) => at('edit.err_price'),
+			!in_array($v['city'], array_column(cities(), 'latn'), true) => at('edit.err_city'),
+			$v['phone'] !== '' && !preg_match('/^\+?[0-9 ()\-]{6,20}$/', $v['phone']) => at('edit.err_phone'),
 			default => '',
 		};
 
@@ -112,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			// What changed, for the history
 			$changed = array_keys(array_filter($new, fn($value, $key) => $value != $listing[$key], ARRAY_FILTER_USE_BOTH));
 			log_action('listing.staff_edit', ['listing_id' => $listing['id'], 'fields' => $changed]);
-			flash('success', $changed ? 'Saved: ' . implode(', ', $changed) . '.' : 'Nothing changed.');
+			flash('success', $changed ? at('common.saved_fields', ['fields' => field_labels($changed)]) : at('common.nothing_changed'));
 			redirect($back);
 		}
 	} elseif ($action === 'photo_upload') {
@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$failed = [];
 
 		if (!$files || !is_array($files['error'])) {
-			flash('danger', (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0 ? 'The files are too large for one upload. Send fewer at a time.' : 'Choose photos to upload.');
+			flash('danger', (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0 ? at('edit.files_too_big') : at('edit.choose_photos'));
 			redirect($back . '#photos');
 		}
 
@@ -131,12 +131,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				continue;
 			}
 			if ($added >= $room) {
-				$failed[] = $files['name'][$i] . ': over ' . setting('max_photos') . ' photos';
+				$failed[] = $files['name'][$i] . ': ' . at('edit.over_max', ['n' => setting('max_photos')]);
 				continue;
 			}
 			if ($code !== UPLOAD_ERR_OK) {
 				log_event('warning', 'Photo upload error', ['code' => $code, 'listing_id' => $listing['id']], 'upload');
-				$failed[] = $files['name'][$i] . ': ' . t('post.photo_err_' . (in_array($code, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) ? 'too_big' : 'failed'));
+				$failed[] = $files['name'][$i] . ': ' . at('photo.' . (in_array($code, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) ? 'too_big' : 'failed'));
 				continue;
 			}
 
@@ -146,20 +146,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				add_listing_photo($listing['id'], $listing['user_id'], $photo);
 				$added++;
 			} catch (PhotoError $e) {
-				$failed[] = $files['name'][$i] . ': ' . t('post.photo_err_' . $e->getMessage());
+				$failed[] = $files['name'][$i] . ': ' . at('photo.' . (in_array($k = $e->getMessage(), ['too_big', 'type', 'pixels', 'small'], true) ? $k : 'failed'));
 			} catch (Throwable $e) {
 				log_exception($e);
 				if ($photo) {
 					delete_photo_files($photo['path']);
 				}
-				$failed[] = $files['name'][$i] . ': ' . t('post.photo_err_failed');
+				$failed[] = $files['name'][$i] . ': ' . at('photo.failed');
 			}
 		}
 
 		if ($added) {
 			log_action('listing.staff_photos', ['listing_id' => $listing['id'], 'op' => 'add', 'photos' => $added]);
 		}
-		flash($failed ? 'danger' : 'success', ($added ? plural($added, 'photo', 'photos') . ' added. ' : '') . ($failed ? 'Not added: ' . implode('; ', $failed) : ''));
+		flash($failed ? 'danger' : 'success', ($added ? at('edit.photos_added', ['photos' => atp('common.photos', $added)]) . ' ' : '') . ($failed ? at('edit.not_added', ['list' => implode('; ', $failed)]) : ''));
 		redirect($back . '#photos');
 	} elseif ($action === 'photo_cover' || $action === 'photo_delete') {
 		$photoId = (int) ($_POST['photo_id'] ?? 0);
@@ -183,10 +183,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		if ($done) {
 			log_action('listing.staff_photos', ['listing_id' => $listing['id'], 'op' => $action === 'photo_cover' ? 'cover' : 'delete', 'photo_id' => $photoId]);
 		}
-		flash($done ? 'success' : 'info', $done ? ($action === 'photo_cover' ? 'Cover photo changed.' : 'Photo deleted.') : 'The photo is no longer there.');
+		flash($done ? 'success' : 'info', $done ? at($action === 'photo_cover' ? 'edit.cover_changed' : 'edit.photo_deleted') : at('edit.photo_gone'));
 		redirect($back . '#photos');
 	} else {
-		flash('danger', 'Unknown action.');
+		flash('danger', at('common.unknown_action'));
 		redirect($back);
 	}
 }
@@ -195,7 +195,7 @@ $seller = user($listing['user_id']);
 $history = audit_entries(50, $listing['id']);
 $sellerListings = count_admin_listings(['user' => $seller['id']]);
 $expires = $listing['expires'] ? date('d.m.Y', strtotime($listing['expires'])) : '—';
-$conditions = ['' => 'Not applicable', 'new' => 'New', 'like_new' => 'Like new', 'used' => 'Used'];
+$conditions = ['' => at('cond.none'), 'new' => at('cond.new'), 'like_new' => at('cond.like_new'), 'used' => at('cond.used')];
 
 // Facet blocks of every subcategory, shown for the chosen one ([data-for], admin.js): deal sets (equal
 // sets share one block), kinds and brands; districts of their city for real estate ([data-city])
@@ -215,7 +215,7 @@ $subs = array_merge(...array_map(fn($section) => $section['children'], categorie
 $shown = fn(array $slugs, string $city = '') => in_array($v['category'], $slugs, true) && ($city === '' || $city === $v['city']);
 $notSet = ['' => at('edit.not_set')];
 
-$pageTitle = 'Edit listing #' . $listing['id'];
+$pageTitle = at('edit.title', ['id' => $listing['id']]);
 $activeNav = 'listings';
 
 require ADMIN_INC . '/header.php';
@@ -225,15 +225,15 @@ require ADMIN_INC . '/header.php';
 <div class="page-head">
 	<div>
 		<ol class="breadcrumbs">
-			<li><a href="listings.php">Listings</a></li>
+			<li><a href="listings.php"><?= e(at('nav.listings')) ?></a></li>
 			<li aria-current="page">#<?= (int) $listing['id'] ?></li>
 		</ol>
 		<h1 class="page-head__title"><?= e(admin_title($listing)) ?> <?= status_badge($listing['status']) ?></h1>
 	</div>
 	<div class="page-head__actions">
-		<a class="btn btn--secondary" href="<?= e(listing_url($listing)) ?>" target="_blank" rel="noopener"><?= icon('external', 18) ?>View on site</a>
+		<a class="btn btn--secondary" href="<?= e(listing_url($listing)) ?>" target="_blank" rel="noopener"><?= icon('external', 18) ?><?= e(at('common.view_on_site')) ?></a>
 		<?php if ($editable): ?>
-		<button type="submit" class="btn btn--primary" form="listing-form"><?= icon('check', 18) ?>Save changes</button>
+		<button type="submit" class="btn btn--primary" form="listing-form"><?= icon('check', 18) ?><?= e(at('common.save_changes')) ?></button>
 		<?php endif; ?>
 	</div>
 </div>
@@ -245,35 +245,35 @@ require ADMIN_INC . '/header.php';
 <div class="grid grid--main-side">
 	<!-- Main column: tabs -->
 	<section class="card" data-tabs data-tabs-hash>
-		<div class="tabs__list tabs__list--flush" role="tablist" aria-label="Listing sections">
-			<button type="button" class="tabs__tab" role="tab" id="tab-details" aria-controls="panel-details" aria-selected="true">Details</button>
-			<button type="button" class="tabs__tab" role="tab" id="tab-photos" aria-controls="panel-photos" aria-selected="false">Photos <span class="tabs__count"><?= (int) $listing['photos'] ?></span></button>
-			<button type="button" class="tabs__tab" role="tab" id="tab-seller" aria-controls="panel-seller" aria-selected="false">Seller</button>
-			<button type="button" class="tabs__tab" role="tab" id="tab-history" aria-controls="panel-history" aria-selected="false">History</button>
+		<div class="tabs__list tabs__list--flush" role="tablist" aria-label="<?= e(at('edit.sections')) ?>">
+			<button type="button" class="tabs__tab" role="tab" id="tab-details" aria-controls="panel-details" aria-selected="true"><?= e(at('edit.tab_details')) ?></button>
+			<button type="button" class="tabs__tab" role="tab" id="tab-photos" aria-controls="panel-photos" aria-selected="false"><?= e(at('edit.tab_photos')) ?> <span class="tabs__count"><?= (int) $listing['photos'] ?></span></button>
+			<button type="button" class="tabs__tab" role="tab" id="tab-seller" aria-controls="panel-seller" aria-selected="false"><?= e(at('edit.tab_seller')) ?></button>
+			<button type="button" class="tabs__tab" role="tab" id="tab-history" aria-controls="panel-history" aria-selected="false"><?= e(at('edit.tab_history')) ?></button>
 		</div>
 
 		<!-- Details -->
 		<div class="tabs__panel card__body" role="tabpanel" id="panel-details" aria-labelledby="tab-details" tabindex="0">
 			<?php if (!$editable): ?>
-			<p class="muted">Deleted: the text stays for conversations and history, changes are off.</p>
+			<p class="muted"><?= e(at('edit.deleted_note')) ?></p>
 			<?php endif; ?>
 			<form id="listing-form"<?= $editable ? '' : ' class="mt-4"' ?> method="post" action="<?= e($back) ?>" data-facets>
 				<?= csrf_field() ?>
 				<input type="hidden" name="action" value="save">
 				<fieldset class="fieldset form-grid"<?= $editable ? '' : ' disabled' ?>>
 					<div class="field field--full">
-						<label class="field__label" for="l-title">Title</label>
+						<label class="field__label" for="l-title"><?= e(at('edit.f_title')) ?></label>
 						<input class="input" id="l-title" name="title" type="text" minlength="3" maxlength="80" required value="<?= e($v['title']) ?>" data-counter="l-title-count">
 						<span class="field__counter" id="l-title-count" aria-live="polite"></span>
 					</div>
 
 					<div class="field">
-						<label class="field__label" for="l-category">Category</label>
+						<label class="field__label" for="l-category"><?= e(at('common.category')) ?></label>
 						<select class="select" id="l-category" name="category" data-facets-cat><?= category_options($v['category']) ?></select>
 					</div>
 
 					<div class="field">
-						<label class="field__label" for="l-city">City</label>
+						<label class="field__label" for="l-city"><?= e(at('common.city')) ?></label>
 						<select class="select" id="l-city" name="city" data-facets-city><?= city_options($v['city']) ?></select>
 					</div>
 
@@ -309,51 +309,51 @@ require ADMIN_INC . '/header.php';
 					</div>
 
 					<div class="field">
-						<label class="field__label" for="l-price">Price</label>
+						<label class="field__label" for="l-price"><?= e(at('common.price')) ?></label>
 						<div class="field__row">
-							<input class="input" id="l-price" name="price" type="text" inputmode="numeric" pattern="[0-9 ]*" value="<?= e($v['price']) ?>" placeholder="Empty = by agreement">
-							<label class="visually-hidden" for="l-currency">Currency</label>
+							<input class="input" id="l-price" name="price" type="text" inputmode="numeric" pattern="[0-9 ]*" value="<?= e($v['price']) ?>" placeholder="<?= e(at('edit.price_ph')) ?>">
+							<label class="visually-hidden" for="l-currency"><?= e(at('edit.currency')) ?></label>
 							<select class="select input--narrow" id="l-currency" name="currency"><?= options(['RSD' => 'RSD', 'EUR' => 'EUR'], $v['currency']) ?></select>
 						</div>
 					</div>
 
 					<div class="field">
-						<label class="field__label" for="l-condition">Condition</label>
+						<label class="field__label" for="l-condition"><?= e(at('edit.condition')) ?></label>
 						<select class="select" id="l-condition" name="condition"><?= options($conditions, $v['condition']) ?></select>
 					</div>
 
 					<div class="field field--full">
 						<label class="switch">
 							<input type="checkbox" role="switch" name="negotiable"<?= $v['negotiable'] ? ' checked' : '' ?>>
-							<span>Negotiable price</span>
+							<span><?= e(at('edit.negotiable')) ?></span>
 						</label>
 					</div>
 
 					<div class="field field--full">
-						<label class="field__label" for="l-description">Description</label>
+						<label class="field__label" for="l-description"><?= e(at('edit.description')) ?></label>
 						<textarea class="textarea" id="l-description" name="description" rows="7" minlength="10" maxlength="3000" required data-counter="l-description-count"><?= e($v['description']) ?></textarea>
 						<span class="field__counter" id="l-description-count" aria-live="polite"></span>
-						<span class="field__hint">Corrections keep the status, the place in the feed and the term; the author is not notified. Details of the category (year, area…) are edited by the author.</span>
+						<span class="field__hint"><?= e(at('edit.desc_hint')) ?></span>
 					</div>
 
 					<div class="field">
-						<label class="field__label" for="l-phone">Contact phone</label>
+						<label class="field__label" for="l-phone"><?= e(at('edit.phone')) ?></label>
 						<input class="input" id="l-phone" name="phone" type="tel" value="<?= e($v['phone']) ?>" placeholder="<?= e($seller['phone'] ?? '') ?>">
-						<span class="field__hint">Empty: the phone from the seller's profile.</span>
+						<span class="field__hint"><?= e(at('edit.phone_hint')) ?></span>
 					</div>
 
 					<div class="field">
-						<span class="field__label">Visibility</span>
+						<span class="field__label"><?= e(at('edit.visibility')) ?></span>
 						<label class="switch">
 							<input type="checkbox" role="switch" name="show_phone"<?= $v['show_phone'] ? ' checked' : '' ?>>
-							<span>Show phone on the listing</span>
+							<span><?= e(at('edit.show_phone')) ?></span>
 						</label>
 					</div>
 				</fieldset>
 				<?php if ($editable): ?>
 				<!-- Also at the end of the long form, not only in the page head -->
 				<div class="form-actions">
-					<button type="submit" class="btn btn--primary"><?= icon('check', 18) ?>Save changes</button>
+					<button type="submit" class="btn btn--primary"><?= icon('check', 18) ?><?= e(at('common.save_changes')) ?></button>
 				</div>
 				<?php endif; ?>
 			</form>
@@ -363,38 +363,38 @@ require ADMIN_INC . '/header.php';
 		<div class="tabs__panel card__body" role="tabpanel" id="panel-photos" aria-labelledby="tab-photos" tabindex="0" hidden>
 			<?php if ($listing['images']): ?>
 			<div class="photos">
-				<?php foreach ($listing['images'] as $i => $image): $alt = 'Photo ' . ($i + 1) . ' of “' . admin_title($listing) . '”'; ?>
+				<?php foreach ($listing['images'] as $i => $image): $alt = at('edit.photo_of', ['n' => $i + 1, 'name' => admin_title($listing)]); ?>
 				<figure class="photo">
 					<?= photo($image, '(max-width: 1023px) 50vw, 220px', ['alt' => $alt]) ?>
-					<?php if ($i === 0): ?><span class="badge badge--info badge--plain photo__cover">Cover</span><?php endif; ?>
+					<?php if ($i === 0): ?><span class="badge badge--info badge--plain photo__cover"><?= e(at('edit.cover')) ?></span><?php endif; ?>
 					<?php if ($editable): ?>
 					<form class="photo__bar" method="post" action="<?= e($back) ?>">
 						<?= csrf_field() ?>
 						<input type="hidden" name="photo_id" value="<?= (int) $image['id'] ?>">
-						<button type="submit" class="btn btn--ghost btn--sm" name="action" value="photo_cover"<?= $i === 0 ? ' disabled' : '' ?>>Make cover</button>
-						<button type="submit" class="btn btn--danger-ghost btn--icon btn--sm" name="action" value="photo_delete" aria-label="Delete photo <?= $i + 1 ?>" data-confirm="Delete this photo? The file is removed, this cannot be undone." data-confirm-label="Delete"><?= icon('trash', 16) ?></button>
+						<button type="submit" class="btn btn--ghost btn--sm" name="action" value="photo_cover"<?= $i === 0 ? ' disabled' : '' ?>><?= e(at('edit.make_cover')) ?></button>
+						<button type="submit" class="btn btn--danger-ghost btn--icon btn--sm" name="action" value="photo_delete" aria-label="<?= e(at('edit.delete_photo', ['n' => $i + 1])) ?>" data-confirm="<?= e(at('edit.delete_photo_q')) ?>" data-confirm-label="<?= e(at('common.delete')) ?>"><?= icon('trash', 16) ?></button>
 					</form>
 					<?php endif; ?>
 				</figure>
 				<?php endforeach; ?>
 			</div>
 			<?php else: ?>
-			<p class="muted">No photos.</p>
+			<p class="muted"><?= e(at('edit.no_photos')) ?></p>
 			<?php endif; ?>
 
 			<?php if ($listing['videos']): ?>
-			<h2 class="form-section__title mt-4">Video</h2>
+			<h2 class="form-section__title mt-4"><?= e(at('edit.video')) ?></h2>
 			<div class="photos">
 				<?php foreach ($listing['videos'] as $i => $video): ?>
 				<figure class="photo">
-					<video controls preload="none" width="<?= (int) $video['width'] ?>" height="<?= (int) $video['height'] ?>" poster="<?= e(photo_url($video['poster'], isset($video['poster']['sizes'][480]) ? 480 : array_key_last($video['poster']['sizes']))) ?>" aria-label="Video <?= $i + 1 ?> of “<?= e(admin_title($listing)) ?>”">
+					<video controls preload="none" width="<?= (int) $video['width'] ?>" height="<?= (int) $video['height'] ?>" poster="<?= e(photo_url($video['poster'], isset($video['poster']['sizes'][480]) ? 480 : array_key_last($video['poster']['sizes']))) ?>" aria-label="<?= e(at('edit.video_of', ['n' => $i + 1, 'name' => admin_title($listing)])) ?>">
 						<source src="<?= e(video_url($video)) ?>" type="video/mp4">
 					</video>
 					<figcaption class="photo__bar"><span class="text-sm"><?= e(video_time($video['duration'])) ?> · <?= (int) $video['width'] ?>×<?= (int) $video['height'] ?> · <?= e(number_format($video['bytes'] / 1048576, 1, ',', ' ')) ?> MB</span></figcaption>
 				</figure>
 				<?php endforeach; ?>
 			</div>
-			<p class="field__hint">Video upload comes later (processing with ffmpeg in the background).</p>
+			<p class="field__hint"><?= e(at('edit.video_later')) ?></p>
 			<?php endif; ?>
 
 			<?php if ($editable && $listing['photos'] < setting('max_photos')): ?>
@@ -403,11 +403,11 @@ require ADMIN_INC . '/header.php';
 				<input type="hidden" name="action" value="photo_upload">
 				<label class="dropzone">
 					<?= icon('upload', 28) ?>
-					<span class="dropzone__title">Upload photos</span>
-					<span class="text-sm">JPG, PNG or WebP, up to 15 MB each; <?= setting('max_photos') - $listing['photos'] ?> more can be added. Processed like on the site: resized, metadata removed.</span>
+					<span class="dropzone__title"><?= e(at('edit.upload')) ?></span>
+					<span class="text-sm"><?= e(at('edit.upload_hint', ['n' => setting('max_photos') - $listing['photos']])) ?></span>
 					<input type="file" name="photos[]" accept="image/jpeg,image/png,image/webp" multiple>
 				</label>
-				<noscript><button type="submit" class="btn btn--secondary mt-4"><?= icon('upload', 18) ?>Upload</button></noscript>
+				<noscript><button type="submit" class="btn btn--secondary mt-4"><?= icon('upload', 18) ?><?= e(at('edit.upload_go')) ?></button></noscript>
 			</form>
 			<?php endif; ?>
 		</div>
@@ -425,16 +425,16 @@ require ADMIN_INC . '/header.php';
 					</div>
 				</div>
 				<div class="profile__actions">
-					<a class="btn btn--secondary" href="user.php?id=<?= (int) $seller['id'] ?>"><?= icon('user', 18) ?>Open profile</a>
+					<a class="btn btn--secondary" href="user.php?id=<?= (int) $seller['id'] ?>"><?= icon('user', 18) ?><?= e(at('edit.open_profile')) ?></a>
 					<?php if ($seller['role'] === 'user' && $seller['status'] !== 'deleted'): ?>
 					<form method="post" action="moderate.php">
 						<?= csrf_field() ?>
 						<input type="hidden" name="user_id" value="<?= (int) $seller['id'] ?>">
 						<input type="hidden" name="back" value="<?= e($back) ?>#seller">
 						<?php if ($seller['status'] === 'blocked'): ?>
-						<button type="submit" class="btn btn--secondary" name="action" value="unblock"><?= icon('check', 18) ?>Unblock</button>
+						<button type="submit" class="btn btn--secondary" name="action" value="unblock"><?= icon('check', 18) ?><?= e(at('edit.unblock')) ?></button>
 						<?php else: ?>
-						<button type="submit" class="btn btn--danger-ghost" name="action" value="block" data-confirm="Block <?= e($seller['name']) ?>? They are logged out and all their listings are hidden." data-confirm-label="Block"><?= icon('ban', 18) ?>Block</button>
+						<button type="submit" class="btn btn--danger-ghost" name="action" value="block" data-confirm="<?= e(at('edit.block_q', ['name' => $seller['name']])) ?>" data-confirm-label="<?= e(at('edit.block')) ?>"><?= icon('ban', 18) ?><?= e(at('edit.block')) ?></button>
 						<?php endif; ?>
 					</form>
 					<?php endif; ?>
@@ -442,10 +442,10 @@ require ADMIN_INC . '/header.php';
 			</div>
 
 			<dl class="dl mt-5">
-				<dt>Member since</dt><dd><?= e(format_date($seller['registered'])) ?></dd>
-				<dt>Last active</dt><dd><?= $seller['last_active'] ? e(format_date($seller['last_active'], true)) : 'Never' ?></dd>
-				<dt>Listings</dt><dd><a href="listings.php?user=<?= (int) $seller['id'] ?>"><?= (int) $sellerListings ?></a></dd>
-				<dt>Phone verified</dt><dd><?= $seller['verified'] ? 'Yes' : 'No' ?></dd>
+				<dt><?= e(at('edit.member_since')) ?></dt><dd><?= e(format_date($seller['registered'])) ?></dd>
+				<dt><?= e(at('edit.last_active')) ?></dt><dd><?= $seller['last_active'] ? e(format_date($seller['last_active'], true)) : e(at('edit.never')) ?></dd>
+				<dt><?= e(at('nav.listings')) ?></dt><dd><a href="listings.php?user=<?= (int) $seller['id'] ?>"><?= (int) $sellerListings ?></a></dd>
+				<dt><?= e(at('edit.phone_verified')) ?></dt><dd><?= e(at($seller['verified'] ? 'common.yes' : 'common.no')) ?></dd>
 			</dl>
 		</div>
 
@@ -461,7 +461,7 @@ require ADMIN_INC . '/header.php';
 				<?php endforeach; ?>
 			</ol>
 			<?php else: ?>
-			<p class="muted">No recorded actions yet (the journal keeps <?= LOG_RETENTION_DAYS ?> days). Created <?= e(format_date($listing['created'], true)) ?>.</p>
+			<p class="muted"><?= e(at('edit.history_empty', ['days' => LOG_RETENTION_DAYS, 'date' => format_date($listing['created'], true)])) ?></p>
 			<?php endif; ?>
 		</div>
 	</section>
@@ -471,7 +471,7 @@ require ADMIN_INC . '/header.php';
 		<!-- Moderation -->
 		<section class="card" aria-labelledby="moderation-title">
 			<div class="card__head">
-				<h2 class="card__title" id="moderation-title">Moderation</h2>
+				<h2 class="card__title" id="moderation-title"><?= e(at('edit.moderation')) ?></h2>
 				<?= status_badge($listing['status']) ?>
 			</div>
 			<div class="card__body form-list">
@@ -493,13 +493,13 @@ require ADMIN_INC . '/header.php';
 					<input type="hidden" name="id" value="<?= (int) $listing['id'] ?>">
 					<input type="hidden" name="back" value="<?= e($back) ?>">
 					<?php if (in_array($listing['status'], ['pending', 'rejected'], true)): ?>
-					<button type="submit" class="btn btn--success" name="action" value="approve"><?= icon('check', 18) ?>Approve</button>
+					<button type="submit" class="btn btn--success" name="action" value="approve"><?= icon('check', 18) ?><?= e(at('common.approve')) ?></button>
 					<?php endif; ?>
 					<?php if (in_array($listing['status'], ['pending', 'active', 'inactive', 'expired'], true)): ?>
-					<button type="button" class="btn btn--secondary" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => admin_title($listing), 'id_list' => (string) $listing['id']]) ?>"><?= icon('ban', 18) ?>Reject</button>
+					<button type="button" class="btn btn--secondary" data-modal-open="reject-dialog" data-payload="<?= attr_json(['title' => admin_title($listing), 'id_list' => (string) $listing['id']]) ?>"><?= icon('ban', 18) ?><?= e(at('common.reject')) ?></button>
 					<?php endif; ?>
 					<?php if (!$editable): ?>
-					<p class="muted">Deleted, visible to staff only.</p>
+					<p class="muted"><?= e(at('edit.deleted_staff')) ?></p>
 					<?php endif; ?>
 				</form>
 			</div>
@@ -508,7 +508,7 @@ require ADMIN_INC . '/header.php';
 				<?= csrf_field() ?>
 				<input type="hidden" name="id" value="<?= (int) $listing['id'] ?>">
 				<input type="hidden" name="back" value="<?= e($back) ?>">
-				<button type="submit" class="btn btn--danger-ghost btn--sm" name="action" value="delete" data-confirm="Delete this listing? Its photos are removed, this cannot be undone." data-confirm-label="Delete"><?= icon('trash', 16) ?>Delete listing</button>
+				<button type="submit" class="btn btn--danger-ghost btn--sm" name="action" value="delete" data-confirm="<?= e(at('edit.delete_q')) ?>" data-confirm-label="<?= e(at('common.delete')) ?>"><?= icon('trash', 16) ?><?= e(at('edit.delete_listing')) ?></button>
 			</form>
 			<?php endif; ?>
 		</section>
@@ -516,17 +516,17 @@ require ADMIN_INC . '/header.php';
 		<!-- Stats -->
 		<section class="card" aria-labelledby="stats-title">
 			<div class="card__head">
-				<h2 class="card__title" id="stats-title">Statistics</h2>
+				<h2 class="card__title" id="stats-title"><?= e(at('edit.stats')) ?></h2>
 			</div>
 			<div class="card__body">
 				<dl class="dl">
 					<dt>ID</dt><dd>#<?= (int) $listing['id'] ?></dd>
-					<dt>Views</dt><dd><?= (int) $listing['views'] ?></dd>
-					<dt>In favorites</dt><dd><?= (int) $listing['favorites'] ?></dd>
-					<dt>Conversations</dt><dd><?= (int) $listing['messages'] ?></dd>
-					<dt>Created</dt><dd><?= e(format_date($listing['created'], true)) ?></dd>
-					<dt>Expires</dt><dd><?= e($expires) ?></dd>
-					<dt>Language</dt><dd><?= e($listing['lang']) ?></dd>
+					<dt><?= e(at('common.views')) ?></dt><dd><?= (int) $listing['views'] ?></dd>
+					<dt><?= e(at('edit.in_favorites')) ?></dt><dd><?= (int) $listing['favorites'] ?></dd>
+					<dt><?= e(at('edit.conversations')) ?></dt><dd><?= (int) $listing['messages'] ?></dd>
+					<dt><?= e(at('common.created')) ?></dt><dd><?= e(format_date($listing['created'], true)) ?></dd>
+					<dt><?= e(at('edit.expires')) ?></dt><dd><?= e($expires) ?></dd>
+					<dt><?= e(at('edit.language')) ?></dt><dd><?= e($listing['lang']) ?></dd>
 				</dl>
 			</div>
 		</section>

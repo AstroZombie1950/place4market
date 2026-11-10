@@ -15,7 +15,7 @@
 	========================================================================== */
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
 
-$pageTitle = 'Categories';
+$pageTitle = at('cat.title');
 $activeNav = 'categories';
 
 $error = '';
@@ -29,11 +29,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$existing = $childRow ?? $parentRow;
 
 	if (!csrf_valid()) {
-		flash('danger', 'The form has expired. Please try again.');
+		flash('danger', at('common.form_expired'));
 		redirect('categories.php');
 	}
 	if ($action !== 'save' && !$existing) {
-		flash('danger', 'This category no longer exists.');
+		flash('danger', at('cat.gone'));
 		redirect('categories.php');
 	}
 
@@ -41,17 +41,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$active = !empty($_POST['active']);
 		set_category_active($existing['id'], $active);
 		log_action('admin.category_' . ($active ? 'show' : 'hide'), ['category_id' => $existing['id'], 'slug' => $existing['slug']]);
-		flash('success', '“' . $existing['names']['en'] . '” is ' . ($active ? 'shown on the site.' : 'hidden: out of menus and the feed, its page is 404.')
-			. (!$active || !$childRow || $parentRow['active'] ? '' : ' Its parent is hidden, so it stays hidden too.'));
+		flash('success', at($active ? 'cat.shown' : 'cat.hidden', ['name' => $existing['names']['en']])
+			. (!$active || !$childRow || $parentRow['active'] ? '' : ' ' . at('cat.parent_hidden')));
 		redirect('categories.php?edit=' . $existing['id']);
 	}
 
 	if ($action === 'delete') {
 		if (delete_category($existing['id'])) {
 			log_action('admin.category_delete', ['category_id' => $existing['id'], 'slug' => $existing['slug']]);
-			flash('success', '“' . $existing['names']['en'] . '” deleted.');
+			flash('success', at('cat.deleted', ['name' => $existing['names']['en']]));
 		} else {
-			flash('danger', '“' . $existing['names']['en'] . '” has subcategories or listings (also deleted ones, kept for history): hide it instead.');
+			flash('danger', at('cat.delete_blocked', ['name' => $existing['names']['en']]));
 		}
 		redirect('categories.php');
 	}
@@ -77,16 +77,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		[$newParent] = $f['parent_id'] ? category_by_id($f['parent_id']) : [null];
 
 		$error = match (true) {
-			$id !== null && !$existing => 'This category no longer exists.',
-			min(array_map('mb_strlen', $f['names'])) < 2 => 'Enter the name in English and Serbian (2 to 100 characters).',
+			$id !== null && !$existing => at('cat.gone'),
+			min(array_map('mb_strlen', $f['names'])) < 2 => at('cat.err_names'),
 			!preg_match('/^[a-z0-9]+(-[a-z0-9]+)*$/', $f['slug']) || !preg_match('/^[a-z0-9]+(-[a-z0-9]+)*$/', $f['slug_sr'])
-				=> 'Address words take lowercase Latin letters without marks, digits and single dashes.',
-			category_slug_taken($f['slug'], $id) => 'Another category already uses the address word “' . $f['slug'] . '”.',
-			category_slug_taken($f['slug_sr'], $id) => 'Another category already uses the address word “' . $f['slug_sr'] . '”.',
-			$f['parent_id'] !== null && (!$newParent || $newParent['id'] !== $f['parent_id']) => 'The parent must be a top-level category.',
-			$f['parent_id'] !== null && $f['parent_id'] === $id => 'A category cannot be its own parent.',
-			$f['parent_id'] !== null && $parentRow && !$childRow && $parentRow['children'] => 'This category has subcategories: it stays at the top level.',
-			$f['parent_id'] === null && !in_array($f['icon'], category_icon_names(), true) => 'Choose an icon for a top-level category.',
+				=> at('cat.err_slug'),
+			category_slug_taken($f['slug'], $id) => at('cat.err_slug_taken', ['word' => $f['slug']]),
+			category_slug_taken($f['slug_sr'], $id) => at('cat.err_slug_taken', ['word' => $f['slug_sr']]),
+			$f['parent_id'] !== null && (!$newParent || $newParent['id'] !== $f['parent_id']) => at('cat.err_parent'),
+			$f['parent_id'] !== null && $f['parent_id'] === $id => at('cat.err_self_parent'),
+			$f['parent_id'] !== null && $parentRow && !$childRow && $parentRow['children'] => at('cat.err_has_children'),
+			$f['parent_id'] === null && !in_array($f['icon'], category_icon_names(), true) => at('cat.err_icon'),
 			default => '',
 		};
 
@@ -112,13 +112,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			log_action($id ? 'admin.category_update' : 'admin.category_create', ['category_id' => $savedId, 'slug' => $f['slug']]
 				+ ($changed ? ['fields' => $changed] : []) + ($existing && $f['slug'] !== $existing['slug'] ? ['old_slug' => $existing['slug']] : [])
 				+ ($existing && $f['slug_sr'] !== $existing['slug_sr'] ? ['old_slug_sr' => $existing['slug_sr']] : []));
-			flash('success', $id ? ($changed ? 'Saved: ' . implode(', ', $changed) . '.' : 'Nothing changed.') : 'Category “' . $f['names']['en'] . '” created.');
+			flash('success', $id ? ($changed ? at('common.saved_fields', ['fields' => field_labels($changed)]) : at('common.nothing_changed')) : at('cat.created', ['name' => $f['names']['en']]));
 			redirect('categories.php?edit=' . $savedId);
 		}
 
 		// The form opens again with what was sent
 		$posted = [
-			'formTitle' => $existing ? 'Edit: ' . $existing['names']['en'] : 'New category', 'id' => (string) ($id ?? ''),
+			'formTitle' => $existing ? at('cat.form_edit', ['name' => $existing['names']['en']]) : at('cat.form_new'), 'id' => (string) ($id ?? ''),
 			'name_en' => $f['names']['en'], 'name_srl' => $f['names']['sr-latn'], 'name_src' => $f['names']['sr-cyrl'], 'slug' => $f['slug'], 'slug_sr' => $f['slug_sr'],
 			'seo_title_en' => (string) $f['seo']['en'][0], 'meta_en' => (string) $f['seo']['en'][1],
 			'seo_title_sr' => (string) $f['seo']['sr'][0], 'meta_sr' => (string) $f['seo']['sr'][1],
@@ -153,7 +153,7 @@ $current = $posted ?? ($editParent ? category_payload($editChild ?? $editParent,
 $currentId = (int) $current['id'];
 
 // Parent options for the select (top level only: two levels)
-$parentOptions = ['' => '— None (top level) —'];
+$parentOptions = ['' => at('cat.parent_none')];
 foreach ($categories as $category) {
 	$parentOptions[$category['id']] = $category['names']['en'];
 }
@@ -164,11 +164,11 @@ require ADMIN_INC . '/header.php';
 <!-- Page head -->
 <div class="page-head">
 	<div>
-		<h1 class="page-head__title">Categories</h1>
-		<p class="page-head__sub">Category tree, translations and SEO texts for all three languages.</p>
+		<h1 class="page-head__title"><?= e(at('cat.title')) ?></h1>
+		<p class="page-head__sub"><?= e(at('cat.sub')) ?></p>
 	</div>
 	<div class="page-head__actions">
-		<button type="button" class="btn btn--primary" data-edit-category data-payload="<?= attr_json(category_payload(null) + ['sort' => (string) (count($categories) + 1)]) ?>"><?= icon('plus', 18) ?>Add category</button>
+		<button type="button" class="btn btn--primary" data-edit-category data-payload="<?= attr_json(category_payload(null) + ['sort' => (string) (count($categories) + 1)]) ?>"><?= icon('plus', 18) ?><?= e(at('cat.add')) ?></button>
 	</div>
 </div>
 
@@ -180,10 +180,10 @@ require ADMIN_INC . '/header.php';
 	<!-- Tree -->
 	<section class="card" aria-labelledby="tree-title">
 		<div class="card__head">
-			<h2 class="card__title" id="tree-title">Category tree</h2>
+			<h2 class="card__title" id="tree-title"><?= e(at('cat.tree')) ?></h2>
 			<div class="card__actions">
-				<button type="button" class="btn btn--ghost btn--sm" data-tree-all="expand">Expand all</button>
-				<button type="button" class="btn btn--ghost btn--sm" data-tree-all="collapse">Collapse all</button>
+				<button type="button" class="btn btn--ghost btn--sm" data-tree-all="expand"><?= e(at('cat.expand')) ?></button>
+				<button type="button" class="btn btn--ghost btn--sm" data-tree-all="collapse"><?= e(at('cat.collapse')) ?></button>
 			</div>
 		</div>
 
@@ -201,23 +201,23 @@ require ADMIN_INC . '/header.php';
 				<?php if ($parent): ?><li class="tree__item"><?php endif; ?>
 				<div class="tree__row<?= $item['id'] === $currentId ? ' is-current' : '' ?><?= $item['visible'] ? '' : ' is-hidden' ?>">
 					<?php if (!$parent): ?>
-					<button type="button" class="btn btn--ghost btn--icon btn--sm tree__toggle" data-tree-toggle aria-controls="<?= e($childrenId) ?>" aria-expanded="<?= $open ? 'true' : 'false' ?>" aria-label="Show subcategories of <?= e($item['names']['en']) ?>"<?= $item['children'] ? '' : ' disabled' ?>><?= icon('chevron-right', 18) ?></button>
+					<button type="button" class="btn btn--ghost btn--icon btn--sm tree__toggle" data-tree-toggle aria-controls="<?= e($childrenId) ?>" aria-expanded="<?= $open ? 'true' : 'false' ?>" aria-label="<?= e(at('cat.show_children', ['name' => $item['names']['en']])) ?>"<?= $item['children'] ? '' : ' disabled' ?>><?= icon('chevron-right', 18) ?></button>
 					<span class="tree__icon"><?= icon($item['icon'] ?? 'layers', 18) ?></span>
 					<?php endif; ?>
 					<span class="tree__name">
 						<?= e($item['names']['en']) ?>
 						<span class="tree__sub"><?= e($item['names']['sr-latn']) ?> · <?= e($item['names']['sr-cyrl']) ?> · <code><?= e($item['slug_sr']) ?></code> · <code><?= e($item['slug']) ?></code></span>
 					</span>
-					<span class="tree__meta"><?php if ($count): ?><a href="listings.php?cat=<?= e($item['slug']) ?>"><?= e(plural($count, 'listing', 'listings')) ?></a><?php else: ?>No listings<?php endif; ?></span>
+					<span class="tree__meta"><?php if ($count): ?><a href="listings.php?cat=<?= e($item['slug']) ?>"><?= e(atp('common.listings', $count)) ?></a><?php else: ?><?= e(at('cat.no_listings')) ?><?php endif; ?></span>
 					<form class="tree__actions" method="post" action="categories.php" data-autosubmit>
 						<?= csrf_field() ?>
 						<input type="hidden" name="id" value="<?= (int) $item['id'] ?>">
 						<input type="hidden" name="toggle" value="1">
-						<label class="switch"><input type="checkbox" role="switch" name="active" value="1"<?= $item['active'] ? ' checked' : '' ?> aria-label="Shown on the site: <?= e($item['names']['en']) ?>"></label>
-						<noscript><button type="submit" class="btn btn--ghost btn--sm">Apply</button></noscript>
-						<button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Edit <?= e($item['names']['en']) ?>" data-edit-category data-payload="<?= attr_json(category_payload($item, $parent)) ?>"><?= icon('edit', 18) ?></button>
+						<label class="switch"><input type="checkbox" role="switch" name="active" value="1"<?= $item['active'] ? ' checked' : '' ?> aria-label="<?= e(at('cat.shown_switch', ['name' => $item['names']['en']])) ?>"></label>
+						<noscript><button type="submit" class="btn btn--ghost btn--sm"><?= e(at('common.apply')) ?></button></noscript>
+						<button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="<?= e(at('common.edit_name', ['name' => $item['names']['en']])) ?>" data-edit-category data-payload="<?= attr_json(category_payload($item, $parent)) ?>"><?= icon('edit', 18) ?></button>
 						<?php if (!$count && !($item['children'] ?? [])): ?>
-						<button type="submit" class="btn btn--danger-ghost btn--icon btn--sm" name="action" value="delete" aria-label="Delete <?= e($item['names']['en']) ?>" data-confirm="Delete “<?= e($item['names']['en']) ?>”? It has no listings." data-confirm-label="Delete"><?= icon('trash', 18) ?></button>
+						<button type="submit" class="btn btn--danger-ghost btn--icon btn--sm" name="action" value="delete" aria-label="<?= e(at('common.delete') . ': ' . $item['names']['en']) ?>" data-confirm="<?= e(at('cat.delete_q', ['name' => $item['names']['en']])) ?>" data-confirm-label="<?= e(at('common.delete')) ?>"><?= icon('trash', 18) ?></button>
 						<?php endif; ?>
 					</form>
 				</div>
@@ -244,15 +244,15 @@ require ADMIN_INC . '/header.php';
 
 			<!-- Translations -->
 			<div class="form-section" data-tabs>
-				<div class="tabs__list" role="tablist" aria-label="Translations">
+				<div class="tabs__list" role="tablist" aria-label="<?= e(at('cat.translations')) ?>">
 					<button type="button" class="tabs__tab" role="tab" id="tab-lang-en" aria-controls="panel-lang-en" aria-selected="true">EN</button>
-					<button type="button" class="tabs__tab" role="tab" id="tab-lang-srl" aria-controls="panel-lang-srl" aria-selected="false">SR <span class="muted">(Latin)</span></button>
-					<button type="button" class="tabs__tab" role="tab" id="tab-lang-src" aria-controls="panel-lang-src" aria-selected="false">СР <span class="muted">(Cyrillic)</span></button>
+					<button type="button" class="tabs__tab" role="tab" id="tab-lang-srl" aria-controls="panel-lang-srl" aria-selected="false">SR <span class="muted">(<?= e(at('common.latin')) ?>)</span></button>
+					<button type="button" class="tabs__tab" role="tab" id="tab-lang-src" aria-controls="panel-lang-src" aria-selected="false">СР <span class="muted">(<?= e(at('common.cyrillic')) ?>)</span></button>
 				</div>
 
 				<div class="tabs__panel form-list" role="tabpanel" id="panel-lang-en" aria-labelledby="tab-lang-en" tabindex="0">
 					<div class="field">
-						<label class="field__label" for="c-name-en">Name (English)</label>
+						<label class="field__label" for="c-name-en"><?= e(at('cat.name_en')) ?></label>
 						<input class="input" id="c-name-en" name="name_en" type="text" lang="en" required maxlength="100" value="<?= e($current['name_en']) ?>">
 					</div>
 					<div class="field">
@@ -261,13 +261,13 @@ require ADMIN_INC . '/header.php';
 					</div>
 					<div class="field">
 						<label class="field__label" for="c-seo-en">SEO title</label>
-						<input class="input" id="c-seo-en" name="seo_title_en" type="text" maxlength="70" lang="en" value="<?= e($current['seo_title_en']) ?>" placeholder="Empty: the category name" data-counter="c-seo-en-count">
+						<input class="input" id="c-seo-en" name="seo_title_en" type="text" maxlength="70" lang="en" value="<?= e($current['seo_title_en']) ?>" placeholder="<?= e(at('cat.title_empty')) ?>" data-counter="c-seo-en-count">
 						<span class="field__counter" id="c-seo-en-count" aria-live="polite"></span>
 						<span class="field__hint"><?= e(at('seo.title_hint')) ?></span>
 					</div>
 					<div class="field">
 						<label class="field__label" for="c-meta-en">Meta description</label>
-						<textarea class="textarea" id="c-meta-en" name="meta_en" rows="3" maxlength="160" lang="en" placeholder="Empty: the standard text with the category name" data-counter="c-meta-en-count"><?= e($current['meta_en']) ?></textarea>
+						<textarea class="textarea" id="c-meta-en" name="meta_en" rows="3" maxlength="160" lang="en" placeholder="<?= e(at('cat.meta_empty')) ?>" data-counter="c-meta-en-count"><?= e($current['meta_en']) ?></textarea>
 						<span class="field__counter" id="c-meta-en-count" aria-live="polite"></span>
 						<span class="field__hint"><?= at('seo.count_hint_en') ?></span>
 					</div>
@@ -280,7 +280,7 @@ require ADMIN_INC . '/header.php';
 
 				<div class="tabs__panel form-list" role="tabpanel" id="panel-lang-srl" aria-labelledby="tab-lang-srl" tabindex="0" hidden>
 					<div class="field">
-						<label class="field__label" for="c-name-srl">Name (Serbian, Latin)</label>
+						<label class="field__label" for="c-name-srl"><?= e(at('cat.name_srl')) ?></label>
 						<input class="input" id="c-name-srl" name="name_srl" type="text" lang="sr-Latn" required maxlength="100" value="<?= e($current['name_srl']) ?>">
 					</div>
 					<div class="field">
@@ -289,13 +289,13 @@ require ADMIN_INC . '/header.php';
 					</div>
 					<div class="field">
 						<label class="field__label" for="c-seo-sr">SEO title</label>
-						<input class="input" id="c-seo-sr" name="seo_title_sr" type="text" maxlength="70" lang="sr-Latn" value="<?= e($current['seo_title_sr']) ?>" placeholder="Empty: the category name" data-counter="c-seo-sr-count">
+						<input class="input" id="c-seo-sr" name="seo_title_sr" type="text" maxlength="70" lang="sr-Latn" value="<?= e($current['seo_title_sr']) ?>" placeholder="<?= e(at('cat.title_empty')) ?>" data-counter="c-seo-sr-count">
 						<span class="field__counter" id="c-seo-sr-count" aria-live="polite"></span>
 						<span class="field__hint"><?= e(at('seo.title_hint')) ?></span>
 					</div>
 					<div class="field">
 						<label class="field__label" for="c-meta-sr">Meta description</label>
-						<textarea class="textarea" id="c-meta-sr" name="meta_sr" rows="3" maxlength="160" lang="sr-Latn" placeholder="Empty: the standard text with the category name" data-counter="c-meta-sr-count"><?= e($current['meta_sr']) ?></textarea>
+						<textarea class="textarea" id="c-meta-sr" name="meta_sr" rows="3" maxlength="160" lang="sr-Latn" placeholder="<?= e(at('cat.meta_empty')) ?>" data-counter="c-meta-sr-count"><?= e($current['meta_sr']) ?></textarea>
 						<span class="field__counter" id="c-meta-sr-count" aria-live="polite"></span>
 						<span class="field__hint"><?= at('seo.count_hint_sr') ?></span>
 					</div>
@@ -308,55 +308,55 @@ require ADMIN_INC . '/header.php';
 
 				<div class="tabs__panel form-list" role="tabpanel" id="panel-lang-src" aria-labelledby="tab-lang-src" tabindex="0" hidden>
 					<div class="field">
-						<label class="field__label" for="c-name-src">Name (Serbian, Cyrillic)</label>
+						<label class="field__label" for="c-name-src"><?= e(at('cat.name_src')) ?></label>
 						<input class="input" id="c-name-src" name="name_src" type="text" lang="sr-Cyrl" maxlength="100" value="<?= e($current['name_src']) ?>">
-						<span class="field__hint">Empty: converted from the Latin name. SEO texts come from the Latin tab.</span>
+						<span class="field__hint"><?= e(at('cat.cyr_hint')) ?></span>
 					</div>
 				</div>
 			</div>
 
 			<!-- General -->
 			<div class="form-section">
-				<h3 class="form-section__title">General</h3>
+				<h3 class="form-section__title"><?= e(at('cat.general')) ?></h3>
 				<div class="form-list">
 					<div class="form-grid">
 						<div class="field">
-							<label class="field__label" for="c-slug-sr">Address word (Serbian)</label>
+							<label class="field__label" for="c-slug-sr"><?= e(at('cat.slug_sr')) ?></label>
 							<input class="input" id="c-slug-sr" name="slug_sr" type="text" required maxlength="64" pattern="[a-z0-9]+(-[a-z0-9]+)*" value="<?= e($current['slug_sr']) ?>" data-slug-source="name_srl">
-							<span class="field__hint">/oglasi/<strong>word</strong> (Latin and Cyrillic).</span>
+							<span class="field__hint"><?= at('cat.slug_sr_hint') ?></span>
 						</div>
 						<div class="field">
-							<label class="field__label" for="c-slug">Address word (English)</label>
+							<label class="field__label" for="c-slug"><?= e(at('cat.slug_en')) ?></label>
 							<input class="input" id="c-slug" name="slug" type="text" required maxlength="64" pattern="[a-z0-9]+(-[a-z0-9]+)*" value="<?= e($current['slug']) ?>" data-slug-source="name_en">
-							<span class="field__hint">/en/listings/<strong>word</strong>; also the key of saved searches.</span>
+							<span class="field__hint"><?= at('cat.slug_en_hint') ?></span>
 						</div>
 					</div>
-					<p class="field__hint">Changing a word changes the address: the old one redirects to the new one (301), but saved searches keep the old English word and stop matching. Pick the words from the keyword research and keep them.</p>
+					<p class="field__hint"><?= e(at('cat.slug_warning')) ?></p>
 					<div class="field">
-						<label class="field__label" for="c-parent">Parent category</label>
+						<label class="field__label" for="c-parent"><?= e(at('cat.parent')) ?></label>
 						<select class="select" id="c-parent" name="parent"><?= options($parentOptions, $current['parent']) ?></select>
 					</div>
 					<div class="form-grid">
 						<div class="field">
-							<label class="field__label" for="c-icon">Icon</label>
+							<label class="field__label" for="c-icon"><?= e(at('cat.icon')) ?></label>
 							<select class="select" id="c-icon" name="icon"><?= options(array_combine(category_icon_names(), array_map('ucfirst', category_icon_names())), $current['icon']) ?></select>
-							<span class="field__hint">Top level only.</span>
+							<span class="field__hint"><?= e(at('cat.icon_hint')) ?></span>
 						</div>
 						<div class="field">
-							<label class="field__label" for="c-sort">Sort order</label>
+							<label class="field__label" for="c-sort"><?= e(at('cat.sort')) ?></label>
 							<input class="input" id="c-sort" name="sort" type="number" min="0" max="999" step="1" value="<?= e($current['sort']) ?>">
-							<span class="field__hint">Smaller goes first.</span>
+							<span class="field__hint"><?= e(at('cat.sort_hint')) ?></span>
 						</div>
 					</div>
 					<label class="switch">
 						<input type="checkbox" role="switch" name="active" value="1"<?= $current['active'] ? ' checked' : '' ?>>
-						<span>Shown on the site</span>
+						<span><?= e(at('cat.shown_on_site')) ?></span>
 					</label>
 				</div>
 			</div>
 
 			<div class="form-actions">
-				<button type="submit" class="btn btn--primary"><?= icon('check', 18) ?>Save category</button>
+				<button type="submit" class="btn btn--primary"><?= icon('check', 18) ?><?= e(at('cat.save')) ?></button>
 			</div>
 		</form>
 	</section>

@@ -14,11 +14,11 @@ require __DIR__ . '/../source/inc/admin/bootstrap.php';
 require SOURCE_DIR . '/inc/media.php';
 
 if (!is_admin()) {
-	flash('danger', 'Settings are available to administrators only.');
+	flash('danger', at('set.admins_only'));
 	redirect('index.php');
 }
 
-$pageTitle = 'Settings';
+$pageTitle = at('set.title');
 $activeNav = 'settings';
 
 // Fields of each form
@@ -26,11 +26,10 @@ $sections = [
 	'general' => ['support_email', 'per_page', 'eur_rate', 'maintenance'],
 	'moderation' => ['premoderate_new', 'premoderate_edits', 'trust_verified', 'stop_words', 'listing_days', 'raise_hours', 'max_photos'],
 ];
-$labels = [
-	'support_email' => 'Support email', 'per_page' => 'Listings per page', 'eur_rate' => 'EUR rate', 'maintenance' => 'Maintenance mode',
-	'premoderate_new' => 'Pre-moderate new listings', 'premoderate_edits' => 'Pre-moderate edits', 'trust_verified' => 'Skip moderation for verified users',
-	'stop_words' => 'Stop words', 'listing_days' => 'Listing lifetime', 'raise_hours' => 'Bump interval', 'max_photos' => 'Max photos',
-];
+$labels = [];
+foreach (array_merge(...array_values($sections)) as $name) {
+	$labels[$name] = at('set.' . $name);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	// A city row sends toggle=1 (its switch) or action=city_delete (its button)
@@ -38,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$tab = '#general';
 
 	if (!csrf_valid()) {
-		flash('danger', 'The form has expired. Please try again.');
+		flash('danger', at('common.form_expired'));
 		redirect('settings.php');
 	}
 
@@ -59,35 +58,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				case 'int':
 					[, , $min, $max] = SETTINGS[$name];
 					if (!preg_match('/^\d+$/', trim((string) $raw)) || (int) $raw < $min || (int) $raw > $max) {
-						$errors[] = $labels[$name] . ': ' . $min . ' to ' . $max;
+						$errors[] = at('set.err_range', ['field' => $labels[$name], 'min' => $min, 'max' => $max]);
 					}
 					$values[$name] = (int) $raw;
 					break;
 				case 'email':
 					$values[$name] = mb_strtolower(trim((string) $raw));
 					if ($values[$name] !== '' && !filter_var($values[$name], FILTER_VALIDATE_EMAIL)) {
-						$errors[] = $labels[$name] . ': not a valid address';
+						$errors[] = at('set.err_email', ['field' => $labels[$name]]);
 					}
 					break;
 				case 'lines':
 					$lines = array_map(fn($line) => trim(preg_replace('/\s+/u', ' ', $line)), explode("\n", str_replace("\r", '', (string) $raw)));
 					$values[$name] = array_values(array_unique(array_filter($lines, fn($line) => $line !== '' && mb_strlen($line) <= 50)));
 					if (count($values[$name]) > 300) {
-						$errors[] = $labels[$name] . ': up to 300 lines';
+						$errors[] = at('set.err_lines', ['field' => $labels[$name]]);
 					}
 					break;
 			}
 		}
 
 		if ($errors) {
-			flash('danger', 'Not saved. ' . implode('; ', $errors) . '.');
+			flash('danger', at('set.not_saved', ['errors' => implode('; ', $errors)]));
 		} else {
 			$changed = array_keys(array_filter($values, fn($value, $name) => $value !== setting($name), ARRAY_FILTER_USE_BOTH));
 			save_settings($values, $currentAdmin['id']);
 			if ($changed) {
 				log_action('admin.settings', ['fields' => $changed] + (in_array('maintenance', $changed, true) ? ['maintenance' => $values['maintenance']] : []));
 			}
-			flash('success', $changed ? 'Saved: ' . implode(', ', array_map(fn($name) => mb_strtolower($labels[$name]), $changed)) . '.' : 'Nothing changed.');
+			flash('success', $changed ? at('common.saved_fields', ['fields' => implode(', ', array_map(fn($name) => mb_strtolower($labels[$name]), $changed))]) : at('common.nothing_changed'));
 		}
 	} elseif ($action === 'city_add') {
 		$tab = '#cities';
@@ -95,32 +94,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$cyrl = trim(preg_replace('/\s+/u', ' ', mb_substr((string) ($_POST['cyrl'] ?? ''), 0, 64))) ?: sr_cyr($latn);
 
 		if (mb_strlen($latn) < 2 || preg_match('/\p{Cyrillic}/u', $latn)) {
-			flash('danger', 'Enter the city name in Latin letters (Cyrillic is optional).');
+			flash('danger', at('set.city_latin'));
 		} elseif (!add_city($latn, $cyrl)) {
-			flash('danger', $latn . ' is already in the list.');
+			flash('danger', at('set.city_exists', ['name' => $latn]));
 		} else {
 			log_action('admin.city_add', ['city' => $latn]);
-			flash('success', $latn . ' (' . $cyrl . ') added.');
+			flash('success', at('set.city_added', ['name' => $latn, 'cyrl' => $cyrl]));
 		}
 	} elseif ($action === 'city_toggle' || $action === 'city_delete') {
 		$tab = '#cities';
 		$city = array_values(array_filter(cities(), fn($c) => $c['id'] === (int) ($_POST['id'] ?? 0)))[0] ?? null;
 
 		if (!$city) {
-			flash('danger', 'This city is no longer in the list.');
+			flash('danger', at('set.city_gone'));
 		} elseif ($action === 'city_toggle') {
 			$active = !empty($_POST['active']);
 			set_city_active($city['id'], $active);
 			log_action('admin.city_' . ($active ? 'show' : 'hide'), ['city' => $city['latn']]);
-			flash('success', $city['latn'] . ($active ? ' is offered on the site again.' : ' is no longer offered for new listings, profiles and filters; its listings stay.'));
+			flash('success', at($active ? 'set.city_on' : 'set.city_off', ['name' => $city['latn']]));
 		} elseif (delete_city($city['id'])) {
 			log_action('admin.city_delete', ['city' => $city['latn']]);
-			flash('success', $city['latn'] . ' deleted.');
+			flash('success', at('set.city_deleted', ['name' => $city['latn']]));
 		} else {
-			flash('danger', $city['latn'] . ' has listings (also deleted ones): switch it off instead.');
+			flash('danger', at('set.city_has_listings', ['name' => $city['latn']]));
 		}
 	} else {
-		flash('danger', 'Unknown action.');
+		flash('danger', at('common.unknown_action'));
 	}
 
 	redirect('settings.php' . $tab);
@@ -137,16 +136,16 @@ require ADMIN_INC . '/header.php';
 <!-- Page head -->
 <div class="page-head">
 	<div>
-		<h1 class="page-head__title">Settings</h1>
-		<p class="page-head__sub">Site configuration, moderation rules and cities.</p>
+		<h1 class="page-head__title"><?= e(at('set.title')) ?></h1>
+		<p class="page-head__sub"><?= e(at('set.sub')) ?></p>
 	</div>
 </div>
 
 <section class="card" data-tabs data-tabs-hash>
-	<div class="tabs__list tabs__list--flush" role="tablist" aria-label="Settings sections">
-		<button type="button" class="tabs__tab" role="tab" id="tab-general" aria-controls="panel-general" aria-selected="true"><?= icon('settings', 18) ?>General</button>
-		<button type="button" class="tabs__tab" role="tab" id="tab-moderation" aria-controls="panel-moderation" aria-selected="false"><?= icon('shield', 18) ?>Moderation</button>
-		<button type="button" class="tabs__tab" role="tab" id="tab-cities" aria-controls="panel-cities" aria-selected="false"><?= icon('map-pin', 18) ?>Cities</button>
+	<div class="tabs__list tabs__list--flush" role="tablist" aria-label="<?= e(at('set.sections')) ?>">
+		<button type="button" class="tabs__tab" role="tab" id="tab-general" aria-controls="panel-general" aria-selected="true"><?= icon('settings', 18) ?><?= e(at('set.tab_general')) ?></button>
+		<button type="button" class="tabs__tab" role="tab" id="tab-moderation" aria-controls="panel-moderation" aria-selected="false"><?= icon('shield', 18) ?><?= e(at('set.tab_moderation')) ?></button>
+		<button type="button" class="tabs__tab" role="tab" id="tab-cities" aria-controls="panel-cities" aria-selected="false"><?= icon('map-pin', 18) ?><?= e(at('set.tab_cities')) ?></button>
 	</div>
 
 	<!-- General -->
@@ -157,22 +156,22 @@ require ADMIN_INC . '/header.php';
 		<input type="hidden" name="section" value="general">
 
 		<div class="form-section">
-			<h2 class="form-section__title">Site</h2>
+			<h2 class="form-section__title"><?= e(at('set.site')) ?></h2>
 			<div class="form-grid">
 				<div class="field">
-					<label class="field__label" for="s-email">Support email</label>
+					<label class="field__label" for="s-email"><?= e(at('set.support_email')) ?></label>
 					<input class="input" id="s-email" name="support_email" type="email" maxlength="190" value="<?= e(setting('support_email')) ?>" placeholder="<?= e(config('mail')['support'] ?? config('alerts')['email'] ?? 'support@…') ?>">
-					<span class="field__hint">Messages from the contact form go here. Empty: the address from app-config.php.</span>
+					<span class="field__hint"><?= e(at('set.support_hint')) ?></span>
 				</div>
 				<div class="field">
-					<label class="field__label" for="s-per-page">Listings per page</label>
+					<label class="field__label" for="s-per-page"><?= e(at('set.per_page')) ?></label>
 					<input class="input" id="s-per-page" name="per_page" type="number" min="<?= SETTINGS['per_page'][2] ?>" max="<?= SETTINGS['per_page'][3] ?>" step="1" value="<?= (int) setting('per_page') ?>">
-					<span class="field__hint">Categories and search results.</span>
+					<span class="field__hint"><?= e(at('set.per_page_hint')) ?></span>
 				</div>
 				<div class="field">
-					<label class="field__label" for="s-eur">EUR rate, RSD for 1 €</label>
+					<label class="field__label" for="s-eur"><?= e(at('set.eur_label')) ?></label>
 					<input class="input" id="s-eur" name="eur_rate" type="number" min="<?= SETTINGS['eur_rate'][2] ?>" max="<?= SETTINGS['eur_rate'][3] ?>" step="1" value="<?= (int) setting('eur_rate') ?>">
-					<span class="field__hint">Compares prices in RSD and EUR in filters and sorting.</span>
+					<span class="field__hint"><?= e(at('set.eur_hint')) ?></span>
 				</div>
 			</div>
 		</div>
@@ -180,12 +179,12 @@ require ADMIN_INC . '/header.php';
 		<div class="form-section">
 			<label class="switch">
 				<input type="checkbox" role="switch" name="maintenance" value="1"<?= setting('maintenance') ? ' checked' : '' ?>>
-				<span class="switch__text"><span class="switch__title">Maintenance mode</span><span class="switch__hint">Visitors see “We’ll be back soon” (503); staff logged in here see the site as usual</span></span>
+				<span class="switch__text"><span class="switch__title"><?= e(at('set.maintenance')) ?></span><span class="switch__hint"><?= e(at('set.maint_hint')) ?></span></span>
 			</label>
 		</div>
 
 		<div class="form-actions">
-			<button type="submit" class="btn btn--primary"><?= icon('check', 18) ?>Save</button>
+			<button type="submit" class="btn btn--primary"><?= icon('check', 18) ?><?= e(at('common.save')) ?></button>
 		</div>
 	</form>
 	</div>
@@ -198,54 +197,54 @@ require ADMIN_INC . '/header.php';
 		<input type="hidden" name="section" value="moderation">
 
 		<div class="form-section">
-			<h2 class="form-section__title">Rules</h2>
+			<h2 class="form-section__title"><?= e(at('set.rules')) ?></h2>
 			<div class="form-list">
 				<label class="switch">
 					<input type="checkbox" role="switch" name="premoderate_new" value="1"<?= setting('premoderate_new') ? ' checked' : '' ?>>
-					<span class="switch__text"><span class="switch__title">Pre-moderate new listings</span><span class="switch__hint">Off: a new listing is published at once</span></span>
+					<span class="switch__text"><span class="switch__title"><?= e(at('set.premoderate_new')) ?></span><span class="switch__hint"><?= e(at('set.premod_new_hint')) ?></span></span>
 				</label>
 				<label class="switch">
 					<input type="checkbox" role="switch" name="premoderate_edits" value="1"<?= setting('premoderate_edits') ? ' checked' : '' ?>>
-					<span class="switch__text"><span class="switch__title">Pre-moderate edits</span><span class="switch__hint">Off: changes to a published listing go live at once</span></span>
+					<span class="switch__text"><span class="switch__title"><?= e(at('set.premoderate_edits')) ?></span><span class="switch__hint"><?= e(at('set.premod_edits_hint')) ?></span></span>
 				</label>
 				<label class="switch">
 					<input type="checkbox" role="switch" name="trust_verified" value="1"<?= setting('trust_verified') ? ' checked' : '' ?>>
-					<span class="switch__text"><span class="switch__title">Skip moderation for verified users</span><span class="switch__hint">Email and phone confirmed (the phone is marked by staff on the user page)</span></span>
+					<span class="switch__text"><span class="switch__title"><?= e(at('set.trust_verified')) ?></span><span class="switch__hint"><?= e(at('set.trust_hint')) ?></span></span>
 				</label>
 			</div>
-			<p class="field__hint mt-4">Always moderated: a rejected listing or one still waiting, and any listing with a stop word.</p>
+			<p class="field__hint mt-4"><?= e(at('set.always')) ?></p>
 		</div>
 
 		<div class="form-section">
 			<div class="field">
-				<label class="field__label" for="s-stopwords">Stop words</label>
-				<textarea class="textarea" id="s-stopwords" name="stop_words" rows="5" placeholder="One word or phrase per line"><?= e(implode("\n", setting('stop_words'))) ?></textarea>
-				<span class="field__hint">A listing with one of them in the title or description waits for a moderator, who sees which word matched. Whole words, any case, Latin and Cyrillic alike.</span>
+				<label class="field__label" for="s-stopwords"><?= e(at('set.stop_words')) ?></label>
+				<textarea class="textarea" id="s-stopwords" name="stop_words" rows="5" placeholder="<?= e(at('set.stop_ph')) ?>"><?= e(implode("\n", setting('stop_words'))) ?></textarea>
+				<span class="field__hint"><?= e(at('set.stop_hint')) ?></span>
 			</div>
 		</div>
 
 		<div class="form-section">
-			<h2 class="form-section__title">Limits</h2>
+			<h2 class="form-section__title"><?= e(at('set.limits')) ?></h2>
 			<div class="form-grid">
 				<div class="field">
-					<label class="field__label" for="s-lifetime">Listing lifetime, days</label>
+					<label class="field__label" for="s-lifetime"><?= e(at('set.lifetime_label')) ?></label>
 					<input class="input" id="s-lifetime" name="listing_days" type="number" min="<?= SETTINGS['listing_days'][2] ?>" max="<?= SETTINGS['listing_days'][3] ?>" value="<?= (int) setting('listing_days') ?>">
-					<span class="field__hint">From approval or renewal; published listings keep their date.</span>
+					<span class="field__hint"><?= e(at('set.lifetime_hint')) ?></span>
 				</div>
 				<div class="field">
-					<label class="field__label" for="s-raise">Bump to top, once in hours</label>
+					<label class="field__label" for="s-raise"><?= e(at('set.raise_label')) ?></label>
 					<input class="input" id="s-raise" name="raise_hours" type="number" min="<?= SETTINGS['raise_hours'][2] ?>" max="<?= SETTINGS['raise_hours'][3] ?>" value="<?= (int) setting('raise_hours') ?>">
 				</div>
 				<div class="field">
-					<label class="field__label" for="s-photos">Max photos per listing</label>
+					<label class="field__label" for="s-photos"><?= e(at('set.photos_label')) ?></label>
 					<input class="input" id="s-photos" name="max_photos" type="number" min="<?= SETTINGS['max_photos'][2] ?>" max="<?= SETTINGS['max_photos'][3] ?>" value="<?= (int) setting('max_photos') ?>">
-					<span class="field__hint">Up to <?= (int) (PHOTO_MAX_BYTES / 1024 / 1024) ?> MB each (server limit).</span>
+					<span class="field__hint"><?= e(at('set.photos_hint', ['n' => (int) (PHOTO_MAX_BYTES / 1024 / 1024)])) ?></span>
 				</div>
 			</div>
 		</div>
 
 		<div class="form-actions">
-			<button type="submit" class="btn btn--primary"><?= icon('check', 18) ?>Save</button>
+			<button type="submit" class="btn btn--primary"><?= icon('check', 18) ?><?= e(at('common.save')) ?></button>
 		</div>
 	</form>
 	</div>
@@ -255,22 +254,22 @@ require ADMIN_INC . '/header.php';
 		<form class="toolbar" method="post" action="settings.php">
 			<?= csrf_field() ?>
 			<input type="hidden" name="action" value="city_add">
-			<label class="visually-hidden" for="new-city-latn">City name, Latin</label>
-			<input class="input toolbar__search" id="new-city-latn" name="latn" type="text" required maxlength="64" placeholder="Name (Latin), e.g. Šabac" lang="sr-Latn">
-			<label class="visually-hidden" for="new-city-cyrl">City name, Cyrillic</label>
-			<input class="input toolbar__search" id="new-city-cyrl" name="cyrl" type="text" maxlength="64" placeholder="Cyrillic: empty = converted" lang="sr-Cyrl">
-			<button type="submit" class="btn btn--secondary"><?= icon('plus', 18) ?>Add city</button>
+			<label class="visually-hidden" for="new-city-latn"><?= e(at('set.city_latn')) ?></label>
+			<input class="input toolbar__search" id="new-city-latn" name="latn" type="text" required maxlength="64" placeholder="<?= e(at('set.city_latn_ph')) ?>" lang="sr-Latn">
+			<label class="visually-hidden" for="new-city-cyrl"><?= e(at('set.city_cyrl')) ?></label>
+			<input class="input toolbar__search" id="new-city-cyrl" name="cyrl" type="text" maxlength="64" placeholder="<?= e(at('set.city_cyrl_ph')) ?>" lang="sr-Cyrl">
+			<button type="submit" class="btn btn--secondary"><?= icon('plus', 18) ?><?= e(at('set.add_city')) ?></button>
 		</form>
 
 		<div class="table-wrap">
 			<table class="table">
 				<thead>
 					<tr>
-						<th>Latin</th>
-						<th>Cyrillic</th>
-						<th class="num">Listings</th>
-						<th>Offered</th>
-						<th class="col-actions"><span class="visually-hidden">Actions</span></th>
+						<th><?= e(at('set.col_latin')) ?></th>
+						<th><?= e(at('set.col_cyrillic')) ?></th>
+						<th class="num"><?= e(at('nav.listings')) ?></th>
+						<th><?= e(at('set.col_offered')) ?></th>
+						<th class="col-actions"><span class="visually-hidden"><?= e(at('common.actions')) ?></span></th>
 					</tr>
 				</thead>
 				<tbody>
@@ -284,10 +283,10 @@ require ADMIN_INC . '/header.php';
 								<?= csrf_field() ?>
 								<input type="hidden" name="id" value="<?= (int) $city['id'] ?>">
 								<input type="hidden" name="toggle" value="1">
-								<label class="switch"><input type="checkbox" role="switch" name="active" value="1"<?= $city['active'] ? ' checked' : '' ?> aria-label="Offered on the site: <?= e($city['latn']) ?>"></label>
-								<noscript><button type="submit" class="btn btn--ghost btn--sm">Apply</button></noscript>
+								<label class="switch"><input type="checkbox" role="switch" name="active" value="1"<?= $city['active'] ? ' checked' : '' ?> aria-label="<?= e(at('set.offered_switch', ['name' => $city['latn']])) ?>"></label>
+								<noscript><button type="submit" class="btn btn--ghost btn--sm"><?= e(at('common.apply')) ?></button></noscript>
 								<?php if (!$count): ?>
-								<button type="submit" class="btn btn--danger-ghost btn--icon btn--sm" name="action" value="city_delete" aria-label="Delete <?= e($city['latn']) ?>" data-confirm="Delete <?= e($city['latn']) ?>? Users with this city keep an empty city." data-confirm-label="Delete"><?= icon('trash', 18) ?></button>
+								<button type="submit" class="btn btn--danger-ghost btn--icon btn--sm" name="action" value="city_delete" aria-label="<?= e(at('common.delete') . ': ' . $city['latn']) ?>" data-confirm="<?= e(at('set.city_delete_q', ['name' => $city['latn']])) ?>" data-confirm-label="<?= e(at('common.delete')) ?>"><?= icon('trash', 18) ?></button>
 								<?php endif; ?>
 							</form>
 						</td>

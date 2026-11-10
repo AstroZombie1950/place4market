@@ -14,7 +14,7 @@ const EXPORT_CHUNK = 500;
 $type = list_param('type', ['listings', 'users']);
 
 if ($type === 'users' && !is_admin()) {
-	flash('danger', 'Exporting users is available to administrators only.');
+	flash('danger', at('csv.users_admins_only'));
 	redirect('users.php');
 }
 if ($type === '') {
@@ -37,12 +37,13 @@ if ($type === 'listings') {
 		'city' => list_param('city'),
 		'user' => ctype_digit(list_param('user')) ? list_param('user') : '',
 	];
-	$head = ['ID', 'Title', 'Category', 'Price', 'Currency', 'Negotiable', 'City', 'Seller ID', 'Seller', 'Seller email', 'Status',
-		'Created', 'Published', 'Expires', 'Views', 'Favorites', 'Conversations', 'Photos', 'Language', 'URL'];
+	$head = ['ID', at('csv.title'), at('common.category'), at('common.price'), at('csv.currency'), at('common.negotiable'), at('common.city'),
+		at('csv.seller_id'), at('edit.tab_seller'), at('csv.seller_email'), at('common.status'), at('common.created'), at('csv.published'),
+		at('edit.expires'), at('common.views'), at('csv.favorites'), at('edit.conversations'), at('edit.tab_photos'), at('edit.language'), 'URL'];
 	$chunk = fn(int $offset) => admin_listing_rows($f, EXPORT_CHUNK, $offset);
 	$row = fn(array $l) => [
-		$l['id'], $l['title'], category_path($l['category']), $l['price'], $l['currency'], $l['negotiable'] ? 'yes' : 'no', $l['city'],
-		$l['user_id'], $l['seller'], $l['seller_email'], $l['status'],
+		$l['id'], $l['title'], category_path($l['category']), $l['price'], $l['currency'], at($l['negotiable'] ? 'csv.yes' : 'csv.no'), $l['city'],
+		$l['user_id'], $l['seller'], $l['seller_email'], status_meta($l['status'])[0],
 		$l['created'], $l['published'], $l['expires'], $l['views'], $l['favorites'], $l['messages'], $l['photos'], $l['lang'],
 		site_url(listing_url($l)),
 	];
@@ -53,10 +54,11 @@ if ($type === 'listings') {
 		'role' => list_param('role', ['user', 'moderator', 'admin']),
 		'city' => list_param('city'),
 	];
-	$head = ['ID', 'Name', 'Email', 'Phone', 'City', 'Role', 'Status', 'Email verified', 'Language', 'Listings', 'Registered', 'Last active'];
+	$head = ['ID', at('csv.name'), at('csv.email'), at('users.col_phone'), at('common.city'), at('users.role'), at('common.status'),
+		at('user.email_verified'), at('edit.language'), at('nav.listings'), at('users.col_registered'), at('edit.last_active')];
 	$chunk = fn(int $offset) => admin_users($f, EXPORT_CHUNK, $offset);
 	$row = fn(array $u) => [
-		$u['id'], $u['name'], $u['email'], $u['phone'], $u['city'], $u['role'], $u['status'], $u['email_verified'] ? 'yes' : 'no',
+		$u['id'], $u['name'], $u['email'], $u['phone'], $u['city'], role_name($u['role']), status_meta($u['status'])[0], at($u['email_verified'] ? 'csv.yes' : 'csv.no'),
 		$u['lang'], $u['listings'], $u['registered'], $u['last_active'],
 	];
 }
