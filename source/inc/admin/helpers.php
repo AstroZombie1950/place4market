@@ -151,7 +151,8 @@ function city_listing_count(string $city): int
 function category_payload(?array $category, ?array $parent = null): array
 {
 	$category ??= ['id' => '', 'slug' => '', 'slug_sr' => '', 'names' => ['en' => '', 'sr-latn' => '', 'sr-cyrl' => ''],
-		'seo' => ['en' => [null, null], 'sr' => [null, null]], 'sort' => 0, 'active' => true];
+		'seo' => ['en' => [null, null], 'sr' => [null, null]], 'h1' => ['en' => null, 'sr' => null], 'text' => ['en' => null, 'sr' => null],
+		'sort' => 0, 'active' => true];
 
 	return [
 		'formTitle' => $category['id'] ? 'Edit: ' . $category['names']['en'] : 'New category',
@@ -165,11 +166,28 @@ function category_payload(?array $category, ?array $parent = null): array
 		'meta_en' => (string) $category['seo']['en'][1],
 		'seo_title_sr' => (string) $category['seo']['sr'][0],
 		'meta_sr' => (string) $category['seo']['sr'][1],
+		'h1_en' => (string) $category['h1']['en'],
+		'h1_sr' => (string) $category['h1']['sr'],
+		'text_en' => (string) $category['text']['en'],
+		'text_sr' => (string) $category['text']['sr'],
 		'parent' => $parent ? (string) $parent['id'] : '',
 		'icon' => $category['icon'] ?? 'car',
 		'sort' => (string) $category['sort'],
 		'active' => $category['active'],
 	];
+}
+
+// SEO text of a category or a landing: up to this many characters
+const SEO_TEXT_MAX = 5000;
+
+// Text in paragraphs from a form (SEO texts): line ends unified, spaces at line ends and
+// more than one empty line between paragraphs dropped, cut to $max; empty → null
+function clean_text_block(mixed $value, int $max): ?string
+{
+	$text = preg_replace(['/[ \t]+\n/u', '/\n{3,}/u'], ["\n", "\n\n"], str_replace(["\r\n", "\r"], "\n", is_string($value) ? $value : ''));
+	$text = trim(mb_substr(trim($text), 0, $max));
+
+	return $text !== '' ? $text : null;
 }
 
 // Active nav class

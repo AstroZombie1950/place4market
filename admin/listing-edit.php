@@ -3,9 +3,10 @@
 	Admin: Edit listing (tabs: Details, Photos, Seller, History)
 	POST here (csrf), action:
 	  save           the details: a correction by staff, the status, place in the
-	                 feed, term and moderation notes stay; details (attrs) and the
-	                 deal, kind, brand, district, seller stay, a new category or
-	                 city keeps the ones it has
+	                 feed, term and moderation notes stay; deal, kind, brand,
+	                 district and advertiser are those of the chosen subcategory
+	                 and city (what does not fit is dropped, empty is allowed);
+	                 details (attrs) stay, a new category keeps the ones it has
 	  photo_upload   photos[] (processed like on the site, added at the end)
 	  photo_cover    photo_id becomes the cover
 	  photo_delete   photo_id is removed with its files
@@ -39,6 +40,12 @@ $v = [
 	'condition' => $listing['condition'] ?? '',
 	'phone' => $listing['phone'] ?? '',
 	'show_phone' => $listing['show_phone'],
+	// Facets of the subcategory and the city (taxonomy.php)
+	'deal' => (string) $listing['deal'],
+	'type' => (string) $listing['type'],
+	'brand' => (string) $listing['brand'],
+	'district' => (string) $listing['district'],
+	'seller_type' => (string) $listing['seller_type'],
 ];
 $error = '';
 
@@ -66,6 +73,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			'condition' => (string) ($_POST['condition'] ?? ''),
 			'phone' => trim((string) ($_POST['phone'] ?? '')),
 			'show_phone' => !empty($_POST['show_phone']),
+			'deal' => (string) ($_POST['deal'] ?? ''),
+			'type' => (string) ($_POST['type'] ?? ''),
+			'brand' => (string) ($_POST['brand'] ?? ''),
+			'district' => (string) ($_POST['district'] ?? ''),
+			'seller_type' => (string) ($_POST['seller_type'] ?? ''),
 		];
 		[$parent, $child] = find_category($v['category']);
 		$hasCondition = $child && category_has_condition($child['slug']);
@@ -94,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				'price' => $price, 'currency' => $v['currency'], 'negotiable' => $v['negotiable'] && $price !== null,
 				'condition' => $hasCondition ? $v['condition'] : null, 'attrs' => $attrs,
 				'phone' => $v['phone'] !== '' ? $v['phone'] : null, 'show_phone' => $v['show_phone'],
-			] + clean_facets($child['slug'], $parent['slug'], $v['city'], $listing, false)[0];
+			] + clean_facets($child['slug'], $parent['slug'], $v['city'], $v, false)[0];
 			staff_save_listing($listing['id'], $new);
 
 			// What changed, for the history
@@ -185,6 +197,24 @@ $sellerListings = count_admin_listings(['user' => $seller['id']]);
 $expires = $listing['expires'] ? date('d.m.Y', strtotime($listing['expires'])) : '—';
 $conditions = ['' => 'Not applicable', 'new' => 'New', 'like_new' => 'Like new', 'used' => 'Used'];
 
+// Facet blocks of every subcategory, shown for the chosen one ([data-for], admin.js): deal sets (equal
+// sets share one block), kinds and brands; districts of their city for real estate ([data-city])
+$dealSets = [];
+$districtSubs = [];
+foreach (categories() as $section) {
+	foreach ($section['children'] as $sub) {
+		if ($deals = category_deals($sub['slug'])) {
+			$dealSets[implode(' ', $deals)][] = $sub['slug'];
+		}
+	}
+	if (in_array($section['slug'], DISTRICT_SECTIONS, true)) {
+		array_push($districtSubs, ...array_column($section['children'], 'slug'));
+	}
+}
+$subs = array_merge(...array_map(fn($section) => $section['children'], categories()));
+$shown = fn(array $slugs, string $city = '') => in_array($v['category'], $slugs, true) && ($city === '' || $city === $v['city']);
+$notSet = ['' => at('edit.not_set')];
+
 $pageTitle = 'Edit listing #' . $listing['id'];
 $activeNav = 'listings';
 
@@ -227,7 +257,7 @@ require ADMIN_INC . '/header.php';
 			<?php if (!$editable): ?>
 			<p class="muted">Deleted: the text stays for conversations and history, changes are off.</p>
 			<?php endif; ?>
-			<form id="listing-form"<?= $editable ? '' : ' class="mt-4"' ?> method="post" action="<?= e($back) ?>">
+			<form id="listing-form"<?= $editable ? '' : ' class="mt-4"' ?> method="post" action="<?= e($back) ?>" data-facets>
 				<?= csrf_field() ?>
 				<input type="hidden" name="action" value="save">
 				<fieldset class="fieldset form-grid"<?= $editable ? '' : ' disabled' ?>>
@@ -239,12 +269,43 @@ require ADMIN_INC . '/header.php';
 
 					<div class="field">
 						<label class="field__label" for="l-category">Category</label>
-						<select class="select" id="l-category" name="category"><?= category_options($v['category']) ?></select>
+						<select class="select" id="l-category" name="category" data-facets-cat><?= category_options($v['category']) ?></select>
 					</div>
 
 					<div class="field">
 						<label class="field__label" for="l-city">City</label>
-						<select class="select" id="l-city" name="city"><?= city_options($v['city']) ?></select>
+						<select class="select" id="l-city" name="city" data-facets-city><?= city_options($v['city']) ?></select>
+					</div>
+
+					<!-- Deal, kind, brand of the subcategory; district of the city (only the shown block is sent) -->
+					<?php foreach (array_values(array_keys($dealSets)) as $i => $deals): $slugs = $dealSets[$deals]; $on = $shown($slugs); ?>
+					<fieldset class="fieldset field" data-for="<?= e(implode(' ', $slugs)) ?>"<?= $on ? '' : ' disabled hidden' ?>>
+						<label class="field__label" for="l-deal-<?= $i ?>"><?= e(at('edit.f_deal')) ?></label>
+						<select class="select" id="l-deal-<?= $i ?>" name="deal"><?= options($notSet + array_combine(explode(' ', $deals), array_map(fn($deal) => at('deal.' . $deal), explode(' ', $deals))), $on ? $v['deal'] : '') ?></select>
+					</fieldset>
+					<?php endforeach; ?>
+					<?php foreach ($subs as $sub): if (!$types = category_types($sub['slug'])) continue; $on = $shown([$sub['slug']]); ?>
+					<fieldset class="fieldset field" data-for="<?= e($sub['slug']) ?>"<?= $on ? '' : ' disabled hidden' ?>>
+						<label class="field__label" for="l-type-<?= e($sub['slug']) ?>"><?= e(at($sub['slug'] === 'seaside' ? 'edit.f_country' : 'edit.f_type')) ?></label>
+						<select class="select" id="l-type-<?= e($sub['slug']) ?>" name="type"><?= options($notSet + array_map(fn($type) => $type['name']['en'], $types), $on ? $v['type'] : '') ?></select>
+					</fieldset>
+					<?php endforeach; ?>
+					<?php foreach ($subs as $sub): if (!$brands = category_brands($sub['slug'])) continue; $on = $shown([$sub['slug']]); ?>
+					<fieldset class="fieldset field" data-for="<?= e($sub['slug']) ?>"<?= $on ? '' : ' disabled hidden' ?>>
+						<label class="field__label" for="l-brand-<?= e($sub['slug']) ?>"><?= e(at('edit.f_brand')) ?></label>
+						<select class="select" id="l-brand-<?= e($sub['slug']) ?>" name="brand"><?= options($notSet + $brands + ['other' => at('edit.brand_other')], $on ? $v['brand'] : '') ?></select>
+					</fieldset>
+					<?php endforeach; ?>
+					<?php foreach ($districtSubs ? districts() : [] as $city => $list): $on = $shown($districtSubs, $city); ?>
+					<fieldset class="fieldset field" data-for="<?= e(implode(' ', $districtSubs)) ?>" data-city="<?= e($city) ?>"<?= $on ? '' : ' disabled hidden' ?>>
+						<label class="field__label" for="l-district-<?= e(url_slug($city)) ?>"><?= e(at('edit.f_district')) ?></label>
+						<select class="select" id="l-district-<?= e(url_slug($city)) ?>" name="district"><?= options(['' => at('edit.district_none')] + array_combine(array_column($list, 'latn'), array_column($list, 'latn')), $on ? $v['district'] : '') ?></select>
+					</fieldset>
+					<?php endforeach; ?>
+
+					<div class="field">
+						<label class="field__label" for="l-seller"><?= e(at('edit.f_seller')) ?></label>
+						<select class="select" id="l-seller" name="seller_type"><?= options(array_combine(SELLER_TYPES, array_map(fn($type) => at('seller.' . $type), SELLER_TYPES)), $v['seller_type']) ?></select>
 					</div>
 
 					<div class="field">

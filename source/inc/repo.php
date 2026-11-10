@@ -139,15 +139,16 @@ function visible_categories(): array
 }
 
 // New category or changes to one. $f: parent_id (null = top level), slug, slug_sr, icon, names (en,
-// sr-latn, sr-cyrl), seo (as in categories()), sort, active. Returns the id
+// sr-latn, sr-cyrl), seo, h1, text (as in categories()), sort, active. Returns the id
 function save_category(?int $id, array $f): int
 {
 	$values = [
 		$f['parent_id'], $f['slug'], $f['slug_sr'], $f['icon'], $f['names']['en'], $f['names']['sr-latn'], $f['names']['sr-cyrl'],
-		$f['seo']['en'][0], $f['seo']['sr'][0], $f['seo']['en'][1], $f['seo']['sr'][1], $f['sort'], (int) $f['active'],
+		$f['seo']['en'][0], $f['seo']['sr'][0], $f['seo']['en'][1], $f['seo']['sr'][1],
+		$f['h1']['en'], $f['h1']['sr'], $f['text']['en'], $f['text']['sr'], $f['sort'], (int) $f['active'],
 	];
 	$set = 'parent_id = ?, slug = ?, slug_sr = ?, icon = ?, name_en = ?, name_sr_latn = ?, name_sr_cyrl = ?,
-		seo_title_en = ?, seo_title_sr = ?, meta_en = ?, meta_sr = ?, sort = ?, active = ?';
+		seo_title_en = ?, seo_title_sr = ?, meta_en = ?, meta_sr = ?, h1_en = ?, h1_sr = ?, text_en = ?, text_sr = ?, sort = ?, active = ?';
 
 	if ($id === null) {
 		db_exec('INSERT INTO categories SET ' . $set, $values);
@@ -278,25 +279,61 @@ function delete_city(int $id): bool
 
 /* ---------- Landing pages (016) ---------- */
 
-// Approved landings as filters: [['id', 'filters' => [cat, deal, type, brand, city, district] ('' = none),
-// 'demand', 'h1' => [en, sr], 'title' => […], 'meta' => […], 'text' => […]]], the biggest demand first.
-// $catSlug: only those of one category ('' = of all listings), null = every one
-function landings(?string $catSlug = null): array
-{
-	static $all = null;
+// Landing rows with the words of their filters (category slug, city and district names)
+const LANDING_SELECT = 'SELECT la.*, c.slug AS cat, ci.latn AS city, d.latn AS district FROM landings la
+	LEFT JOIN categories c ON c.id = la.category_id LEFT JOIN cities ci ON ci.id = la.city_id LEFT JOIN districts d ON d.id = la.district_id';
 
-	$all ??= array_map(fn($r) => [
+// A landing: ['id', 'filters' => [cat, deal, type, brand, city, district] ('' = none), 'demand',
+// 'h1' => [en, sr], 'title' => […], 'meta' => […], 'text' => […] (null = template / none), 'active']
+function landing_from_row(array $r): array
+{
+	return [
 		'id' => $r['id'],
 		'filters' => ['cat' => $r['cat'] ?? '', 'deal' => $r['deal'] ?? '', 'type' => $r['item_type'] ?? '', 'brand' => $r['brand'] ?? '',
 			'city' => $r['city'] ?? '', 'district' => $r['district'] ?? ''],
 		'demand' => (int) $r['demand'],
 		'h1' => ['en' => $r['h1_en'], 'sr' => $r['h1_sr']], 'title' => ['en' => $r['title_en'], 'sr' => $r['title_sr']],
 		'meta' => ['en' => $r['meta_en'], 'sr' => $r['meta_sr']], 'text' => ['en' => $r['text_en'], 'sr' => $r['text_sr']],
-	], db_all('SELECT la.*, c.slug AS cat, ci.latn AS city, d.latn AS district FROM landings la
-		LEFT JOIN categories c ON c.id = la.category_id LEFT JOIN cities ci ON ci.id = la.city_id LEFT JOIN districts d ON d.id = la.district_id
-		WHERE la.active = 1 ORDER BY la.demand DESC, la.id'));
+		'active' => (bool) $r['active'],
+	];
+}
+
+// Approved landings (landing_from_row()), the biggest demand first.
+// $catSlug: only those of one category ('' = of all listings), null = every one
+function landings(?string $catSlug = null): array
+{
+	static $all = null;
+
+	$all ??= array_map('landing_from_row', db_all(LANDING_SELECT . ' WHERE la.active = 1 ORDER BY la.demand DESC, la.id'));
 
 	return $catSlug === null ? $all : array_values(array_filter($all, fn($l) => $l['filters']['cat'] === $catSlug));
+}
+
+// Every landing, also switched off ones (admin), the biggest demand first
+function all_landings(): array
+{
+	return array_map('landing_from_row', db_all(LANDING_SELECT . ' ORDER BY la.demand DESC, la.id'));
+}
+
+function landing_by_id(int $id): ?array
+{
+	$row = db_one(LANDING_SELECT . ' WHERE la.id = ?', [$id]);
+
+	return $row ? landing_from_row($row) : null;
+}
+
+// Own texts of a landing: $f = ['h1' => [en, sr], 'title' => …, 'meta' => …, 'text' => …] (null = template / none)
+function save_landing_texts(int $id, array $f): void
+{
+	db_exec('UPDATE landings SET h1_en = ?, h1_sr = ?, title_en = ?, title_sr = ?, meta_en = ?, meta_sr = ?, text_en = ?, text_sr = ? WHERE id = ?', [
+		$f['h1']['en'], $f['h1']['sr'], $f['title']['en'], $f['title']['sr'], $f['meta']['en'], $f['meta']['sr'], $f['text']['en'], $f['text']['sr'], $id,
+	]);
+}
+
+// A switched off landing is an ordinary filter page: noindex, out of the sitemap and "Popular searches"
+function set_landing_active(int $id, bool $active): bool
+{
+	return db_exec('UPDATE landings SET active = ? WHERE id = ?', [(int) $active, $id]) > 0;
 }
 
 // The approved landing of exactly these filters (cat, deal, type, brand, city, district), or null

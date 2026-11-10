@@ -28,7 +28,9 @@ require SOURCE_DIR . '/inc/site.php';
 require SOURCE_DIR . '/inc/taxonomy.php';
 require SOURCE_DIR . '/inc/seo.php';
 
-// Admin helpers and data access (shared with the site)
+// Admin texts (English / Russian, at()) and helpers; data access (shared with the site)
+require ADMIN_INC . '/i18n.php';
+admin_i18n_use('en');
 require ADMIN_INC . '/helpers.php';
 require SOURCE_DIR . '/inc/db.php';
 require SOURCE_DIR . '/inc/repo.php';

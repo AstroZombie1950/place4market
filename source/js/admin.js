@@ -519,6 +519,30 @@
 		});
 	};
 
+	/* ----------------------------------------------------------------------
+		Listing facets: [data-facets] form, [data-facets-cat] subcategory and
+		[data-facets-city] city selects; blocks [data-for="slug slug…"] show for
+		those subcategories, a district block also needs its city [data-city].
+		Hidden blocks are disabled, so the form sends only the shown ones
+		---------------------------------------------------------------------- */
+	const initFacets = () => {
+		$$('[data-facets]').forEach((form) => {
+			const cat = $('[data-facets-cat]', form);
+			const city = $('[data-facets-city]', form);
+			if (!cat) return;
+			const update = () => {
+				$$('[data-for]', form).forEach((set) => {
+					const on = set.dataset.for.split(' ').includes(cat.value) && (!set.dataset.city || (city && set.dataset.city === city.value));
+					set.hidden = !on;
+					set.disabled = !on;
+				});
+			};
+			cat.addEventListener('change', update);
+			if (city) city.addEventListener('change', update);
+			update();
+		});
+	};
+
 	/* ---------- Init ---------- */
 	window.AdminUI = { toast };
 
@@ -528,6 +552,7 @@
 	initDropdowns();
 	initModals();
 	initConfirm();
+	initFacets();
 	initTree();
 	initForms();
 })();

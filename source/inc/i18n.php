@@ -96,10 +96,11 @@ function tp(string $key, int $n, array $params = []): string
 	return strtr($forms[plural_form($n)] ?? reset($forms), brace_keys($params));
 }
 
-// Plural form name: English one/other, Serbian one/few/many
-function plural_form(int $n): string
+// Plural form name: English one/other, Serbian (and Russian, the admin) one/few/many.
+// $lang: the language of the text, default the page's
+function plural_form(int $n, ?string $lang = null): string
 {
-	if (lang() === 'en') {
+	if (($lang ?? lang()) === 'en') {
 		return $n === 1 ? 'one' : 'other';
 	}
 

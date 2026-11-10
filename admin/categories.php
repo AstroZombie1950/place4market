@@ -5,7 +5,8 @@
 	POST here (csrf), action:
 	  save     id (empty = new); name_en, name_srl, name_src (empty = from the
 	           Latin), slug (key + English address word), slug_sr (Serbian address
-	           word), seo_title_en, meta_en, seo_title_sr, meta_sr,
+	           word), seo_title_en, meta_en, h1_en, text_en, seo_title_sr,
+	           meta_sr, h1_sr, text_sr (empty = templates / no text),
 	           parent, icon, sort, active
 	  toggle   (toggle=1 instead of action) id, active — shown on the site or hidden
 	  delete   id — only without subcategories and listings (any status)
@@ -65,6 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				'en' => [$clean('seo_title_en', 70) ?: null, $clean('meta_en', 160) ?: null],
 				'sr' => [$clean('seo_title_sr', 70) ?: null, $clean('meta_sr', 160) ?: null],
 			],
+			'h1' => ['en' => $clean('h1_en', 100) ?: null, 'sr' => $clean('h1_sr', 100) ?: null],
+			'text' => ['en' => clean_text_block($_POST['text_en'] ?? '', SEO_TEXT_MAX), 'sr' => clean_text_block($_POST['text_sr'] ?? '', SEO_TEXT_MAX)],
 			'parent_id' => (int) ($_POST['parent'] ?? 0) ?: null,
 			'icon' => (string) ($_POST['icon'] ?? ''),
 			'sort' => max(0, min(999, (int) ($_POST['sort'] ?? 0))),
@@ -102,6 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			forget_category_slugs([$f['slug'], $f['slug_sr']]);
 			$changed = $existing ? array_keys(array_filter([
 				'names' => $f['names'] != $existing['names'], 'slug' => $f['slug'] !== $existing['slug'], 'slug_sr' => $f['slug_sr'] !== $existing['slug_sr'], 'seo' => $f['seo'] != $existing['seo'],
+				'h1' => $f['h1'] != $existing['h1'], 'text' => $f['text'] != $existing['text'],
 				'parent' => $f['parent_id'] !== ($childRow ? $parentRow['id'] : null), 'icon' => !$childRow && $f['icon'] !== $existing['icon'],
 				'sort' => $f['sort'] !== $existing['sort'], 'active' => $f['active'] !== $existing['active'],
 			])) : [];
@@ -118,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			'name_en' => $f['names']['en'], 'name_srl' => $f['names']['sr-latn'], 'name_src' => $f['names']['sr-cyrl'], 'slug' => $f['slug'], 'slug_sr' => $f['slug_sr'],
 			'seo_title_en' => (string) $f['seo']['en'][0], 'meta_en' => (string) $f['seo']['en'][1],
 			'seo_title_sr' => (string) $f['seo']['sr'][0], 'meta_sr' => (string) $f['seo']['sr'][1],
+			'h1_en' => (string) $f['h1']['en'], 'h1_sr' => (string) $f['h1']['sr'], 'text_en' => (string) $f['text']['en'], 'text_sr' => (string) $f['text']['sr'],
 			'parent' => (string) ($f['parent_id'] ?? ''), 'icon' => $f['icon'], 'sort' => (string) $f['sort'], 'active' => $f['active'],
 		];
 	}
@@ -251,13 +256,25 @@ require ADMIN_INC . '/header.php';
 						<input class="input" id="c-name-en" name="name_en" type="text" lang="en" required maxlength="100" value="<?= e($current['name_en']) ?>">
 					</div>
 					<div class="field">
+						<label class="field__label" for="c-h1-en"><?= e(at('seo.h1')) ?></label>
+						<input class="input" id="c-h1-en" name="h1_en" type="text" maxlength="100" lang="en" value="<?= e($current['h1_en']) ?>" placeholder="<?= e(at('cat.h1_empty')) ?>">
+					</div>
+					<div class="field">
 						<label class="field__label" for="c-seo-en">SEO title</label>
-						<input class="input" id="c-seo-en" name="seo_title_en" type="text" maxlength="70" lang="en" value="<?= e($current['seo_title_en']) ?>" placeholder="Empty: the category name">
+						<input class="input" id="c-seo-en" name="seo_title_en" type="text" maxlength="70" lang="en" value="<?= e($current['seo_title_en']) ?>" placeholder="Empty: the category name" data-counter="c-seo-en-count">
+						<span class="field__counter" id="c-seo-en-count" aria-live="polite"></span>
+						<span class="field__hint"><?= e(at('seo.title_hint')) ?></span>
 					</div>
 					<div class="field">
 						<label class="field__label" for="c-meta-en">Meta description</label>
-						<textarea class="textarea" id="c-meta-en" name="meta_en" rows="3" maxlength="160" lang="en" placeholder="Empty: the standard text with the category name"><?= e($current['meta_en']) ?></textarea>
-						<span class="field__hint"><code>{count}</code> becomes the number of listings ("12 listings"; none yet: "Listings").</span>
+						<textarea class="textarea" id="c-meta-en" name="meta_en" rows="3" maxlength="160" lang="en" placeholder="Empty: the standard text with the category name" data-counter="c-meta-en-count"><?= e($current['meta_en']) ?></textarea>
+						<span class="field__counter" id="c-meta-en-count" aria-live="polite"></span>
+						<span class="field__hint"><?= at('seo.count_hint_en') ?></span>
+					</div>
+					<div class="field">
+						<label class="field__label" for="c-text-en"><?= e(at('seo.text')) ?></label>
+						<textarea class="textarea" id="c-text-en" name="text_en" rows="8" maxlength="<?= SEO_TEXT_MAX ?>" lang="en" placeholder="<?= e(at('seo.text_empty')) ?>"><?= e($current['text_en']) ?></textarea>
+						<span class="field__hint"><?= e(at('cat.text_hint')) ?></span>
 					</div>
 				</div>
 
@@ -267,13 +284,25 @@ require ADMIN_INC . '/header.php';
 						<input class="input" id="c-name-srl" name="name_srl" type="text" lang="sr-Latn" required maxlength="100" value="<?= e($current['name_srl']) ?>">
 					</div>
 					<div class="field">
+						<label class="field__label" for="c-h1-sr"><?= e(at('seo.h1')) ?></label>
+						<input class="input" id="c-h1-sr" name="h1_sr" type="text" maxlength="100" lang="sr-Latn" value="<?= e($current['h1_sr']) ?>" placeholder="<?= e(at('cat.h1_empty')) ?>">
+					</div>
+					<div class="field">
 						<label class="field__label" for="c-seo-sr">SEO title</label>
-						<input class="input" id="c-seo-sr" name="seo_title_sr" type="text" maxlength="70" lang="sr-Latn" value="<?= e($current['seo_title_sr']) ?>" placeholder="Empty: the category name">
+						<input class="input" id="c-seo-sr" name="seo_title_sr" type="text" maxlength="70" lang="sr-Latn" value="<?= e($current['seo_title_sr']) ?>" placeholder="Empty: the category name" data-counter="c-seo-sr-count">
+						<span class="field__counter" id="c-seo-sr-count" aria-live="polite"></span>
+						<span class="field__hint"><?= e(at('seo.title_hint')) ?></span>
 					</div>
 					<div class="field">
 						<label class="field__label" for="c-meta-sr">Meta description</label>
-						<textarea class="textarea" id="c-meta-sr" name="meta_sr" rows="3" maxlength="160" lang="sr-Latn" placeholder="Empty: the standard text with the category name"><?= e($current['meta_sr']) ?></textarea>
-						<span class="field__hint"><code>{count}</code> becomes the number of listings ("12 oglasa"; none yet: "Oglasi"). The Cyrillic page uses these texts converted to Cyrillic.</span>
+						<textarea class="textarea" id="c-meta-sr" name="meta_sr" rows="3" maxlength="160" lang="sr-Latn" placeholder="Empty: the standard text with the category name" data-counter="c-meta-sr-count"><?= e($current['meta_sr']) ?></textarea>
+						<span class="field__counter" id="c-meta-sr-count" aria-live="polite"></span>
+						<span class="field__hint"><?= at('seo.count_hint_sr') ?></span>
+					</div>
+					<div class="field">
+						<label class="field__label" for="c-text-sr"><?= e(at('seo.text')) ?></label>
+						<textarea class="textarea" id="c-text-sr" name="text_sr" rows="8" maxlength="<?= SEO_TEXT_MAX ?>" lang="sr-Latn" placeholder="<?= e(at('seo.text_empty')) ?>"><?= e($current['text_sr']) ?></textarea>
+						<span class="field__hint"><?= e(at('cat.text_hint')) ?> <?= e(at('seo.cyrillic_hint')) ?></span>
 					</div>
 				</div>
 
