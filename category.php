@@ -124,8 +124,10 @@ if ($pageNum > 1) {
 }
 $page['nav'] = 'home';
 $page['canonical'] = ['category.php', array_filter($facets) + ['page' => $pageNum > 1 ? $pageNum : null]];
-// An empty page is a thin page: kept out of the index (and of the sitemap) until it has listings
-$page['robots'] = $isFiltered || !$total ? 'noindex, follow' : 'index, follow';
+// An empty page is a thin page: kept out of the index (and of the sitemap) until it has listings.
+// Except a clean category page with its own SEO text: it has content before the first listing
+$emptyIndexed = !$total && !$isFiltered && !$hasFacets && $currentCat && category_has_text($currentCat);
+$page['robots'] = $isFiltered || (!$total && !$emptyIndexed) ? 'noindex, follow' : 'index, follow';
 
 // SEO text under the listings (stage C): the landing's, else the category's on its clean page.
 // As it is stored (English or Serbian Latin): seo_text_html() builds its links and converts it for the Cyrillic page
@@ -364,7 +366,7 @@ require INC_DIR . '/header.php';
 				<?php include INC_DIR . '/partials/card.php'; ?>
 				<?php endforeach; ?>
 			</div>
-			<?= pagination($total, $perPage, $pageNum, 'category.php') ?>
+			<?= pagination($total, $perPage, $pageNum, 'category.php', search_query($f)) ?>
 			<?php else: ?>
 			<div class="empty">
 				<?= icon('search', 40) ?>

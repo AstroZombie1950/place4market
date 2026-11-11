@@ -19,6 +19,7 @@ define('ASSETS_URL', '/source');
 
 // Helpers, icons, i18n
 require INC_DIR . '/helpers.php';
+request_clean();
 require INC_DIR . '/icons.php';
 require_once INC_DIR . '/i18n.php'; // route.php may have loaded it
 require INC_DIR . '/site.php';

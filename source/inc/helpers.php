@@ -71,6 +71,35 @@ function security_headers(bool $analytics = false): void
 	}
 }
 
+// Query parameters are strings only: ?deal[]=x gave an array where the code expects a string
+// (a TypeError and a 500, or "Array to string conversion" in the log). No page takes arrays
+// in the query; forms that send them (attrs[], notify[], ids[]) are POST
+// Text is valid UTF-8: broken bytes (only a hand-made request sends them) made the database
+// refuse the row (error 1366, a 500); mb_scrub() replaces them with "?"
+function request_clean(): void
+{
+	$_GET = array_map('mb_scrub', array_filter($_GET, 'is_string'));
+	array_walk_recursive($_POST, function (&$value): void {
+		$value = is_string($value) ? mb_scrub($value) : $value;
+	});
+}
+
+// Text cut to $max characters at a word boundary, with "…": for meta descriptions
+function text_cut(string $text, int $max): string
+{
+	$text = trim(preg_replace('/\s+/u', ' ', $text));
+
+	if (mb_strlen($text) <= $max) {
+		return $text;
+	}
+
+	$cut = mb_substr($text, 0, $max - 1);
+	$space = mb_strrpos($cut, ' ');
+
+	// (preg, not rtrim(): rtrim() works on bytes and would cut a Cyrillic letter in half)
+	return preg_replace('/[\s,.;:–—-]+$/u', '', $space !== false && $space > $max * 0.6 ? mb_substr($cut, 0, $space) : $cut) . '…';
+}
+
 // Escape any value for HTML output
 function e($value): string
 {

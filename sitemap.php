@@ -2,7 +2,7 @@
 /* ==========================================================================
 	Sitemap (served as /sitemap.xml via .htaccess rewrite).
 	Without parameters — a sitemap index; its parts:
-	  ?part=pages             home, all listings, categories with listings, info pages
+	  ?part=pages             home, all listings, categories with listings or an SEO text, info pages
 	  ?part=landings          approved landing pages (016) with listings
 	  ?part=listings&n=1…     published listings, SITEMAP_SIZE per part, by id
 	  ?part=sellers&n=1…      sellers with published listings
@@ -61,15 +61,23 @@ $entries = [];
 if ($part === 'pages' && !isset($_GET['n'])) {
 	$categories = sitemap_categories();
 	$newest = $categories ? max($categories) : null;
-	$entries = [['index.php', [], $newest], ['category.php', [], $newest]];
+	// "All listings" only while there are some: empty it is noindex (category.php)
+	$entries = [['index.php', [], $newest]];
+	if ($newest) {
+		$entries[] = ['category.php', [], $newest];
+	}
 
+	// Categories with listings, and empty ones that have their SEO text (indexed too)
 	foreach (categories() as $parent) {
-		if (isset($categories[$parent['id']])) {
-			$entries[] = ['category.php', ['cat' => $parent['slug']], $categories[$parent['id']]];
+		if (!$parent['visible']) {
+			continue;
+		}
+		if (isset($categories[$parent['id']]) || category_has_text($parent)) {
+			$entries[] = ['category.php', ['cat' => $parent['slug']], $categories[$parent['id']] ?? null];
 		}
 		foreach ($parent['children'] as $child) {
-			if (isset($categories[$child['id']])) {
-				$entries[] = ['category.php', ['cat' => $child['slug']], $categories[$child['id']]];
+			if ($child['visible'] && (isset($categories[$child['id']]) || category_has_text($child))) {
+				$entries[] = ['category.php', ['cat' => $child['slug']], $categories[$child['id']] ?? null];
 			}
 		}
 	}

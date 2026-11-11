@@ -45,7 +45,9 @@ RewriteRule ^ https://place4market.com%{REQUEST_URI} [R=301,L]
 RewriteRule ^sitemap\.xml$ sitemap.php [L]
 
 # Служебные PHP-файлы подключаются только через include, напрямую из браузера не открываются
-RewriteRule ^source/.*\.php$ - [F,L]
+# (и с хвостом после имени: /source/inc/repo.php/x раньше выполнялся)
+RewriteRule ^source/.*\.php(/|$) - [F,L]
+RewriteRule ^source/(inc|lang)/ - [F,L]
 
 # Журнал на проде лежит вне public_html; это правило на случай, если папка logs окажется внутри
 RewriteRule ^logs/ - [F,L]

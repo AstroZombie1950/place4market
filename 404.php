@@ -12,7 +12,9 @@ $referer = $_SERVER['HTTP_REFERER'] ?? '';
 $internal = $referer !== '' && parse_url($referer, PHP_URL_HOST) === parse_url('//' . ($_SERVER['HTTP_HOST'] ?? ''), PHP_URL_HOST);
 log_event($internal ? 'warning' : 'info', 'Not found', ['referer' => $referer !== '' ? log_mask_url($referer) : null], 'http');
 
-$page = array_merge(page_defaults(), [
+// Also as a global: route_resolve() includes this file inside a function, and seo_head()
+// reads the global $page — the 404 went out with the title and "index" of the home page
+$page = $GLOBALS['page'] = array_merge(page_defaults(), [
 	'title' => t('404.title'),
 	'robots' => 'noindex, follow',
 ]);

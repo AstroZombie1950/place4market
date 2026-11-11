@@ -402,7 +402,7 @@ function results_page_indexed(array $facets): bool
 		return (landing_counts()[find_landing($facets)['id']] ?? 0) > 0;
 	}
 
-	return ($categories[$facets['cat'] ?? ''] ??= count_listings(['cat' => $facets['cat'] ?? ''])) > 0;
+	return ($categories[$facets['cat'] ?? ''] ??= ($facets['cat'] ?? '') !== '' ? category_counts()[$facets['cat']] ?? 0 : count_listings([])) > 0;
 }
 
 // Addresses of the links in a text that can never work: not a results page, or neither a category
@@ -595,10 +595,17 @@ function price_text(?int $amount, string $currency = 'RSD'): string
 	return $amount === null ? t('price.agreement') : format_number($amount) . "\u{00A0}" . currency_label($currency);
 }
 
+// A category with its SEO text in both languages is worth indexing before it has listings
+// (decision 12.11): category.php gives it "index", sitemap.php lists it
+function category_has_text(array $category): bool
+{
+	return trim((string) ($category['text']['sr'] ?? '')) !== '' && trim((string) ($category['text']['en'] ?? '')) !== '';
+}
+
 // Count active listings in a category
 function category_count(array $category): int
 {
-	return count_listings(['cat' => $category['slug']]);
+	return category_counts()[$category['slug']] ?? 0;
 }
 
 // Count active listings in a city
@@ -869,8 +876,10 @@ function person_name(string $name): string
 	return lang() === 'sr-cyrl' ? sr_cyr($name) : $name;
 }
 
-// Pagination links (keeps current query)
-function pagination(int $total, int $perPage, int $current, string $path): string
+// Pagination links: first, last and the pages around the current one ("…" for the rest —
+// thousands of listings would otherwise print hundreds of links). $query: the parameters
+// the links keep (the search); anything else in the address (utm_…) is not carried over
+function pagination(int $total, int $perPage, int $current, string $path, array $query = []): string
 {
 	$pages = (int) ceil($total / $perPage);
 
@@ -878,8 +887,6 @@ function pagination(int $total, int $perPage, int $current, string $path): strin
 		return '';
 	}
 
-	$query = $_GET;
-	unset($query['lang']);
 	$link = function (int $page) use ($query, $path) {
 		$query['page'] = $page > 1 ? $page : null;
 		return e(url($path, $query));
@@ -888,8 +895,16 @@ function pagination(int $total, int $perPage, int $current, string $path): strin
 	$html = '<nav class="pagination" aria-label="' . e(t('pagination.label')) . '"><ul class="pagination__list">';
 	$html .= '<li><a class="pagination__link" href="' . $link(max(1, $current - 1)) . '" aria-label="' . e(t('pagination.prev')) . '"' . ($current === 1 ? ' aria-disabled="true"' : '') . '>' . icon('chevron-left', 18) . '</a></li>';
 
-	for ($i = 1; $i <= $pages; $i++) {
+	$last = 0;
+	foreach (array_unique([1, $current - 1, $current, $current + 1, $pages]) as $i) {
+		if ($i < 1 || $i > $pages) {
+			continue;
+		}
+		if ($i > $last + 1) {
+			$html .= '<li class="pagination__gap" aria-hidden="true">…</li>';
+		}
 		$html .= '<li><a class="pagination__link" href="' . $link($i) . '"' . ($i === $current ? ' aria-current="page"' : '') . '>' . $i . '</a></li>';
+		$last = $i;
 	}
 
 	$html .= '<li><a class="pagination__link" href="' . $link(min($pages, $current + 1)) . '" aria-label="' . e(t('pagination.next')) . '"' . ($current === $pages ? ' aria-disabled="true"' : '') . '>' . icon('chevron-right', 18) . '</a></li>';

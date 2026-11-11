@@ -59,6 +59,10 @@ if ($action === 'register') {
 		$errors['register'] = t('auth.err_csrf');
 	} elseif (rate_limited('register_ip', client_ip())) {
 		$errors['register'] = t('auth.err_too_many');
+	} elseif (trim((string) ($_POST['website'] ?? '')) !== '') {
+		// A bot filled the trap field (as in contact.php): no account
+		log_event('warning', 'Registration form trap filled', [], 'audit');
+		$errors['register'] = t('auth.err_too_many');
 	} elseif (($dataError = account_data_error($old)) !== '') {
 		$errors['register'] = $dataError;
 	} elseif (!password_ok($password)) {
@@ -170,6 +174,11 @@ require INC_DIR . '/header.php';
 							<button type="button" class="btn btn--ghost btn--icon input-wrap__btn" data-password-toggle aria-controls="reg-password" aria-pressed="false" aria-label="<?= e(t('auth.show_password')) ?>"><?= icon('eye', 20) ?><?= icon('eye-off', 20) ?></button>
 						</div>
 						<span class="field__hint" id="reg-password-hint"><?= e(t('auth.password_hint')) ?></span>
+					</div>
+					<!-- Trap for bots: hidden from people and screen readers -->
+					<div class="visually-hidden" aria-hidden="true">
+						<label for="reg-website">Website</label>
+						<input id="reg-website" name="website" type="text" tabindex="-1" autocomplete="off">
 					</div>
 					<label class="check"><input type="checkbox" name="terms" required><span><?= terms_label('auth.terms') ?></span></label>
 					<button type="submit" class="btn btn--primary btn--lg btn--block"><?= e(t('auth.submit_register')) ?></button>

@@ -19,6 +19,9 @@ const PASSWORD_MIN = 8;
 // bcrypt reads 72 bytes; longer input is refused instead of silently cut
 const PASSWORD_MAX = 72;
 
+// A session without requests for this long is over (auth_init()); cron.php deletes its file
+const SESSION_IDLE_SECONDS = 2 * 86400;
+
 /* ---------- Session ---------- */
 
 function is_https(): bool
@@ -40,7 +43,7 @@ function session_boot(bool $create = false): void
 	}
 
 	ini_set('session.use_strict_mode', '1');
-	ini_set('session.gc_maxlifetime', (string) (2 * 86400));
+	ini_set('session.gc_maxlifetime', (string) SESSION_IDLE_SECONDS);
 	session_name(SESSION_COOKIE);
 	session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'secure' => is_https(), 'httponly' => true, 'samesite' => 'Lax']);
 	session_start();
@@ -50,6 +53,16 @@ function session_boot(bool $create = false): void
 function auth_init(): void
 {
 	session_boot();
+
+	// A session lives SESSION_IDLE_SECONDS without a request, whatever the file on disk and the
+	// cookie say: a stolen or forgotten cookie stops working ("remember me" signs in again)
+	if (session_status() === PHP_SESSION_ACTIVE) {
+		if (isset($_SESSION['seen']) && time() - (int) $_SESSION['seen'] > SESSION_IDLE_SECONDS) {
+			$_SESSION = [];
+			session_regenerate_id(true);
+		}
+		$_SESSION['seen'] = time();
+	}
 
 	$id = $_SESSION['uid'] ?? null;
 
@@ -249,7 +262,8 @@ function rate_hit(string $action, string $value): void
 function account_data_error(array $f): string
 {
 	return match (true) {
-		mb_strlen($f['name']) < 2 || mb_strlen($f['name']) > 100 => t('auth.err_name'),
+		// No addresses in a name: it opens our letters ("Hello, {name}") sent to any email typed at registration
+		mb_strlen($f['name']) < 2 || mb_strlen($f['name']) > 100 || preg_match('~://|www\.|[<>]~i', $f['name']) => t('auth.err_name'),
 		!filter_var($f['email'], FILTER_VALIDATE_EMAIL) || mb_strlen($f['email']) > 190 => t('auth.err_email'),
 		$f['phone'] !== '' && !preg_match('/^\+?[0-9 ()\-]{6,20}$/', $f['phone']) => t('auth.err_phone'),
 		!in_array($f['city'], array_column(active_cities(), 'latn'), true) => t('auth.err_city'),

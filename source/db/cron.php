@@ -12,6 +12,10 @@
 	  user with the searches that got new listings (SEARCH_ALERT_BATCH a run)
 	- favorites that got cheaper: one letter per user with "price drops" on
 	  (PRICE_ALERT_BATCH users a run); the new price is remembered
+	- listings that expire within EXPIRY_NOTICE_DAYS days: one letter to the
+	  seller per term (023), EXPIRY_NOTICE_BATCH a run
+	- session files older than the session lifetime and old sign-in tokens
+	  are deleted (PHP's own cleanup runs once in 1000 requests on the server)
 	========================================================================== */
 
 require __DIR__ . '/cli.php';
@@ -26,6 +30,43 @@ const SEARCH_ALERT_BATCH = 500;
 
 // Users told about price drops per run
 const PRICE_ALERT_BATCH = 300;
+
+// Sellers are told this many days before a listing expires; letters per run
+const EXPIRY_NOTICE_DAYS = 3;
+const EXPIRY_NOTICE_BATCH = 200;
+
+// Session files live this long without a request (as session.gc_maxlifetime in auth.php)
+const SESSION_FILE_SECONDS = 2 * 86400;
+
+// "Your ad expires on …" in the seller's language (or the one the ad is written in)
+function send_expiry_notice(array $row): bool
+{
+	$listing = $row['listing'];
+
+	return in_lang($row['lang'] ?? $listing['lang'] ?? 'sr-latn', function () use ($row, $listing) {
+		return send_template_mail($row['email'], 'listing_expiring', [
+			'name' => person_name($row['name']),
+			'title' => listing_title($listing) ?: '#' . $listing['id'],
+			'date' => format_date($listing['expires']),
+			'link' => site_url(url('profile.php')),
+		], ['user_id' => $row['user_id'], 'listing_id' => $listing['id']]);
+	});
+}
+
+// Session files nobody used for SESSION_FILE_SECONDS (the folder of session_boot() in auth.php)
+function purge_session_files(): int
+{
+	$dir = getenv('P4M_SESSION_DIR') ?: dirname(ROOT_DIR) . '/app-sessions';
+	$deleted = 0;
+
+	foreach (is_dir($dir) ? glob($dir . '/sess_*') : [] as $file) {
+		if (is_file($file) && filemtime($file) < time() - SESSION_FILE_SECONDS && @unlink($file)) {
+			$deleted++;
+		}
+	}
+
+	return $deleted;
+}
 
 // Alert letter in the user's language (or of their newest search); $found = [[search, new count], …]
 function send_search_alert(array $searches, array $found): bool
@@ -122,9 +163,34 @@ foreach (price_drops(PRICE_ALERT_BATCH) as $user) {
 // Prices that went up or changed currency: a later drop counts from the new one
 remember_favorite_prices();
 
-if ($expired || $photos || $imported || $purged || $alerts || $priceAlerts || array_sum($retention)) {
+// Listings about to expire. After a failed letter (logged by mail.php) it is tried next run
+$expiryNotices = 0;
+foreach (listings_expiring(EXPIRY_NOTICE_DAYS, EXPIRY_NOTICE_BATCH) as $row) {
+	try {
+		if ($row['listing'] && send_expiry_notice($row)) {
+			mark_expiry_mailed($row['listing']['id']);
+			$expiryNotices++;
+		}
+	} catch (Throwable $e) {
+		log_exception($e);
+	}
+}
+
+// Leftovers: session files, sign-in tokens
+$sessions = 0;
+$tokens = 0;
+try {
+	$sessions = purge_session_files();
+	$tokens = delete_old_auth_tokens();
+} catch (Throwable $e) {
+	log_exception($e);
+}
+
+if ($expiryNotices || $tokens || $expired || $photos || $imported || $purged || $alerts || $priceAlerts || array_sum($retention)) {
 	log_event('info', 'Cron: maintenance done', ['expired' => $expired, 'stale_photos' => $photos, 'log_imported' => $imported, 'log_purged' => $purged,
-		'search_alerts' => $alerts, 'price_alerts' => $priceAlerts] + $retention, 'cron');
+		'search_alerts' => $alerts, 'price_alerts' => $priceAlerts,
+		'expiry_notices' => $expiryNotices, 'sessions_removed' => $sessions, 'tokens_removed' => $tokens] + $retention, 'cron');
 }
 out('Expired listings: ' . $expired . ', stale photos removed: ' . $photos . ', journal: ' . $imported . ' imported from files, ' . $purged . ' old removed, search alerts sent: ' . $alerts . ', price alerts sent: ' . $priceAlerts
+	. ', expiry notices sent: ' . $expiryNotices . ', session files removed: ' . $sessions . ', old tokens removed: ' . $tokens
 	. ', retention: ' . $retention['listings_scrubbed'] . ' deleted listings cleared, ' . $retention['contact_deleted'] . ' contact messages, ' . $retention['reports_deleted'] . ' reports removed');

@@ -10,11 +10,14 @@ $listing = find_listing((int) ($_GET['id'] ?? 0));
 
 $seller = $listing ? user($listing['user_id']) : null;
 
-// Unknown listing → 404. Not published (draft, moderation, inactive, rejected, expired) or a
-// blocked seller: only the author and staff see it, for everyone else it does not exist.
-// Deleted: staff only
-if (!$listing || !(($listing['status'] === 'active' && $seller['status'] === 'active') || is_staff()
-	|| ($listing['user_id'] === current_user_id() && $listing['status'] !== 'deleted'))) {
+// Published as the search sees it: active, the seller not blocked, the category not hidden in the admin
+$listingCat = $listing ? find_category($listing['category']) : [null, null];
+$isPublic = $listing && $listing['status'] === 'active' && $seller['status'] === 'active' && (($listingCat[1] ?? $listingCat[0])['visible'] ?? false);
+
+// Unknown listing → 404. Not published (draft, moderation, inactive, rejected, expired), a
+// blocked seller or a hidden category: only the author and staff see it, for everyone else
+// it does not exist. Deleted: staff only
+if (!$listing || !($isPublic || is_staff() || ($listing['user_id'] === current_user_id() && $listing['status'] !== 'deleted'))) {
 	require ROOT_DIR . '/404.php';
 	exit;
 }
@@ -70,13 +73,27 @@ if ($childCat) {
 }
 $crumbs[] = ['label' => $title];
 
+// Title and description in the language of the page: the user's text is the same in every
+// language version, so the category, the place and the price (our words) tell them apart.
+// The longest title that still fits the search result (~65 with the site name)
+$metaCat = cat_name($childCat ?? $parentCat);
+$metaPlace = listing_place($listing);
 $page['title'] = $title;
-$page['description'] = mb_substr(preg_replace('/\s+/u', ' ', listing_description($listing)), 0, 155);
+foreach ([$title . ' — ' . $metaCat . ', ' . $metaPlace, $title . ' — ' . $metaCat, $title . ' — ' . $metaPlace] as $candidate) {
+	if (mb_strlen($candidate . ' — ' . SITE_NAME) <= 65) {
+		$page['title'] = $candidate;
+		break;
+	}
+}
+$page['description'] = text_cut(t('meta.listing', [
+	'title' => $title, 'price' => price_text($listing['price'], $listing['currency']), 'place' => $metaPlace, 'category' => $metaCat,
+	'text' => listing_description($listing),
+]), 155);
 $page['nav'] = 'home';
 $page['body_class'] = 'body--listing';
 $page['canonical'] = ['listing.php', listing_url_params($listing)];
 // Seen by its author or staff only: never indexed
-if ($listing['status'] !== 'active') {
+if (!$isPublic) {
 	$page['robots'] = 'noindex, nofollow';
 }
 $page['og_type'] = 'product';
@@ -217,7 +234,7 @@ require INC_DIR . '/header.php';
 						<?php if ($canReport && current_user()): ?>
 						<button type="button" class="text-link" data-dialog-open="report-dialog"><?= icon('flag', 16) ?><?= e(t('l.report')) ?></button>
 						<?php elseif ($canReport): ?>
-						<a class="text-link" href="<?= e(url('auth.php', ['next' => '/' . listing_url($listing)])) ?>" title="<?= e(t('l.report_login')) ?>"><?= icon('flag', 16) ?><?= e(t('l.report')) ?></a>
+						<a class="text-link" href="<?= e(url('auth.php', ['next' => listing_url($listing)])) ?>" title="<?= e(t('l.report_login')) ?>"><?= icon('flag', 16) ?><?= e(t('l.report')) ?></a>
 						<?php endif; ?>
 					</div>
 				</div>

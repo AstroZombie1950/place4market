@@ -2,7 +2,7 @@
 /* ==========================================================================
 	Admin: CSV export of a list with the same filters as on its page
 	GET: type (listings | users) + the list's filters (listings.php, users.php).
-	Listings: staff; users (personal data): admins only. UTF-8 with BOM and ";"
+	Listings: staff (sellers' emails for admins only); users (personal data): admins only. UTF-8 with BOM and ";"
 	so Excel opens it as a table; cells that start like a formula are prefixed
 	with "'". Every export is in the audit log (who, what, how many rows).
 	========================================================================== */
@@ -43,7 +43,7 @@ if ($type === 'listings') {
 	$chunk = fn(int $offset) => admin_listing_rows($f, EXPORT_CHUNK, $offset);
 	$row = fn(array $l) => [
 		$l['id'], $l['title'], category_path($l['category']), $l['price'], $l['currency'], at($l['negotiable'] ? 'csv.yes' : 'csv.no'), $l['city'],
-		$l['user_id'], $l['seller'], $l['seller_email'], status_meta($l['status'])[0],
+		$l['user_id'], $l['seller'], is_admin() ? $l['seller_email'] : '', status_meta($l['status'])[0],
 		$l['created'], $l['published'], $l['expires'], $l['views'], $l['favorites'], $l['messages'], $l['photos'], $l['lang'],
 		site_url(listing_url($l)),
 	];

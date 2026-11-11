@@ -388,12 +388,39 @@ function landing_counts(): array
 	return $counts;
 }
 
+// Published listings of every category: [slug => count], one grouped query a request
+// (a section counts its subcategories, as count_listings(['cat' => …]) does)
+function category_counts(): array
+{
+	static $counts = null;
+
+	if ($counts === null) {
+		$counts = [];
+		foreach (db_all('SELECT c.slug AS cat, pc.slug AS section, COUNT(*) AS n
+			FROM ' . LISTING_FROM . ' LEFT JOIN categories pc ON pc.id = c.parent_id
+			WHERE ' . LISTING_LIVE . " AND u.status = 'active' AND " . CATEGORY_VISIBLE . '
+			GROUP BY c.slug, pc.slug') as $row) {
+			foreach (array_filter([$row['cat'], $row['section']]) as $slug) {
+				$counts[$slug] = ($counts[$slug] ?? 0) + (int) $row['n'];
+			}
+		}
+	}
+
+	return $counts;
+}
+
 // Landings with published listings, for the sitemap: [[filters, lastmod UTC], …]
 function sitemap_landings(): array
 {
 	$out = [];
 
+	// Empty landings are skipped by the grouped counts: a lastmod query only for the rest
+	$counts = landing_counts();
+
 	foreach (landings() as $landing) {
+		if (($counts[$landing['id']] ?? 0) === 0) {
+			continue;
+		}
 		[$where, $params] = listing_search_where($landing['filters']);
 		$last = db_value('SELECT MAX(l.updated_at) FROM ' . LISTING_FROM . ' WHERE ' . $where, $params);
 		if ($last) {
@@ -819,6 +846,32 @@ function expire_listings(): int
 	return db_exec("UPDATE listings SET status = 'expired' WHERE status = 'active' AND expires_at <= UTC_TIMESTAMP()");
 }
 
+// Published listings that expire within $days days and got no letter about this term yet
+// (a letter older than the term's last $days days was about the previous one), sellers
+// active: [['listing' (array), 'email', 'name', 'lang', 'user_id'], …]
+function listings_expiring(int $days, int $limit): array
+{
+	$rows = db_all('SELECT l.id, u.id AS user_id, u.email, u.name, u.lang FROM listings l
+		JOIN users u ON u.id = l.user_id AND u.status = \'active\'
+		WHERE ' . LISTING_LIVE . ' AND l.expires_at <= UTC_TIMESTAMP() + INTERVAL ' . $days . ' DAY
+		AND (l.expiry_mailed_at IS NULL OR l.expiry_mailed_at < l.expires_at - INTERVAL ' . $days . ' DAY)
+		ORDER BY l.expires_at LIMIT ' . $limit);
+
+	return array_map(fn($r) => ['listing' => find_listing($r['id'])] + $r, $rows);
+}
+
+// The letter about the end of the term went out (updated_at stays: not a change of the ad)
+function mark_expiry_mailed(int $id): void
+{
+	db_exec('UPDATE listings SET expiry_mailed_at = UTC_TIMESTAMP(), updated_at = updated_at WHERE id = ?', [$id]);
+}
+
+// Sign-in tokens (email confirmation, password reset) used or expired more than a week ago
+function delete_old_auth_tokens(): int
+{
+	return db_exec('DELETE FROM auth_tokens WHERE expires_at < UTC_TIMESTAMP() - INTERVAL 7 DAY');
+}
+
 // Photos uploaded more than a day ago and never put into a listing: rows deleted, paths returned
 function take_stale_photos(): array
 {
@@ -852,17 +905,19 @@ function is_favorite(int $id): bool
 function favorite_listings(): array
 {
 	return listings_query(
-		LISTING_SELECT . ' JOIN favorites f ON f.listing_id = l.id AND f.user_id = ? WHERE ' . LISTING_LIVE . ' ORDER BY f.created_at DESC',
+		LISTING_SELECT . ' JOIN favorites f ON f.listing_id = l.id AND f.user_id = ? WHERE ' . LISTING_LIVE . " AND u.status = 'active' AND " . CATEGORY_VISIBLE . ' ORDER BY f.created_at DESC',
 		[current_user_id()]
 	);
 }
 
-// Save a published listing; false when it was saved already or is not published.
+// Save a published listing; false when it was saved already or is not published
+// (as in the search: an active seller, a visible category).
 // favorites_count follows, the listing's updated_at stays
 function add_favorite(int $userId, int $listingId): bool
 {
 	// The price now: a later drop is reported (cron.php, price_drops())
-	$added = db_exec('INSERT IGNORE INTO favorites (user_id, listing_id, price, currency) SELECT ?, l.id, l.price, l.currency FROM listings l WHERE l.id = ? AND ' . LISTING_LIVE, [$userId, $listingId]) > 0;
+	$added = db_exec('INSERT IGNORE INTO favorites (user_id, listing_id, price, currency) SELECT ?, l.id, l.price, l.currency FROM ' . LISTING_FROM . '
+		WHERE l.id = ? AND ' . LISTING_LIVE . " AND u.status = 'active' AND " . CATEGORY_VISIBLE, [$userId, $listingId]) > 0;
 	if ($added) {
 		db_exec('UPDATE listings SET favorites_count = favorites_count + 1, updated_at = updated_at WHERE id = ?', [$listingId]);
 	}

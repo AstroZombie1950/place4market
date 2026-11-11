@@ -24,6 +24,10 @@ $crumbs = [
 $page['title'] = t('seller.title', ['name' => $name]);
 $page['description'] = t('meta.seller', ['name' => $name, 'city' => city_name($seller['city']), 'date' => date_label($seller['registered'])]);
 $page['canonical'] = ['seller.php', ['id' => $seller['id']]];
+// Without published listings the page is empty: kept out of the index (and it is not in the sitemap)
+if (!$items) {
+	$page['robots'] = 'noindex, follow';
+}
 $page['og_type'] = 'profile';
 $page['schema'][] = schema_breadcrumbs($crumbs);
 $page['schema'][] = schema_profile($seller);

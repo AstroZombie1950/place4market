@@ -1224,7 +1224,22 @@
 				analytics_storage: 'granted', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
 			});
 			window.gtag('js', new Date());
-			window.gtag('config', id);
+			// One-time links (/nova-lozinka?token=…, e-mail confirmation) never reach Google:
+			// the token is cut from the address of the page and of the one before it
+			const clean = (href) => {
+				try {
+					const address = new URL(href);
+					if (!address.searchParams.has('token')) return href;
+					address.searchParams.delete('token');
+					return address.href;
+				} catch (error) {
+					return '';
+				}
+			};
+			window.gtag('config', id, {
+				page_location: clean(location.href),
+				page_referrer: document.referrer ? clean(document.referrer) : '',
+			});
 			const script = document.createElement('script');
 			script.async = true;
 			script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;

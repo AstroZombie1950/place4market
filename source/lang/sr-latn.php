@@ -14,6 +14,7 @@ return [
 	'meta.category_empty' => '{name}: oglasi širom Srbije. Postavite svoj oglas besplatno na Place4Market.',
 	'meta.all_listings' => 'Svi oglasi širom Srbije: automobili, nekretnine, elektronika i još mnogo toga. Besplatni oglasi na Place4Market.',
 	'meta.landing' => '{name}: {count} sa cenama i fotografijama. Pregledajte ponude ili besplatno postavite oglas na Place4Market.',
+	'meta.listing' => '{category}, {place}: {title}, cena {price}. {text}',
 	'meta.count_none' => 'Oglasi',
 	'meta.landing_empty' => '{name}: novi oglasi uskoro. Postavite svoj oglas besplatno na Place4Market.',
 	'meta.tail' => '{h1}: oglasi i cene',
@@ -515,6 +516,8 @@ return [
 	'p.email_change_sent' => 'Sačuvano. Da biste promenili e-poštu, otvorite link koji smo poslali na {email}.',
 	'p.email_changed' => 'Vaša e-pošta je promenjena.',
 	'p.change_password' => 'Promena lozinke',
+	'p.email_password_hint' => 'Potrebna samo za promenu e-pošte.',
+	'p.err_email_password' => 'Za promenu e-pošte unesite trenutnu lozinku.',
 	'p.current_password' => 'Trenutna lozinka',
 	'p.new_password' => 'Nova lozinka',
 	'p.save' => 'Sačuvaj izmene',
@@ -693,6 +696,15 @@ vaš oglas „{title}“ je proveren i objavljen:
 {link}
 
 Oglas je aktivan {days} dana. U profilu ga možete izmeniti, podići ili deaktivirati.
+
+Place4Market',
+	'mail.listing_expiring_subject' => 'Oglas uskoro ističe: {title}',
+	'mail.listing_expiring_body' => 'Zdravo, {name},
+
+vaš oglas „{title}“ ističe {date} i tada više neće biti vidljiv u pretrazi.
+
+Posle isteka ga možete obnoviti jednim klikom u profilu, u odeljku „Moji oglasi“:
+{link}
 
 Place4Market',
 	'mail.listing_rejected_subject' => 'Oglas treba izmeniti: {title}',

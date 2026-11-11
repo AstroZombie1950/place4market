@@ -15,8 +15,10 @@
 // Long side => WebP quality
 const PHOTO_OUTPUT = [1920 => 81, 960 => 78, 480 => 75, 320 => 72, 200 => 70];
 const PHOTO_MAX_BYTES = 15 * 1024 * 1024;
-// GD keeps 4 bytes per pixel in memory: 16 MP ≈ 64 MB
+// GD keeps about 5 bytes per pixel in memory and two copies at a time (rotation, flattening):
+// 16 MP ≈ 160 MB, more than the server's memory_limit of 128M — process_photo() raises it
 const PHOTO_MAX_PIXELS = 16_000_000;
+const PHOTO_MEMORY = '384M';
 const PHOTO_MIN_SIDE = 200;
 const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 // Uploaded photos: <site root>/uploads/listings/YYYY/MM/<random>/<size>.webp; with a cloud
@@ -51,6 +53,8 @@ function process_photo(string $tmpFile): array
 	if (min($width, $height) < PHOTO_MIN_SIDE) {
 		throw new PhotoError('small');
 	}
+
+	photo_memory();
 
 	$image = match ($type) {
 		'image/jpeg' => @imagecreatefromjpeg($tmpFile),
@@ -89,25 +93,43 @@ function process_photo(string $tmpFile): array
 	$sizes = [];
 	$source = $image;
 
-	foreach ($targets as $target => $quality) {
-		$scale = $target / max(imagesx($source), imagesy($source));
-		$w = max(1, (int) round(imagesx($source) * $scale));
-		$h = max(1, (int) round(imagesy($source) * $scale));
+	try {
+		foreach ($targets as $target => $quality) {
+			$scale = $target / max(imagesx($source), imagesy($source));
+			$w = max(1, (int) round(imagesx($source) * $scale));
+			$h = max(1, (int) round(imagesy($source) * $scale));
 
-		$resized = imagecreatetruecolor($w, $h);
-		imagecopyresampled($resized, $source, 0, 0, 0, 0, $w, $h, imagesx($source), imagesy($source));
+			$resized = imagecreatetruecolor($w, $h);
+			imagecopyresampled($resized, $source, 0, 0, 0, 0, $w, $h, imagesx($source), imagesy($source));
 
-		if (!imagewebp($resized, $dir . '/' . $target . '.webp', $quality)) {
-			throw new RuntimeException('WebP encoding failed');
+			if (!imagewebp($resized, $dir . '/' . $target . '.webp', $quality)) {
+				throw new RuntimeException('WebP encoding failed');
+			}
+
+			$sizes[$target] = [$w, $h];
+			// GD images are freed when nothing refers to them (imagedestroy() is deprecated in PHP 8.5)
+			$source = $resized;
 		}
 
-		$sizes[$target] = [$w, $h];
-		// GD images are freed when nothing refers to them (imagedestroy() is deprecated in PHP 8.5)
-		$source = $resized;
+		// To the cloud bucket when it is on (storage.php): 'cloud:<relative>'; stays on the disk otherwise
+		return ['path' => storage_save_folder($relative), 'color' => $color, 'sizes' => $sizes];
+	} catch (Throwable $e) {
+		// Nothing refers to a half-made folder: it would stay on the disk forever
+		array_map('unlink', glob($dir . '/*.webp') ?: []);
+		@rmdir($dir);
+		throw $e;
 	}
+}
 
-	// To the cloud bucket when it is on (storage.php): 'cloud:<relative>'; stays on the disk otherwise
-	return ['path' => storage_save_folder($relative), 'color' => $color, 'sizes' => $sizes];
+// Room for a photo of PHOTO_MAX_PIXELS (never lowers a bigger limit)
+function photo_memory(): void
+{
+	$limit = ini_get('memory_limit');
+	$bytes = (int) $limit * (['K' => 1024, 'M' => 1024 ** 2, 'G' => 1024 ** 3][strtoupper(substr((string) $limit, -1))] ?? 1);
+
+	if ((int) $limit !== -1 && $bytes < (int) PHOTO_MEMORY * 1024 ** 2) {
+		ini_set('memory_limit', PHOTO_MEMORY);
+	}
 }
 
 // JPEG camera orientation (EXIF) applied to the pixels

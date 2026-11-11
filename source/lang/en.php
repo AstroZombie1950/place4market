@@ -13,6 +13,7 @@ return [
 	'meta.category_empty' => '{name}: listings across Serbia. Post your ad for free on Place4Market.',
 	'meta.all_listings' => 'All listings across Serbia: cars, real estate, electronics and more. Free classifieds on Place4Market.',
 	'meta.landing' => '{name}: {count} with prices and photos. Browse offers or post your ad for free on Place4Market.',
+	'meta.listing' => '{category} in {place}: {title}, price {price}. {text}',
 	'meta.count_none' => 'Listings',
 	'meta.landing_empty' => '{name}: new listings coming soon. Post your ad for free on Place4Market.',
 	'meta.tail' => '{h1}: listings and prices',
@@ -514,6 +515,8 @@ return [
 	'p.email_change_sent' => 'Saved. To change your email, open the link we sent to {email}.',
 	'p.email_changed' => 'Your email has been changed.',
 	'p.change_password' => 'Change password',
+	'p.email_password_hint' => 'Needed only to change your email.',
+	'p.err_email_password' => 'Enter your current password to change the email.',
 	'p.current_password' => 'Current password',
 	'p.new_password' => 'New password',
 	'p.save' => 'Save changes',
@@ -692,6 +695,15 @@ your ad “{title}” has been checked and is now published:
 {link}
 
 It stays online for {days} days. You can edit, bump or deactivate it in your profile.
+
+Place4Market',
+	'mail.listing_expiring_subject' => 'Your ad expires soon: {title}',
+	'mail.listing_expiring_body' => 'Hello {name},
+
+your ad “{title}” expires on {date} and will no longer be shown in search after that.
+
+Once it has expired you can renew it with one click in your profile, under “My ads”:
+{link}
 
 Place4Market',
 	'mail.listing_rejected_subject' => 'Your ad needs changes: {title}',

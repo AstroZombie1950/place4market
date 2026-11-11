@@ -93,6 +93,8 @@ if (($_POST['action'] ?? '') === 'save_profile') {
 	$profileError = match (true) {
 		!csrf_valid() => t('auth.err_csrf'),
 		($dataError = account_data_error($profile)) !== '' => $dataError,
+		// A new address is a way into the account (password reset): the password is asked again
+		$newEmail && !password_check((string) ($_POST['email_password'] ?? ''), user_password_hash($me['id'])) => t('p.err_email_password'),
 		$newEmail && email_taken($newEmail) => t('auth.err_email_taken'),
 		$newEmail && rate_limited('email_change', (string) $me['id']) => t('auth.err_too_many'),
 		default => '',
@@ -331,6 +333,11 @@ require INC_DIR . '/header.php';
 								<option value="<?= e($code) ?>" lang="<?= e($meta['html']) ?>"<?= $code === $profile['lang'] ? ' selected' : '' ?>><?= e($meta['name']) ?></option>
 								<?php endforeach; ?>
 							</select>
+						</div>
+						<div class="field">
+							<label class="field__label" for="s-email-pass"><?= e(t('p.current_password')) ?></label>
+							<input class="input" id="s-email-pass" name="email_password" type="password" autocomplete="current-password" maxlength="72" aria-describedby="s-email-pass-hint">
+							<span class="field__hint" id="s-email-pass-hint"><?= e(t('p.email_password_hint')) ?></span>
 						</div>
 					</div>
 					<div class="form-actions">
