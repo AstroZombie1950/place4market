@@ -657,6 +657,14 @@ return [
 	'footer.company' => 'Place4Market',
 	'footer.tagline' => 'Free classifieds across Serbia. Buy and sell locally.',
 
+	// Cookie consent (partials/consent.php)
+	'consent.title' => 'Cookies on Place4Market',
+	'consent.text' => 'We use analytics cookies (Google Analytics) to see how the site is used and to improve it. They are set only if you accept.',
+	'consent.more' => 'More about cookies',
+	'consent.accept' => 'Accept',
+	'consent.decline' => 'Decline',
+	'consent.settings' => 'Cookie settings',
+
 	// Emails (plain text; {link} is the full URL)
 	'mail.verify_subject' => 'Confirm your email on Place4Market',
 	'mail.verify_body' => 'Hello {name},

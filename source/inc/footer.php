@@ -41,6 +41,9 @@ $footerCols = [
 				<?php foreach ($links as $link): ?>
 				<li><a href="<?= e($link['href']) ?>"><?= e($link['label']) ?></a></li>
 				<?php endforeach; ?>
+				<?php if ($col === 'company' && analytics_id() !== ''): ?>
+				<li><button type="button" class="site-footer__consent" data-consent-open><?= e(t('consent.settings')) ?></button></li>
+				<?php endif; ?>
 			</ul>
 		</nav>
 		<?php endforeach; ?>
@@ -86,6 +89,10 @@ $footerCols = [
 		</div>
 	</div>
 </dialog>
+
+<?php if (analytics_id() !== '') {
+	require INC_DIR . '/partials/consent.php';
+} ?>
 
 <!-- Toasts -->
 <div class="toast-region" data-toast-region aria-live="polite"></div>

@@ -658,6 +658,14 @@ return [
 	'footer.company' => 'Place4Market',
 	'footer.tagline' => 'Бесплатни мали огласи широм Србије. Купујте и продајте у свом крају.',
 
+	// Cookie consent (partials/consent.php)
+	'consent.title' => 'Колачићи на Place4Market',
+	'consent.text' => 'Користимо аналитичке колачиће (Google Analytics) да бисмо видели како се сајт користи и да бисмо га побољшали. Постављају се само ако прихватите.',
+	'consent.more' => 'Више о колачићима',
+	'consent.accept' => 'Прихватам',
+	'consent.decline' => 'Одбијам',
+	'consent.settings' => 'Подешавања колачића',
+
 	// Emails (plain text; {link} is the full URL)
 	'mail.verify_subject' => 'Потврдите е-пошту на Place4Market',
 	'mail.verify_body' => 'Здраво, {name},

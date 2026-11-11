@@ -10,7 +10,7 @@
 
 const SITE_NAME = 'Place4Market';
 const SITE_HOST = 'place4market.com';
-const SITE_EMAIL = 'support@place4market.com'; // placeholder until the client gives the real one
+const SITE_EMAIL = 'support@place4market.com'; // a real mailbox on the server since 11.11 (DirectAdmin)
 
 // Absolute URL for a link built by url(): site_url(url('help.php')) → https://place4market.com/pomoc.
 // Always https://place4market.com, whatever the Host header says: links in letters (password
@@ -21,6 +21,11 @@ function site_url(string $link = ''): string
 	static $base = null;
 
 	$base ??= IS_DEV && !empty($_SERVER['HTTP_HOST']) ? 'http://' . $_SERVER['HTTP_HOST'] : 'https://' . SITE_HOST;
+
+	// Already absolute: a photo in the cloud bucket (storage_file_url())
+	if (preg_match('#^https?://#', $link)) {
+		return $link;
+	}
 
 	return $base . '/' . ltrim(preg_replace('#^\./#', '', $link), '/');
 }

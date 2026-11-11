@@ -1190,9 +1190,91 @@
 		});
 	};
 
+	/* ----------------------------------------------------------------------
+		Cookie consent and Google Analytics 4: [data-consent] is the banner
+		(partials/consent.php, only while a GA4 id is set), data-ga-id its id.
+		The choice is the p4m_consent cookie (granted / denied, a year).
+		gtag.js is loaded only after "Accept" and after the page has loaded
+		(idle time), so it never delays the page; "Decline" later switches
+		storage off and removes the _ga cookies. [data-consent-open] (footer)
+		shows the banner again
+		---------------------------------------------------------------------- */
+	const initConsent = () => {
+		const banner = $('[data-consent]');
+		if (!banner) return;
+
+		const id = banner.dataset.gaId;
+		const cookie = 'p4m_consent';
+		const year = 365 * 24 * 3600;
+		let loaded = false;
+
+		const choice = () => (document.cookie.match(new RegExp(`(?:^|; )${cookie}=(granted|denied)`)) || [])[1] || '';
+
+		const save = (value) => {
+			document.cookie = `${cookie}=${value}; Max-Age=${year}; Path=/; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
+		};
+
+		const load = () => {
+			if (loaded || !id) return;
+			loaded = true;
+			window.dataLayer = window.dataLayer || [];
+			// gtag() must push the arguments object itself, not an array
+			window.gtag = function gtag() { window.dataLayer.push(arguments); };
+			window.gtag('consent', 'default', {
+				analytics_storage: 'granted', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+			});
+			window.gtag('js', new Date());
+			window.gtag('config', id);
+			const script = document.createElement('script');
+			script.async = true;
+			script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
+			document.head.append(script);
+		};
+
+		// After load, in idle time: analytics never competes with the page
+		const loadLater = () => {
+			const run = () => ('requestIdleCallback' in window ? requestIdleCallback(load, { timeout: 3000 }) : setTimeout(load, 200));
+			if (document.readyState === 'complete') run();
+			else window.addEventListener('load', run, { once: true });
+		};
+
+		// _ga, _ga_<id>: on this host and on the parent domain (GA sets them there)
+		const removeGaCookies = () => {
+			const domains = ['', location.hostname, `.${location.hostname.replace(/^www\./, '')}`];
+			document.cookie.split('; ').map((c) => c.split('=')[0]).filter((name) => /^_ga/.test(name)).forEach((name) => {
+				domains.forEach((domain) => {
+					document.cookie = `${name}=; Max-Age=0; Path=/${domain ? `; Domain=${domain}` : ''}`;
+				});
+			});
+		};
+
+		banner.addEventListener('click', (event) => {
+			const button = event.target.closest('[data-consent-choice]');
+			if (!button) return;
+			const value = button.dataset.consentChoice;
+			save(value);
+			banner.hidden = true;
+			if (value === 'granted') {
+				loadLater();
+			} else {
+				if (loaded) window.gtag('consent', 'update', { analytics_storage: 'denied' });
+				removeGaCookies();
+			}
+		});
+
+		document.addEventListener('click', (event) => {
+			if (!event.target.closest('[data-consent-open]')) return;
+			banner.hidden = false;
+			$('[data-consent-choice="granted"]', banner).focus();
+		});
+
+		if (choice() === 'granted') loadLater();
+	};
+
 	/* ---------- Init ---------- */
 	window.P4M = { toast };
 
+	initConsent();
 	initFavorites();
 	initSavedSearches();
 	initTabs();

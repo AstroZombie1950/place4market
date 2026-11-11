@@ -3,6 +3,9 @@
 	Shared helpers (site + admin)
 	========================================================================== */
 
+// Where uploads live (disk or cloud bucket): photo_url(), video_url(), csp() use it
+require_once __DIR__ . '/storage.php';
+
 /* ---------- Security headers (site and admin, sent from both bootstraps) ---------- */
 
 // Content Security Policy: our own files only. Inline style attributes stay allowed (photo()
@@ -13,8 +16,43 @@ const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inl
 	. "media-src 'self' blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; "
 	. "form-action 'self'; frame-ancestors 'self'";
 
-// Sent by PHP: OpenLiteSpeed ignores Header in .htaccess
-function security_headers(): void
+// Google Analytics 4 (gtag.js, loaded only after consent): added to the site's CSP while
+// config('analytics')['ga4'] is set. Hosts from Google's CSP guide for GA4; www.google.com
+// and *.g.doubleclick.net take hits too (seen 11.11, and with Google signals on)
+const CSP_ANALYTICS = [
+	'script-src' => 'https://www.googletagmanager.com',
+	'img-src' => 'https://*.google-analytics.com https://*.googletagmanager.com https://www.google.com',
+	'connect-src' => 'https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://www.google.com https://*.g.doubleclick.net',
+];
+
+// GA4 measurement ID from app-config.php ('analytics' => ['ga4' => 'G-…']), '' when not set
+function analytics_id(): string
+{
+	$id = (string) (config('analytics')['ga4'] ?? '');
+
+	return preg_match('/^G-[A-Z0-9]{4,16}$/', $id) ? $id : '';
+}
+
+// CSP of a page: photos and videos from the cloud bucket when one is set (site and admin),
+// the analytics hosts on the site while analytics is on
+function csp(bool $analytics = false): string
+{
+	$extra = [];
+	if (preg_match('#^https://[^/]+#', storage_public_url(), $m)) {
+		$extra['img-src'][] = $m[0];
+		$extra['media-src'][] = $m[0];
+	}
+	if ($analytics && analytics_id() !== '') {
+		foreach (CSP_ANALYTICS as $directive => $hosts) {
+			$extra[$directive][] = $hosts;
+		}
+	}
+
+	return preg_replace_callback('/(^|; )([a-z-]+) ([^;]+)/', fn($m) => $m[1] . $m[2] . ' ' . $m[3] . (isset($extra[$m[2]]) ? ' ' . implode(' ', $extra[$m[2]]) : ''), CSP);
+}
+
+// Sent by PHP: OpenLiteSpeed ignores Header in .htaccess. $analytics: the site, not the admin
+function security_headers(bool $analytics = false): void
 {
 	if (headers_sent() || PHP_SAPI === 'cli') {
 		return;
@@ -22,7 +60,7 @@ function security_headers(): void
 
 	$https = ($_SERVER['HTTPS'] ?? '') === 'on';
 
-	header('Content-Security-Policy: ' . CSP . ($https ? '; upgrade-insecure-requests' : ''));
+	header('Content-Security-Policy: ' . csp($analytics) . ($https ? '; upgrade-insecure-requests' : ''));
 	header('X-Content-Type-Options: nosniff');
 	header('X-Frame-Options: SAMEORIGIN');
 	header('Referrer-Policy: strict-origin-when-cross-origin');
@@ -48,11 +86,12 @@ function asset(string $path): string
 	return ASSETS_URL . '/' . $path . (is_file($file) ? '?v=' . filemtime($file) : '');
 }
 
-// Listing photo URL: photo_url($photo, 480) → source/img/demo/1048-1/480.webp
-// $photo: ['path' => under source/, 'color' => '#rrggbb', 'sizes' => [long side => [w, h]]]
+// Listing photo URL: photo_url($photo, 480) → /source/img/demo/1048-1/480.webp,
+// /uploads/listings/…/480.webp or, for a photo in the cloud, https://<bucket URL>/uploads/listings/…/480.webp
+// $photo: ['path' => stored path (storage.php), 'color' => '#rrggbb', 'sizes' => [long side => [w, h]]]
 function photo_url(array $photo, int $size): string
 {
-	return ROOT_URL . $photo['path'] . '/' . $size . '.webp';
+	return storage_file_url($photo['path'], $size . '.webp');
 }
 
 // Listing photo <img>: every stored size in srcset (the browser picks one for the box
@@ -87,7 +126,7 @@ function photo(array $photo, string $sizes, array $opts = []): string
 // Listing video file URL; $video: ['path', 'file', 'width', 'height', 'duration', 'bytes', 'poster' => photo]
 function video_url(array $video): string
 {
-	return ROOT_URL . $video['path'] . '/' . $video['file'];
+	return storage_file_url($video['path'], $video['file']);
 }
 
 // Video length as players show it (whole seconds, rounded down): 10.7 → "0:10", 75 → "1:15"

@@ -939,6 +939,25 @@ button {
 	text-decoration: underline;
 }
 
+/* "Cookie settings": a button that looks like the links around it */
+.site-footer__consent {
+	display: inline-flex;
+	align-items: center;
+	min-height: var(--tap-size);
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--color-on-sea);
+	font: inherit;
+	font-weight: var(--fw-semibold);
+	text-align: left;
+	cursor: pointer;
+}
+
+.site-footer__consent:hover {
+	text-decoration: underline;
+}
+
 .site-footer__bottom {
 	padding-bottom: var(--space-6);
 }
@@ -3099,6 +3118,45 @@ button {
 	border-left-color: var(--toast-error);
 }
 
+/* Cookie consent (partials/consent.php): a card at the bottom left, over the page */
+.consent {
+	position: fixed;
+	left: var(--space-5);
+	bottom: var(--space-5);
+	z-index: var(--z-toast);
+	width: min(520px, calc(100% - 2 * var(--space-5)));
+	padding: var(--space-4) var(--space-5);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius);
+	background: var(--color-surface);
+	color: var(--color-text);
+	box-shadow: var(--shadow-lg);
+	font-size: var(--fs-sm);
+	line-height: var(--lh-base);
+}
+
+.consent[hidden] {
+	display: none;
+}
+
+.consent__title {
+	margin-bottom: var(--space-1);
+	font-size: var(--fs-md);
+	font-weight: var(--fw-semibold);
+}
+
+.consent__text a {
+	color: var(--color-link);
+}
+
+.consent__actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: var(--space-2);
+	margin-top: var(--space-3);
+}
+
 /* ==========================================================================
 	24. Info pages: about, help, safety, terms, privacy, contact;
 	seller page, reset password
@@ -4360,6 +4418,18 @@ button {
 
 	.toast {
 		max-width: none;
+	}
+
+	/* Consent: full width above the bottom navigation, buttons side by side */
+	.consent {
+		left: var(--space-4);
+		bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + var(--space-3));
+		width: calc(100% - 2 * var(--space-4));
+		padding: var(--space-4);
+	}
+
+	.consent__actions .btn {
+		flex: 1;
 	}
 
 	/* Footer: categories full width, the other two columns side by side */

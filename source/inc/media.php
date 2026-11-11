@@ -19,7 +19,8 @@ const PHOTO_MAX_BYTES = 15 * 1024 * 1024;
 const PHOTO_MAX_PIXELS = 16_000_000;
 const PHOTO_MIN_SIDE = 200;
 const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-// Uploaded photos: <site root>/uploads/listings/YYYY/MM/<random>/<size>.webp
+// Uploaded photos: <site root>/uploads/listings/YYYY/MM/<random>/<size>.webp; with a cloud
+// bucket the same key there, stored as 'cloud:uploads/listings/…' (storage.php)
 const UPLOADS_PATH = 'uploads/listings';
 
 // Error codes for the uploader (texts in post.photo_err_*)
@@ -105,7 +106,8 @@ function process_photo(string $tmpFile): array
 		$source = $resized;
 	}
 
-	return ['path' => $relative, 'color' => $color, 'sizes' => $sizes];
+	// To the cloud bucket when it is on (storage.php): 'cloud:<relative>'; stays on the disk otherwise
+	return ['path' => storage_save_folder($relative), 'color' => $color, 'sizes' => $sizes];
 }
 
 // JPEG camera orientation (EXIF) applied to the pixels
@@ -149,15 +151,15 @@ function photo_average_color(GdImage $image): string
 	return sprintf('#%02x%02x%02x', ($rgb >> 16) & 255, ($rgb >> 8) & 255, $rgb & 255);
 }
 
-// Removes the files of an uploaded photo (demo photos under source/ are never touched)
+// Removes the files of an uploaded photo, on the disk or in the cloud
+// (demo photos under source/ are never touched)
 function delete_photo_files(string $path): void
 {
-	if (!str_starts_with($path, UPLOADS_PATH . '/') || str_contains($path, '..')) {
+	$relative = storage_is_cloud($path) ? substr($path, strlen(STORAGE_CLOUD)) : $path;
+
+	if (!str_starts_with($relative, UPLOADS_PATH . '/') || str_contains($relative, '..')) {
 		return;
 	}
 
-	foreach (glob(ROOT_DIR . '/' . $path . '/*.webp') ?: [] as $file) {
-		@unlink($file);
-	}
-	@rmdir(ROOT_DIR . '/' . $path);
+	storage_delete_folder($path);
 }

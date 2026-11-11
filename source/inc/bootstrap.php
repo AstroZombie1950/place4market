@@ -24,7 +24,7 @@ require_once INC_DIR . '/i18n.php'; // route.php may have loaded it
 require INC_DIR . '/site.php';
 require INC_DIR . '/taxonomy.php';
 require INC_DIR . '/seo.php';
-security_headers();
+security_headers(true);
 
 // DEV-ONLY: closed from indexing while in development (duplicates .htaccess,
 // works on any server). Remove at launch together with the .htaccess block
