@@ -401,12 +401,17 @@ function sr_cyr(string $text): string
 		'Picanto', 'Rio', 'Ceed', 'Sportage', 'Sorento', 'Getz', 'Accent', 'Tucson', 'Cooper', 'Clubman',
 		'Grand', 'Cherokee', 'Compass', 'Renegade', 'Macan', 'Panamera', 'Spark', 'Aveo', 'Lacetti', 'Cruze',
 		'Captiva', 'Tenere', 'Tracer', 'Duke', 'Adventure', 'Primavera', 'Forterra',
+		// Brands of the longer subcategory texts (022)
+		'Asics', 'Balance', 'Citizen', 'Converse', 'Cube', 'Duplo', 'Ferguson', 'Fossil', 'Friends', 'Hisense',
+		'Holland', 'Lacoste', 'Lite', 'Longines', 'Makita', 'Marshall', 'Minecraft', 'Ninjago', 'Parkside',
+		'Philips', 'Scott', 'Skechers', 'Slim', 'Star', 'Technic',
 	];
 	// English word groups: kept as written (null) or said the Serbian way, as in the category name
 	static $phrases = [
 		'rent a car' => 'рент а кар', 'all season' => null, 'hi-fi' => null,
 		// Model names with a hyphen: their one-letter half would turn Cyrillic (Ц-HR, CR-В)
 		'cr-v' => null, 'hr-v' => null, 'c-hr' => null, 'c-max' => null, 's-max' => null, 's-cross' => null, 'x-trail' => null,
+		'g-shock' => null,
 	];
 	static $pattern = null;
 	$pattern ??= '/\{[a-z_]+\}|<[^>]*>|&[a-z#0-9]+;|(?<![\p{L}\p{N}])(?i:' . implode('|', array_map('preg_quote', array_keys($phrases))) . ')(?![\p{L}\p{N}])|[\p{L}\p{N}]+/u';
