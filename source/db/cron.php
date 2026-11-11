@@ -77,6 +77,9 @@ while ($paths = take_stale_photos()) {
 $imported = log_import_files();
 $purged = delete_old_log_entries(LOG_RETENTION_DAYS);
 
+// Retention of the privacy policy (section 7): RETENTION_MONTHS in repo.php
+$retention = ['listings_scrubbed' => purge_deleted_listings(), 'contact_deleted' => delete_old_contact_messages(), 'reports_deleted' => delete_old_reports()];
+
 // Saved search alerts. A search is checked when its letter went out or there was
 // nothing new; after a failed letter (logged by mail.php) it is tried next run
 $byUser = [];
@@ -119,8 +122,9 @@ foreach (price_drops(PRICE_ALERT_BATCH) as $user) {
 // Prices that went up or changed currency: a later drop counts from the new one
 remember_favorite_prices();
 
-if ($expired || $photos || $imported || $purged || $alerts || $priceAlerts) {
+if ($expired || $photos || $imported || $purged || $alerts || $priceAlerts || array_sum($retention)) {
 	log_event('info', 'Cron: maintenance done', ['expired' => $expired, 'stale_photos' => $photos, 'log_imported' => $imported, 'log_purged' => $purged,
-		'search_alerts' => $alerts, 'price_alerts' => $priceAlerts], 'cron');
+		'search_alerts' => $alerts, 'price_alerts' => $priceAlerts] + $retention, 'cron');
 }
-out('Expired listings: ' . $expired . ', stale photos removed: ' . $photos . ', journal: ' . $imported . ' imported from files, ' . $purged . ' old removed, search alerts sent: ' . $alerts . ', price alerts sent: ' . $priceAlerts);
+out('Expired listings: ' . $expired . ', stale photos removed: ' . $photos . ', journal: ' . $imported . ' imported from files, ' . $purged . ' old removed, search alerts sent: ' . $alerts . ', price alerts sent: ' . $priceAlerts
+	. ', retention: ' . $retention['listings_scrubbed'] . ' deleted listings cleared, ' . $retention['contact_deleted'] . ' contact messages, ' . $retention['reports_deleted'] . ' reports removed');

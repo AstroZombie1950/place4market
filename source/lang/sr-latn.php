@@ -177,6 +177,7 @@ return [
 	'l.verified' => 'Potvrđen telefon',
 	'l.share' => 'Podeli',
 	'l.link_copied' => 'Link je kopiran',
+	'l.removed' => 'Oglas je uklonjen',
 	'l.report' => 'Prijavi oglas',
 	'l.safety_more' => 'Svi saveti za bezbednost',
 	'l.safety_title' => 'Bezbedna kupovina',

@@ -412,6 +412,9 @@ function sr_cyr(string $text): string
 		// Model names with a hyphen: their one-letter half would turn Cyrillic (Ц-HR, CR-В)
 		'cr-v' => null, 'hr-v' => null, 'c-hr' => null, 'c-max' => null, 's-max' => null, 's-cross' => null, 'x-trail' => null,
 		'g-shock' => null,
+		// Cookie names, addresses and the host of the legal texts (privacy.php, terms.php)
+		'p4m_sid' => null, 'p4m_remember' => null, 'p4m_consent' => null, '_ga' => null,
+		'support@place4market.com' => null, 'www.poverenik.rs' => null, 'adriahost' => null,
 	];
 	static $pattern = null;
 	$pattern ??= '/\{[a-z_]+\}|<[^>]*>|&[a-z#0-9]+;|(?<![\p{L}\p{N}])(?i:' . implode('|', array_map('preg_quote', array_keys($phrases))) . ')(?![\p{L}\p{N}])|[\p{L}\p{N}]+/u';

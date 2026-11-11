@@ -529,9 +529,10 @@ function listing_place(array $listing): string
 /* ---------- Listings ---------- */
 
 // Listing text as written by the author, in the visitor's script (user_text())
+// A listing deleted long ago has no title any more (purge_deleted_listings()): "Listing removed"
 function listing_title(array $listing): string
 {
-	return user_text($listing['title'], $listing['lang']);
+	return $listing['title'] !== '' ? user_text($listing['title'], $listing['lang']) : t('l.removed');
 }
 
 function listing_description(array $listing): string

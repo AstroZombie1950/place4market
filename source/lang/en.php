@@ -176,6 +176,7 @@ return [
 	'l.verified' => 'Verified phone',
 	'l.share' => 'Share',
 	'l.link_copied' => 'Link copied',
+	'l.removed' => 'Listing removed',
 	'l.report' => 'Report listing',
 	'l.safety_more' => 'All safety tips',
 	'l.safety_title' => 'Stay safe',

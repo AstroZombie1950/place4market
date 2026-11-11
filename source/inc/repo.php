@@ -1795,6 +1795,34 @@ function audit_entries(int $limit, ?int $listingId = null, ?int $userId = null):
 	], db_all($sql . ' ORDER BY id DESC LIMIT ' . max(1, $limit), $params));
 }
 
+/* ---------- Retention (cron.php; the terms are in the privacy policy, section 7) ---------- */
+
+// Months a deleted listing's text, a contact message and a handled report are kept
+const RETENTION_MONTHS = 12;
+
+// Listings deleted RETENTION_MONTHS ago (updated_at = the deletion: a deleted listing is not
+// edited) lose their text, details and phone. The row stays: the other side's conversation
+// refers to it (deleting it would delete the conversation) and shows "Listing removed"
+// (listing_title()); photos went at deletion. Returns how many
+function purge_deleted_listings(int $months = RETENTION_MONTHS): int
+{
+	return db_exec("UPDATE listings SET title = '', description = '', search_text = '', attrs = NULL, phone = NULL,
+		reject_comment = NULL, moderation_note = NULL
+		WHERE status = 'deleted' AND title <> '' AND updated_at < UTC_TIMESTAMP() - INTERVAL " . max(1, $months) . ' MONTH');
+}
+
+// Messages from the contact page older than RETENTION_MONTHS, answered or not
+function delete_old_contact_messages(int $months = RETENTION_MONTHS): int
+{
+	return db_exec('DELETE FROM contact_messages WHERE created_at < UTC_TIMESTAMP() - INTERVAL ' . max(1, $months) . ' MONTH');
+}
+
+// Reports handled RETENTION_MONTHS ago; open ones stay until a moderator resolves them
+function delete_old_reports(int $months = RETENTION_MONTHS): int
+{
+	return db_exec("DELETE FROM reports WHERE status = 'resolved' AND COALESCE(resolved_at, created_at) < UTC_TIMESTAMP() - INTERVAL " . max(1, $months) . ' MONTH');
+}
+
 // Older than the retention period: deleted (cron.php); returns how many
 function delete_old_log_entries(int $days): int
 {
