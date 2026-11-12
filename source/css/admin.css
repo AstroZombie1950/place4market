@@ -1254,12 +1254,16 @@ button {
 }
 
 /* ---------- Tabs (panels) and filter tabs ---------- */
+/* Scrolls sideways only: the line is a shadow and the mark of the open tab sits inside the
+   list, so the wheel cannot move the list up and down (as on the site, checklist K13) */
 .tabs__list {
 	display: flex;
 	gap: var(--space-1);
 	margin-bottom: var(--space-5);
-	border-bottom: 1px solid var(--color-border);
+	box-shadow: inset 0 -1px 0 var(--color-border);
 	overflow-x: auto;
+	overflow-y: hidden;
+	overscroll-behavior-x: contain;
 	scrollbar-width: none;
 }
 
@@ -1305,7 +1309,7 @@ button {
 	position: absolute;
 	left: var(--space-2);
 	right: var(--space-2);
-	bottom: -1px;
+	bottom: 0;
 	height: 2px;
 	border-radius: 2px 2px 0 0;
 	background: var(--color-accent);

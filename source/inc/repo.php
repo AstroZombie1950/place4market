@@ -1585,6 +1585,21 @@ function set_user_avatar(int $id, ?string $path): ?string
 }
 
 // New address waiting for its link (null cancels)
+// An address not confirmed yet is replaced at once (checklist K12: it was likely typed wrong, its
+// owner gets no codes there); false when it got confirmed meanwhile or another account has the
+// new one (a race past email_taken(): the unique key refuses it)
+function replace_unconfirmed_email(int $id, string $email): bool
+{
+	try {
+		return db_exec('UPDATE users SET email = ?, new_email = NULL WHERE id = ? AND email_verified_at IS NULL', [$email, $id]) > 0;
+	} catch (PDOException $e) {
+		if ($e->getCode() === '23000') {
+			return false;
+		}
+		throw $e;
+	}
+}
+
 function set_new_email(int $id, ?string $email): void
 {
 	db_exec('UPDATE users SET new_email = ? WHERE id = ?', [$email, $id]);

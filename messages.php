@@ -317,11 +317,22 @@ require INC_DIR . '/header.php';
 ?>
 
 <div class="container page page--chat">
-	<!-- On phones the title is for screen readers only: the bottom navigation shows where we are -->
-	<div class="page-head page-head--nav">
-		<h1 class="page-title"><?= e(t('m.title')) ?></h1>
-	</div>
+	<!-- The title is for screen readers only (checklist K10): the header and the bottom navigation
+	     show where we are -->
+	<h1 class="visually-hidden"><?= e(t('m.title')) ?></h1>
 
+	<?php if (!$conversations): ?>
+	<!-- No conversations yet: no search (nothing to search in), a placeholder in place of the
+	     messenger; on phones it fills the first screen, the footer stays below it -->
+	<div class="chat chat--none">
+		<div class="empty chat__none">
+			<?= icon('message', 40) ?>
+			<p class="empty__title"><?= e(t('m.none_title')) ?></p>
+			<p><?= e(t('m.none')) ?></p>
+			<a class="btn btn--outline" href="<?= e(url('category.php')) ?>"><?= e(t('m.browse')) ?></a>
+		</div>
+	</div>
+	<?php else: ?>
 	<div class="chat" data-chat data-chat-url="<?= e(url('messages.php')) ?>" data-read-label="<?= e(t('m.read')) ?>" data-deleted-label="<?= e(t('m.msg_deleted')) ?>"<?= $openOnLoad ? ' data-open-on-load' : '' ?>>
 		<!-- Conversation list -->
 		<section class="chat__list" aria-labelledby="convs-title">
@@ -462,8 +473,9 @@ require INC_DIR . '/header.php';
 		<?php endforeach; ?>
 
 		<!-- Nothing selected -->
-		<div class="chat__empty"<?= $activeId !== null ? ' hidden' : '' ?>><?= e(t($conversations ? 'm.empty' : 'm.none')) ?></div>
+		<div class="chat__empty"<?= $activeId !== null ? ' hidden' : '' ?>><?= e(t('m.empty')) ?></div>
 	</div>
+	<?php endif; ?>
 </div>
 
 <?php require INC_DIR . '/footer.php'; ?>

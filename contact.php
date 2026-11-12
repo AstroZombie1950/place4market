@@ -60,6 +60,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		flash('success', t('contact.sent'));
 		redirect(url('contact.php'));
 	}
+
+	// Shown on top, like the thanks (checklist K11): the page opens at its top, what was typed stays
+	if ($error !== '') {
+		flash('danger', $error);
+	}
 }
 
 $page['title'] = t('contact.title');
@@ -86,11 +91,10 @@ require INC_DIR . '/header.php';
 				<!-- Form -->
 				<section class="form-card contact__form" aria-labelledby="form-title">
 					<h2 class="form-card__title" id="form-title"><?= e(t('contact.form')) ?></h2>
-					<form class="stack" method="post" action="<?= e(url('contact.php')) ?>#form-title">
+					<!-- No #anchor in the action: the address after sending would keep it and the page
+					     would jump back down to the form; thanks and errors are shown on top (K11) -->
+					<form class="stack" method="post" action="<?= e(url('contact.php')) ?>">
 						<?= csrf_field() ?>
-						<?php if ($error !== ''): ?>
-						<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($error) ?></p>
-						<?php endif; ?>
 						<!-- Trap for bots: hidden from people and screen readers -->
 						<div class="visually-hidden" aria-hidden="true">
 							<label for="c-website">Website</label>

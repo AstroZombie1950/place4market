@@ -290,10 +290,18 @@
 			});
 
 			const fromHash = useHash && location.hash ? document.getElementById('tab-' + location.hash.slice(1)) : null;
+			// #id of a block inside a tab (#notifications in the settings, K14): that tab, then the block
+			const anchor = useHash && location.hash && !fromHash ? document.getElementById(location.hash.slice(1)) : null;
+			const holder = anchor ? tabs.find((t) => {
+				const panel = document.getElementById(t.getAttribute('aria-controls'));
+				return panel && panel.contains(anchor);
+			}) : null;
 			const initial = (fromHash && tabs.includes(fromHash) && fromHash)
+				|| holder
 				|| tabs.find((t) => t.getAttribute('aria-selected') === 'true')
 				|| tabs[0];
 			select(initial, { updateHash: false });
+			if (holder) anchor.scrollIntoView({ block: 'start' });
 
 			// Only the #part of the address changed (a link to another tab of this page): follow it
 			if (useHash) {
@@ -1160,14 +1168,16 @@
 		if (channel) {
 			const form = channel.closest('form');
 			const switches = $$('input[name^="notify["]', form);
+			// The list of where they go (K14: a select, e-mail by default)
+			const where = $('select[name="channel"]', channel);
 			const sync = () => {
 				const any = switches.some((el) => el.checked);
 				channel.hidden = !any;
-				channel.disabled = !any;
+				if (where) where.disabled = !any;
 			};
 			switches.forEach((el) => el.addEventListener('change', sync));
-			$$('input[name="channel"]', channel).forEach((el) => el.addEventListener('change', async () => {
-				if (el.value === 'email' || !('Notification' in window)) {
+			if (where) where.addEventListener('change', async () => {
+				if (where.value === 'email' || !('Notification' in window)) {
 					$('[data-notify-blocked]', channel).hidden = true;
 					return;
 				}
@@ -1175,7 +1185,7 @@
 					try { await Notification.requestPermission(); } catch (err) { /* old Safari: callback form, not needed */ }
 				}
 				$('[data-notify-blocked]', channel).hidden = Notification.permission !== 'denied';
-			}));
+			});
 		}
 
 		if (!i18n.notifyUrl) return;
@@ -1885,6 +1895,18 @@
 	};
 
 	/* ----------------------------------------------------------------------
+		Messages on phones (checklist K10): the header's height for the CSS that
+		makes the list (or the "no messages" placeholder) fill the first screen
+		---------------------------------------------------------------------- */
+	const initChatScreen = () => {
+		const header = $('.site-header');
+		if (!header || !$('.page--chat')) return;
+		const set = () => document.documentElement.style.setProperty('--site-header-h', `${header.offsetHeight}px`);
+		set();
+		window.addEventListener('resize', set);
+	};
+
+	/* ----------------------------------------------------------------------
 		Messages: [data-chat] (data-chat-url = messages.php for "read")
 		- conversation buttons [data-conv="id"] open [data-thread="id"]; unread
 		  ones (.count-badge[data-unread]) are marked read when they are seen,
@@ -2452,5 +2474,6 @@
 	initVideos();
 	initContacts();
 	initPostForm();
+	initChatScreen();
 	initChat();
 })();

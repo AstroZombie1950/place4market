@@ -168,7 +168,9 @@ if (in_array($_POST['action'] ?? '', ['phone_send', 'phone_confirm'], true)) {
 
 // Changing the e-mail (C7): the password and a code (to the current e-mail or by SMS to the
 // confirmed phone, as the user picks), then a link to the new address (verify.php); the old
-// one gets a notice. A stolen password alone does not move the account to another address
+// one gets a notice. A stolen password alone does not move the account to another address.
+// An address not confirmed yet (checklist K12) — likely typed wrong, no code would reach it —
+// is replaced with the password alone; the link to confirm goes to the new one
 $emailError = '';
 $newEmail = mb_strtolower(trim((string) ($_POST['new_email'] ?? '')));
 if (($_POST['action'] ?? '') === 'email_send') {
@@ -188,7 +190,23 @@ if (($_POST['action'] ?? '') === 'email_send') {
 	if (($recheck ?? 'ok') === 'wrong') {
 		log_action('account.email_change_failed', ['user_id' => $me['id'], 'reason' => 'password']);
 	}
-	if ($emailError === '' && ($emailError = code_send($me, 'email_change', $channel, $newEmail)) === '') {
+	if ($emailError === '' && !$me['email_verified']) {
+		rate_hit('email_change', (string) $me['id']);
+		if (!replace_unconfirmed_email($me['id'], $newEmail)) {
+			$emailError = t('auth.err_email_taken');
+		} else {
+			// Links sent to the old address do not confirm the new one
+			revoke_auth_tokens($me['id'], 'verify_email');
+			revoke_auth_tokens($me['id'], 'change_email');
+			delete_verify_code($me['id'], 'email_change');
+			$lang = $me['lang'] ?? lang();
+			$link = site_url(lang_link($lang, 'verify.php', ['token' => issue_auth_token($me['id'], 'verify_email')]));
+			$sent = in_lang($lang, fn() => send_template_mail($newEmail, 'verify', ['name' => $me['name'], 'link' => $link], ['user_id' => $me['id']]));
+			log_action('account.email_replaced', ['user_id' => $me['id']]);
+			flash($sent ? 'success' : 'warning', $sent ? t('p.email_replaced', ['email' => $newEmail]) : t('auth.err_mail'));
+			redirect(url('profile.php') . '#settings');
+		}
+	} elseif ($emailError === '' && ($emailError = code_send($me, 'email_change', $channel, $newEmail)) === '') {
 		redirect(url('profile.php') . '#settings');
 	}
 }
@@ -357,7 +375,6 @@ require INC_DIR . '/header.php';
 		<div class="tabs__list" role="tablist" aria-label="<?= e(t('p.sections')) ?>">
 			<button type="button" class="tabs__tab" role="tab" id="tab-listings" aria-controls="panel-listings" aria-selected="true"><?= icon('tag', 18) ?><?= e(t('p.my_listings')) ?> <span class="tabs__count"><?= $counts[''] ?></span></button>
 			<button type="button" class="tabs__tab" role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false"><?= icon('settings', 18) ?><?= e(t('p.settings')) ?></button>
-			<button type="button" class="tabs__tab" role="tab" id="tab-notifications" aria-controls="panel-notifications" aria-selected="false"><?= icon('bell', 18) ?><?= e(t('p.notifications')) ?></button>
 		</div>
 
 		<!-- My listings -->
@@ -450,200 +467,248 @@ require INC_DIR . '/header.php';
 			</form>
 			<?php endif; ?>
 
-			<!-- Name as written (not transliterated: it is saved back as is) -->
-			<form class="panel" method="post" action="<?= e(url('profile.php')) ?>#settings">
+			<!-- Laptops and desktops: two independent columns (checklist K14), one column below 1024 -->
+			<div class="settings-grid">
+				<div class="settings-grid__col">
+				<!-- Name as written (not transliterated: it is saved back as is) -->
+				<form class="panel" method="post" action="<?= e(url('profile.php')) ?>#settings">
+					<?= csrf_field() ?>
+					<input type="hidden" name="action" value="save_profile">
+					<div class="panel__body">
+						<h2 class="panel__title"><?= e(t('p.personal')) ?></h2>
+						<?php if ($profileError !== ''): ?>
+						<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($profileError) ?></p>
+						<?php endif; ?>
+						<div class="form-grid">
+							<div class="field">
+								<label class="field__label" for="s-name"><?= e(t('auth.name')) ?></label>
+								<input class="input" id="s-name" name="name" type="text" autocomplete="name" maxlength="100" value="<?= e($profile['name']) ?>" required>
+							</div>
+							<div class="field">
+								<label class="field__label" for="s-city"><?= e(t('auth.city')) ?></label>
+								<select class="select" id="s-city" name="city"><?= city_select_options($profile['city']) ?></select>
+							</div>
+							<div class="field">
+								<label class="field__label" for="s-lang"><?= e(t('p.language')) ?></label>
+								<select class="select" id="s-lang" name="language">
+									<?php foreach (languages() as $code => $meta): ?>
+									<option value="<?= e($code) ?>" lang="<?= e($meta['html']) ?>"<?= $code === $profile['lang'] ? ' selected' : '' ?>><?= e($meta['name']) ?></option>
+									<?php endforeach; ?>
+								</select>
+							</div>
+						</div>
+						<div class="form-actions">
+							<button type="submit" class="btn btn--primary"><?= e(t('p.save')) ?></button>
+						</div>
+					</div>
+				</form>
+
+				<form class="panel settings-grid__late" method="post" action="<?= e(url('profile.php')) ?>#settings">
+					<?= csrf_field() ?>
+					<input type="hidden" name="action" value="change_password">
+					<div class="panel__body">
+						<h2 class="panel__title"><?= e(t('p.change_password')) ?></h2>
+						<?php if ($passwordError !== ''): ?>
+						<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($passwordError) ?></p>
+						<?php endif; ?>
+						<div class="form-grid">
+							<div class="field">
+								<label class="field__label" for="s-pass"><?= e(t('p.current_password')) ?></label>
+								<input class="input" id="s-pass" name="current_password" type="password" autocomplete="current-password" required>
+							</div>
+							<div class="field">
+								<label class="field__label" for="s-pass-new"><?= e(t('p.new_password')) ?></label>
+								<input class="input" id="s-pass-new" name="new_password" type="password" autocomplete="new-password" minlength="8" maxlength="72" required aria-describedby="s-pass-hint">
+								<span class="field__hint" id="s-pass-hint"><?= e(t('auth.password_hint')) ?></span>
+							</div>
+						</div>
+						<div class="form-actions">
+							<button type="submit" class="btn btn--outline"><?= e(t('p.change_password')) ?></button>
+						</div>
+					</div>
+				</form>
+				</div>
+				<div class="settings-grid__col">
+				<!-- Phone (checklist K5): the number with its status, "Confirm" (a code by SMS, codes.php;
+				     not active until SMS is set up) and the pencil; the form opens in place of the line
+				     (main.js, [data-phone-edit]) or with ?phone=edit -->
+				<section class="panel" aria-labelledby="phone-title">
+					<div class="panel__body">
+						<h2 class="panel__title" id="phone-title"><?= e(t('p.phone_title')) ?></h2>
+						<?php if ($phoneError !== ''): ?>
+						<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($phoneError) ?></p>
+						<?php endif; ?>
+						<div class="phone-line" data-phone-view<?= $phoneEdit ? ' hidden' : '' ?>>
+							<?php if ($me['phone'] !== null): ?>
+							<span class="phone-line__number"><?= e(phone_format($me['phone'])) ?></span>
+							<?php if ($me['verified']): ?>
+							<span class="badge badge--verified"><?= icon('check', 14) ?><?= e(t('p.phone_ok')) ?></span>
+							<?php else: ?>
+							<span class="badge badge--pending"><?= e(t('p.phone_unconfirmed')) ?></span>
+							<?php endif; ?>
+							<a class="btn btn--ghost btn--icon" href="<?= e(url('profile.php', ['phone' => 'edit'])) ?>#settings" data-phone-edit aria-label="<?= e(t('p.phone_change')) ?>" title="<?= e(t('p.phone_change')) ?>"><?= icon('edit', 18) ?></a>
+							<?php if (!$me['verified'] && phone_is_mobile($me['phone']) && !$phoneCode): ?>
+							<form class="phone-line__confirm" method="post" action="<?= e(url('profile.php')) ?>#settings">
+								<?= csrf_field() ?>
+								<button type="submit" class="btn btn--primary" name="action" value="phone_send"<?= sms_available() ? '' : ' disabled' ?>><?= e(t('code.confirm')) ?></button>
+							</form>
+							<?php endif; ?>
+							<?php else: ?>
+							<span class="muted"><?= e(t('p.phone_none')) ?></span>
+							<a class="btn btn--outline" href="<?= e(url('profile.php', ['phone' => 'edit'])) ?>#settings" data-phone-edit><?= e(t('p.phone_add')) ?></a>
+							<?php endif; ?>
+						</div>
+						<?php if ($me['phone'] !== null && !$me['verified']): ?>
+						<p class="muted"><?= e(t(phone_is_mobile($me['phone']) ? 'p.phone_hint' : 'p.phone_not_mobile')) ?></p>
+						<?php endif; ?>
+						<?php if ($phoneCode): ?>
+						<!-- The code sent by SMS: typed here -->
+						<form method="post" action="<?= e(url('profile.php')) ?>#settings">
+							<?= csrf_field() ?>
+							<p class="muted"><?= e(t('code.sent', ['to' => phone_format($phoneCode['sent_to']), 'minutes' => CODE_MINUTES])) ?></p>
+							<div class="form-grid">
+								<div class="field">
+									<label class="field__label" for="s-phone-code"><?= e(t('code.label')) ?></label>
+									<input class="input" id="s-phone-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{4,10}" maxlength="10" required>
+								</div>
+							</div>
+							<div class="form-actions">
+								<button type="submit" class="btn btn--primary" name="action" value="phone_confirm"><?= e(t('code.confirm')) ?></button>
+								<button type="submit" class="btn btn--outline" name="action" value="phone_send" formnovalidate><?= e(t('code.resend')) ?></button>
+							</div>
+						</form>
+						<?php endif; ?>
+						<form class="phone-edit" method="post" action="<?= e(url('profile.php')) ?>#settings" data-phone-form<?= $phoneEdit ? '' : ' hidden' ?>>
+							<?= csrf_field() ?>
+							<input type="hidden" name="action" value="phone_save">
+							<div class="field">
+								<label class="field__label" for="s-phone"><?= e(t('auth.phone')) ?></label>
+								<?= phone_input('s-phone', $phoneTyped ?? $me['phone'], 'aria-describedby="s-phone-hint"' . ($phoneError !== '' ? ' aria-invalid="true"' : '')) ?>
+								<span class="field__hint" id="s-phone-hint"><?= e(t('p.phone_edit_hint')) ?></span>
+							</div>
+							<div class="form-actions">
+								<button type="submit" class="btn btn--primary"><?= e(t('p.save')) ?></button>
+								<a class="btn btn--outline" href="<?= e(url('profile.php')) ?>#settings" data-phone-cancel><?= e(t('common.cancel')) ?></a>
+							</div>
+						</form>
+					</div>
+				</section>
+
+				<!-- E-mail: changed with the password and a code, then the link sent to the new address;
+				     not confirmed yet — with the password alone (K12) -->
+				<section class="panel" aria-labelledby="email-title">
+					<div class="panel__body">
+						<h2 class="panel__title" id="email-title"><?= e(t('p.email_title')) ?></h2>
+						<?php if ($emailError !== ''): ?>
+						<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($emailError) ?></p>
+						<?php endif; ?>
+						<p class="muted"><?= e(t('p.email_current', ['email' => $me['email']])) ?></p>
+						<?php if ($me['new_email'] && !$emailCode): ?>
+						<form class="row row--between" method="post" action="<?= e(url('profile.php')) ?>#settings">
+							<?= csrf_field() ?>
+							<p class="notice"><?= icon('mail', 20) ?><?= e(t('p.email_pending', ['email' => $me['new_email']])) ?></p>
+							<button type="submit" class="btn btn--outline" name="action" value="email_cancel"><?= e(t('p.email_cancel')) ?></button>
+						</form>
+						<?php elseif ($emailCode): ?>
+						<form method="post" action="<?= e(url('profile.php')) ?>#settings">
+							<?= csrf_field() ?>
+							<p class="muted"><?= e(t('code.sent', ['to' => $emailCode['channel'] === 'sms' ? phone_format($emailCode['sent_to']) : $emailCode['sent_to'], 'minutes' => CODE_MINUTES])) ?> <?= e(t('p.email_new_is', ['email' => $emailCode['target']])) ?></p>
+							<div class="form-grid">
+								<div class="field">
+									<label class="field__label" for="s-email-code"><?= e(t('code.label')) ?></label>
+									<input class="input" id="s-email-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{4,10}" maxlength="10" required>
+								</div>
+							</div>
+							<div class="form-actions">
+								<button type="submit" class="btn btn--primary" name="action" value="email_confirm"><?= e(t('code.confirm')) ?></button>
+								<button type="submit" class="btn btn--outline" name="action" value="email_cancel" formnovalidate><?= e(t('code.cancel')) ?></button>
+							</div>
+						</form>
+						<?php endif; ?>
+						<?php if (!$emailCode): ?>
+						<form method="post" action="<?= e(url('profile.php')) ?>#settings">
+							<?= csrf_field() ?>
+							<input type="hidden" name="action" value="email_send">
+							<div class="form-grid">
+								<div class="field">
+									<label class="field__label" for="s-email-new"><?= e(t('p.email_new')) ?></label>
+									<input class="input" id="s-email-new" name="new_email" type="email" autocomplete="email" maxlength="190" value="<?= e($emailError !== '' ? $newEmail : '') ?>" required>
+								</div>
+								<div class="field">
+									<label class="field__label" for="s-email-pass"><?= e(t('p.current_password')) ?></label>
+									<input class="input" id="s-email-pass" name="password" type="password" autocomplete="current-password" maxlength="72" required>
+								</div>
+								<?php if ($me['email_verified'] && $me['verified'] && sms_available()): ?>
+								<fieldset class="field field--full filters__fieldset">
+									<legend class="field__label"><?= e(t('p.email_via')) ?></legend>
+									<div class="seg seg--spaced">
+										<label class="seg__item"><input type="radio" name="via" value="email"<?= ($_POST['via'] ?? '') !== 'sms' ? ' checked' : '' ?>><span class="seg__label"><?= e(t('p.email_via_email')) ?></span></label>
+										<label class="seg__item"><input type="radio" name="via" value="sms"<?= ($_POST['via'] ?? '') === 'sms' ? ' checked' : '' ?>><span class="seg__label"><?= e(t('p.email_via_sms')) ?></span></label>
+									</div>
+								</fieldset>
+								<?php endif; ?>
+							</div>
+							<p class="field__hint"><?= e(t($me['email_verified'] ? 'p.email_code_hint' : 'p.email_unconfirmed_hint')) ?></p>
+							<div class="form-actions">
+								<button type="submit" class="btn btn--outline"><?= e(t($me['email_verified'] ? 'p.email_send' : 'p.email_replace')) ?></button>
+							</div>
+						</form>
+						<?php endif; ?>
+					</div>
+				</section>
+
+				<section class="panel settings-grid__late" aria-labelledby="logout-title">
+					<div class="panel__body">
+						<h2 class="panel__title" id="logout-title"><?= e(t('nav.logout')) ?></h2>
+						<div class="row row--between">
+							<p class="muted"><?= e(t('p.logout_text')) ?></p>
+							<a class="btn btn--outline" href="<?= e(url('logout.php', ['csrf' => csrf_token()])) ?>"><?= icon('logout', 18) ?><?= e(t('nav.logout')) ?></a>
+						</div>
+					</div>
+				</section>
+				</div>
+			</div>
+
+			<!-- Notifications (K14: a block of the settings, not a tab of its own; #notifications opens it) -->
+			<form class="panel" id="notifications" method="post" action="<?= e(url('profile.php')) ?>#notifications">
 				<?= csrf_field() ?>
-				<input type="hidden" name="action" value="save_profile">
+				<input type="hidden" name="action" value="save_notifications">
 				<div class="panel__body">
-					<h2 class="panel__title"><?= e(t('p.personal')) ?></h2>
-					<?php if ($profileError !== ''): ?>
-					<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($profileError) ?></p>
-					<?php endif; ?>
-					<div class="form-grid">
-						<div class="field">
-							<label class="field__label" for="s-name"><?= e(t('auth.name')) ?></label>
-							<input class="input" id="s-name" name="name" type="text" autocomplete="name" maxlength="100" value="<?= e($profile['name']) ?>" required>
-						</div>
-						<div class="field">
-							<label class="field__label" for="s-city"><?= e(t('auth.city')) ?></label>
-							<select class="select" id="s-city" name="city"><?= city_select_options($profile['city']) ?></select>
-						</div>
-						<div class="field">
-							<label class="field__label" for="s-lang"><?= e(t('p.language')) ?></label>
-							<select class="select" id="s-lang" name="language">
-								<?php foreach (languages() as $code => $meta): ?>
-								<option value="<?= e($code) ?>" lang="<?= e($meta['html']) ?>"<?= $code === $profile['lang'] ? ' selected' : '' ?>><?= e($meta['name']) ?></option>
-								<?php endforeach; ?>
-							</select>
-						</div>
+					<h2 class="panel__title"><?= e(t('p.notifications')) ?></h2>
+					<ul class="switch-list switch-list--cols">
+						<?php
+						$notices = [
+							['messages', 'p.n_messages', 'p.n_messages_hint'],
+							['saved', 'p.n_saved', 'p.n_saved_hint'],
+							['price', 'p.n_price', 'p.n_price_hint'],
+							['news', 'p.n_news', 'p.n_news_hint'],
+						];
+						foreach ($notices as [$name, $titleKey, $hintKey]): $on = $me['notify'][$name];
+						?>
+						<li>
+							<label class="switch">
+								<input type="checkbox" role="switch" name="notify[<?= $name ?>]"<?= $on ? ' checked' : '' ?>>
+								<span class="switch__text"><span class="switch__title"><?= e(t($titleKey)) ?></span><span class="switch__hint"><?= e(t($hintKey)) ?></span></span>
+							</label>
+						</li>
+						<?php endforeach; ?>
+					</ul>
+					<!-- Where they go (a list, e-mail by default); hidden while every type is off (main.js, [data-notify-channel]) -->
+					<div class="field notify-channel" data-notify-channel<?= array_filter($me['notify']) ? '' : ' hidden' ?>>
+						<label class="field__label" for="s-notify-channel"><?= e(t('p.n_channel')) ?></label>
+						<select class="select" id="s-notify-channel" name="channel" aria-describedby="s-notify-channel-hint"<?= array_filter($me['notify']) ? '' : ' disabled' ?>>
+							<?php foreach (['email', 'browser', 'both'] as $channel): ?>
+							<option value="<?= $channel ?>"<?= $me['notify_channel'] === $channel ? ' selected' : '' ?>><?= e(t('p.n_channel_' . $channel)) ?></option>
+							<?php endforeach; ?>
+						</select>
+						<span class="field__hint" id="s-notify-channel-hint"><?= e(t('p.n_channel_hint')) ?></span>
+						<span class="field__error" data-notify-blocked hidden><?= e(t('p.n_blocked')) ?></span>
 					</div>
 					<div class="form-actions">
 						<button type="submit" class="btn btn--primary"><?= e(t('p.save')) ?></button>
 					</div>
 				</div>
 			</form>
-
-			<!-- Phone (checklist K5): the number with its status, "Confirm" (a code by SMS, codes.php;
-			     not active until SMS is set up) and the pencil; the form opens in place of the line
-			     (main.js, [data-phone-edit]) or with ?phone=edit -->
-			<section class="panel" aria-labelledby="phone-title">
-				<div class="panel__body">
-					<h2 class="panel__title" id="phone-title"><?= e(t('p.phone_title')) ?></h2>
-					<?php if ($phoneError !== ''): ?>
-					<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($phoneError) ?></p>
-					<?php endif; ?>
-					<div class="phone-line" data-phone-view<?= $phoneEdit ? ' hidden' : '' ?>>
-						<?php if ($me['phone'] !== null): ?>
-						<span class="phone-line__number"><?= e(phone_format($me['phone'])) ?></span>
-						<?php if ($me['verified']): ?>
-						<span class="badge badge--verified"><?= icon('check', 14) ?><?= e(t('p.phone_ok')) ?></span>
-						<?php else: ?>
-						<span class="badge badge--pending"><?= e(t('p.phone_unconfirmed')) ?></span>
-						<?php endif; ?>
-						<a class="btn btn--ghost btn--icon" href="<?= e(url('profile.php', ['phone' => 'edit'])) ?>#settings" data-phone-edit aria-label="<?= e(t('p.phone_change')) ?>" title="<?= e(t('p.phone_change')) ?>"><?= icon('edit', 18) ?></a>
-						<?php if (!$me['verified'] && phone_is_mobile($me['phone']) && !$phoneCode): ?>
-						<form class="phone-line__confirm" method="post" action="<?= e(url('profile.php')) ?>#settings">
-							<?= csrf_field() ?>
-							<button type="submit" class="btn btn--primary" name="action" value="phone_send"<?= sms_available() ? '' : ' disabled' ?>><?= e(t('code.confirm')) ?></button>
-						</form>
-						<?php endif; ?>
-						<?php else: ?>
-						<span class="muted"><?= e(t('p.phone_none')) ?></span>
-						<a class="btn btn--outline" href="<?= e(url('profile.php', ['phone' => 'edit'])) ?>#settings" data-phone-edit><?= e(t('p.phone_add')) ?></a>
-						<?php endif; ?>
-					</div>
-					<?php if ($me['phone'] !== null && !$me['verified']): ?>
-					<p class="muted"><?= e(t(phone_is_mobile($me['phone']) ? 'p.phone_hint' : 'p.phone_not_mobile')) ?></p>
-					<?php endif; ?>
-					<?php if ($phoneCode): ?>
-					<!-- The code sent by SMS: typed here -->
-					<form method="post" action="<?= e(url('profile.php')) ?>#settings">
-						<?= csrf_field() ?>
-						<p class="muted"><?= e(t('code.sent', ['to' => phone_format($phoneCode['sent_to']), 'minutes' => CODE_MINUTES])) ?></p>
-						<div class="form-grid">
-							<div class="field">
-								<label class="field__label" for="s-phone-code"><?= e(t('code.label')) ?></label>
-								<input class="input" id="s-phone-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{4,10}" maxlength="10" required>
-							</div>
-						</div>
-						<div class="form-actions">
-							<button type="submit" class="btn btn--primary" name="action" value="phone_confirm"><?= e(t('code.confirm')) ?></button>
-							<button type="submit" class="btn btn--outline" name="action" value="phone_send" formnovalidate><?= e(t('code.resend')) ?></button>
-						</div>
-					</form>
-					<?php endif; ?>
-					<form class="phone-edit" method="post" action="<?= e(url('profile.php')) ?>#settings" data-phone-form<?= $phoneEdit ? '' : ' hidden' ?>>
-						<?= csrf_field() ?>
-						<input type="hidden" name="action" value="phone_save">
-						<div class="field">
-							<label class="field__label" for="s-phone"><?= e(t('auth.phone')) ?></label>
-							<?= phone_input('s-phone', $phoneTyped ?? $me['phone'], 'aria-describedby="s-phone-hint"' . ($phoneError !== '' ? ' aria-invalid="true"' : '')) ?>
-							<span class="field__hint" id="s-phone-hint"><?= e(t('p.phone_edit_hint')) ?></span>
-						</div>
-						<div class="form-actions">
-							<button type="submit" class="btn btn--primary"><?= e(t('p.save')) ?></button>
-							<a class="btn btn--outline" href="<?= e(url('profile.php')) ?>#settings" data-phone-cancel><?= e(t('common.cancel')) ?></a>
-						</div>
-					</form>
-				</div>
-			</section>
-
-			<!-- E-mail: changed with the password and a code, then the link sent to the new address -->
-			<section class="panel" aria-labelledby="email-title">
-				<div class="panel__body">
-					<h2 class="panel__title" id="email-title"><?= e(t('p.email_title')) ?></h2>
-					<?php if ($emailError !== ''): ?>
-					<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($emailError) ?></p>
-					<?php endif; ?>
-					<p class="muted"><?= e(t('p.email_current', ['email' => $me['email']])) ?></p>
-					<?php if ($me['new_email'] && !$emailCode): ?>
-					<form class="row row--between" method="post" action="<?= e(url('profile.php')) ?>#settings">
-						<?= csrf_field() ?>
-						<p class="notice"><?= icon('mail', 20) ?><?= e(t('p.email_pending', ['email' => $me['new_email']])) ?></p>
-						<button type="submit" class="btn btn--outline" name="action" value="email_cancel"><?= e(t('p.email_cancel')) ?></button>
-					</form>
-					<?php elseif ($emailCode): ?>
-					<form method="post" action="<?= e(url('profile.php')) ?>#settings">
-						<?= csrf_field() ?>
-						<p class="muted"><?= e(t('code.sent', ['to' => $emailCode['channel'] === 'sms' ? phone_format($emailCode['sent_to']) : $emailCode['sent_to'], 'minutes' => CODE_MINUTES])) ?> <?= e(t('p.email_new_is', ['email' => $emailCode['target']])) ?></p>
-						<div class="form-grid">
-							<div class="field">
-								<label class="field__label" for="s-email-code"><?= e(t('code.label')) ?></label>
-								<input class="input" id="s-email-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{4,10}" maxlength="10" required>
-							</div>
-						</div>
-						<div class="form-actions">
-							<button type="submit" class="btn btn--primary" name="action" value="email_confirm"><?= e(t('code.confirm')) ?></button>
-							<button type="submit" class="btn btn--outline" name="action" value="email_cancel" formnovalidate><?= e(t('code.cancel')) ?></button>
-						</div>
-					</form>
-					<?php endif; ?>
-					<?php if (!$emailCode): ?>
-					<form method="post" action="<?= e(url('profile.php')) ?>#settings">
-						<?= csrf_field() ?>
-						<input type="hidden" name="action" value="email_send">
-						<div class="form-grid">
-							<div class="field">
-								<label class="field__label" for="s-email-new"><?= e(t('p.email_new')) ?></label>
-								<input class="input" id="s-email-new" name="new_email" type="email" autocomplete="email" maxlength="190" value="<?= e($emailError !== '' ? $newEmail : '') ?>" required>
-							</div>
-							<div class="field">
-								<label class="field__label" for="s-email-pass"><?= e(t('p.current_password')) ?></label>
-								<input class="input" id="s-email-pass" name="password" type="password" autocomplete="current-password" maxlength="72" required>
-							</div>
-							<?php if ($me['verified'] && sms_available()): ?>
-							<fieldset class="field field--full filters__fieldset">
-								<legend class="field__label"><?= e(t('p.email_via')) ?></legend>
-								<div class="seg seg--spaced">
-									<label class="seg__item"><input type="radio" name="via" value="email"<?= ($_POST['via'] ?? '') !== 'sms' ? ' checked' : '' ?>><span class="seg__label"><?= e(t('p.email_via_email')) ?></span></label>
-									<label class="seg__item"><input type="radio" name="via" value="sms"<?= ($_POST['via'] ?? '') === 'sms' ? ' checked' : '' ?>><span class="seg__label"><?= e(t('p.email_via_sms')) ?></span></label>
-								</div>
-							</fieldset>
-							<?php endif; ?>
-						</div>
-						<p class="field__hint"><?= e(t('p.email_code_hint')) ?></p>
-						<div class="form-actions">
-							<button type="submit" class="btn btn--outline"><?= e(t('p.email_send')) ?></button>
-						</div>
-					</form>
-					<?php endif; ?>
-				</div>
-			</section>
-
-			<form class="panel" method="post" action="<?= e(url('profile.php')) ?>#settings">
-				<?= csrf_field() ?>
-				<input type="hidden" name="action" value="change_password">
-				<div class="panel__body">
-					<h2 class="panel__title"><?= e(t('p.change_password')) ?></h2>
-					<?php if ($passwordError !== ''): ?>
-					<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($passwordError) ?></p>
-					<?php endif; ?>
-					<div class="form-grid">
-						<div class="field">
-							<label class="field__label" for="s-pass"><?= e(t('p.current_password')) ?></label>
-							<input class="input" id="s-pass" name="current_password" type="password" autocomplete="current-password" required>
-						</div>
-						<div class="field">
-							<label class="field__label" for="s-pass-new"><?= e(t('p.new_password')) ?></label>
-							<input class="input" id="s-pass-new" name="new_password" type="password" autocomplete="new-password" minlength="8" maxlength="72" required aria-describedby="s-pass-hint">
-							<span class="field__hint" id="s-pass-hint"><?= e(t('auth.password_hint')) ?></span>
-						</div>
-					</div>
-					<div class="form-actions">
-						<button type="submit" class="btn btn--outline"><?= e(t('p.change_password')) ?></button>
-					</div>
-				</div>
-			</form>
-
-			<section class="panel" aria-labelledby="logout-title">
-				<div class="panel__body">
-					<h2 class="panel__title" id="logout-title"><?= e(t('nav.logout')) ?></h2>
-					<div class="row row--between">
-						<p class="muted"><?= e(t('p.logout_text')) ?></p>
-						<a class="btn btn--outline" href="<?= e(url('logout.php', ['csrf' => csrf_token()])) ?>"><?= icon('logout', 18) ?><?= e(t('nav.logout')) ?></a>
-					</div>
-				</div>
-			</section>
 
 			<section class="panel danger-zone" aria-labelledby="danger-title">
 				<div class="panel__body">
@@ -669,49 +734,6 @@ require INC_DIR . '/header.php';
 					</form>
 				</div>
 			</section>
-		</div>
-
-		<!-- Notifications -->
-		<div class="tabs__panel" role="tabpanel" id="panel-notifications" aria-labelledby="tab-notifications" tabindex="0" hidden>
-			<form class="panel" method="post" action="<?= e(url('profile.php')) ?>#notifications">
-				<?= csrf_field() ?>
-				<input type="hidden" name="action" value="save_notifications">
-				<div class="panel__body">
-					<h2 class="panel__title"><?= e(t('p.notifications')) ?></h2>
-					<ul class="switch-list">
-						<?php
-						$notices = [
-							['messages', 'p.n_messages', 'p.n_messages_hint'],
-							['saved', 'p.n_saved', 'p.n_saved_hint'],
-							['price', 'p.n_price', 'p.n_price_hint'],
-							['news', 'p.n_news', 'p.n_news_hint'],
-						];
-						foreach ($notices as [$name, $titleKey, $hintKey]): $on = $me['notify'][$name];
-						?>
-						<li>
-							<label class="switch">
-								<input type="checkbox" role="switch" name="notify[<?= $name ?>]"<?= $on ? ' checked' : '' ?>>
-								<span class="switch__text"><span class="switch__title"><?= e(t($titleKey)) ?></span><span class="switch__hint"><?= e(t($hintKey)) ?></span></span>
-							</label>
-						</li>
-						<?php endforeach; ?>
-					</ul>
-					<!-- Where they go; hidden while every type is off (main.js, [data-notify-channel]) -->
-					<fieldset class="field filters__fieldset notify-channel" data-notify-channel<?= array_filter($me['notify']) ? '' : ' hidden disabled' ?>>
-						<legend class="field__label"><?= e(t('p.n_channel')) ?></legend>
-						<div class="seg seg--spaced">
-							<?php foreach (['email', 'browser', 'both'] as $channel): ?>
-							<label class="seg__item"><input type="radio" name="channel" value="<?= $channel ?>"<?= $me['notify_channel'] === $channel ? ' checked' : '' ?>><span class="seg__label"><?= e(t('p.n_channel_' . $channel)) ?></span></label>
-							<?php endforeach; ?>
-						</div>
-						<span class="field__hint"><?= e(t('p.n_channel_hint')) ?></span>
-							<span class="field__error" data-notify-blocked hidden><?= e(t('p.n_blocked')) ?></span>
-					</fieldset>
-					<div class="form-actions">
-						<button type="submit" class="btn btn--primary"><?= e(t('p.save')) ?></button>
-					</div>
-				</div>
-			</form>
 		</div>
 	</div>
 </div>
