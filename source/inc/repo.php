@@ -10,8 +10,9 @@
 	'negotiable', 'city' (Latin name), 'created' (site time), 'views',
 	'favorites', 'messages', 'condition', 'attrs', 'reject_reason' (key), 'reject_comment', 'expires',
 	'images', 'videos', 'photos' (count)]; lists come newest first.
-	Statuses: draft, pending, active, inactive, rejected, expired, deleted;
-	an active listing past its expiry date reads as expired.
+	Statuses: draft, pending, active, inactive, rejected, expired, sold (marked by
+	the author, 'sold' = when), deleted; an active listing past its expiry date
+	reads as expired.
 	========================================================================== */
 
 // Published: active and not past its expiry date (cron.php also marks such listings expired)
@@ -39,9 +40,14 @@ const USER_SELECT = 'SELECT u.*, ci.latn AS city FROM users u LEFT JOIN cities c
 // name => [default, type]: int [min, max], bool, text (max length), email, lines (one item a line)
 const SETTINGS = [
 	'eur_rate' => [117, 'int', 1, 1000],
-	'listing_days' => [60, 'int', 7, 365],
+	// The rate is fetched once a day (rates.php); eur_rate_info is what the last fetch saved (JSON)
+	'eur_auto' => [true, 'bool'],
+	'eur_rate_info' => ['', 'text', 500],
+	'listing_days' => [30, 'int', 7, 365],
 	'raise_hours' => [24, 'int', 1, 720],
 	'max_photos' => [12, 'int', 1, 30],
+	// Videos of a listing (D8, H6): 0 = uploading videos is off
+	'max_videos' => [1, 'int', 0, 3],
 	'per_page' => [12, 'int', 4, 60],
 	'support_email' => ['', 'email'],
 	'premoderate_new' => [true, 'bool'],
@@ -70,8 +76,9 @@ function setting(string $name): mixed
 	};
 }
 
-// Saves checked values (as setting() returns them); the page reloads after it
-function save_settings(array $values, int $staffId): void
+// Saves checked values (as setting() returns them); the page reloads after it.
+// $staffId null — saved by the site itself (cron)
+function save_settings(array $values, ?int $staffId): void
 {
 	foreach ($values as $name => $value) {
 		$text = match (SETTINGS[$name][1]) {
@@ -438,9 +445,13 @@ function user_from_row(array $r): array
 {
 	return [
 		'id' => $r['id'], 'name' => $r['status'] === 'deleted' ? t('user.deleted') : $r['name'], 'email' => $r['email'], 'phone' => $r['phone'], 'city' => $r['city'] ?? '',
+		// Profile photo: stored path of its folder (028), null = initials
+		'avatar' => $r['status'] === 'deleted' ? null : ($r['avatar'] ?? null),
 		'role' => $r['role'], 'status' => $r['status'], 'verified' => $r['phone_verified_at'] !== null,
 		'email_verified' => $r['email_verified_at'] !== null, 'new_email' => $r['new_email'], 'lang' => $r['lang'],
 		'notify' => ['messages' => (bool) $r['notify_messages'], 'saved' => (bool) $r['notify_saved'], 'price' => (bool) $r['notify_price'], 'news' => (bool) $r['notify_news']],
+		// Where they go (030): email | browser | both
+		'notify_channel' => $r['notify_channel'] ?? 'email',
 		'registered' => db_local($r['created_at']), 'last_active' => db_local($r['last_active_at']),
 		'session_version' => $r['session_version'], 'note' => $r['staff_note'],
 		// Language of the admin (018; before it — Russian, the default)
@@ -477,7 +488,9 @@ function listing_from_row(array $r): array
 		'deal' => $r['deal'], 'type' => $r['item_type'], 'brand' => $r['brand'], 'district' => $r['district'], 'seller_type' => $r['seller_type'],
 		'attrs' => $r['attrs'] !== null ? json_decode($r['attrs'], true) : [],
 		'reject_reason' => $r['reject_reason'], 'reject_comment' => $r['reject_comment'], 'moderation_note' => $r['moderation_note'], 'expires' => $expires, 'sorted' => db_local($r['sorted_at']),
-		'phone' => $r['phone'], 'show_phone' => (bool) $r['show_phone'],
+		'sold' => db_local($r['sold_at'] ?? null),
+		// How to reach the seller: messages | calls | both (031; site.php, listing_contact())
+		'contact' => $r['contact'] ?? ($r['show_phone'] ? 'both' : 'messages'),
 		'images' => [], 'videos' => [], 'photos' => 0,
 	];
 }
@@ -498,12 +511,9 @@ function listings_query(string $sql, array $params = []): array
 		$listings[$index[$p['listing_id']]]['images'][] = ['id' => $p['id'], 'path' => $p['path'], 'color' => $p['color'], 'sizes' => json_decode($p['sizes'], true)];
 	}
 
-	foreach (db_all('SELECT * FROM listing_videos WHERE listing_id IN (' . db_in($ids) . ') ORDER BY listing_id, sort', $ids) as $v) {
-		$listings[$index[$v['listing_id']]]['videos'][] = [
-			'path' => $v['path'], 'file' => $v['file'], 'width' => $v['width'], 'height' => $v['height'],
-			'duration' => (float) $v['duration'], 'bytes' => $v['bytes'],
-			'poster' => ['path' => $v['path'], 'color' => $v['poster_color'], 'sizes' => json_decode($v['poster_sizes'], true)],
-		];
+	// Videos still being processed (032) are not shown
+	foreach (db_all("SELECT * FROM listing_videos WHERE listing_id IN (" . db_in($ids) . ") AND status = 'ready' ORDER BY listing_id, sort", $ids) as $v) {
+		$listings[$index[$v['listing_id']]]['videos'][] = video_from_row($v);
 	}
 
 	foreach ($listings as $i => $listing) {
@@ -511,6 +521,16 @@ function listings_query(string $sql, array $params = []): array
 	}
 
 	return $listings;
+}
+
+// A ready video as pages use it: ['id', 'path', 'file', 'width', 'height', 'duration', 'bytes', 'poster' => photo]
+function video_from_row(array $v): array
+{
+	return [
+		'id' => $v['id'], 'path' => $v['path'], 'file' => $v['file'], 'width' => $v['width'], 'height' => $v['height'],
+		'duration' => (float) $v['duration'], 'bytes' => $v['bytes'],
+		'poster' => ['path' => $v['path'], 'color' => $v['poster_color'], 'sizes' => json_decode((string) $v['poster_sizes'], true) ?: []],
+	];
 }
 
 function find_listing(int $id): ?array
@@ -522,7 +542,7 @@ function find_listing(int $id): ?array
 // conversations and reports show the listing of every row)
 function find_listings(array $ids): array
 {
-	$ids = array_values(array_unique(array_map('intval', $ids)));
+	$ids = array_values(array_unique(array_map('intval', array_filter($ids))));
 
 	return array_column(listings_query(LISTING_SELECT . ' WHERE l.id IN (' . db_in($ids) . ')', $ids), null, 'id');
 }
@@ -721,7 +741,7 @@ function postable_photos(int $userId, array $ids, ?int $listingId): array
 
 // New listing or changes to one. $f: user_id, status (pending = to moderation, draft), category
 // (slug), city (Latin name), title, description, lang, price (null = by agreement), currency,
-// negotiable, condition (null when the category has none), attrs, phone, show_phone,
+// negotiable, condition (null when the category has none), attrs, contact (messages | calls | both),
 // moderation_note (why it waits for a moderator, optional).
 // Returns the listing id
 function save_listing(array $f, ?int $id = null): int
@@ -747,13 +767,13 @@ function listing_set(array $f): array
 {
 	return [
 		'title = ?, description = ?, lang = ?, search_text = ?, price = ?, currency = ?, negotiable = ?, item_condition = ?, attrs = ?,
-		phone = ?, show_phone = ?, category_id = (SELECT id FROM categories WHERE slug = ?), city_id = (SELECT id FROM cities WHERE latn = ?),
+		contact = ?, category_id = (SELECT id FROM categories WHERE slug = ?), city_id = (SELECT id FROM cities WHERE latn = ?),
 		deal = ?, item_type = ?, brand = ?, seller_type = ?,
 		district_id = (SELECT d.id FROM districts d JOIN cities dc ON dc.id = d.city_id WHERE dc.latn = ? AND d.latn = ?)',
 		[
-			$f['title'], $f['description'], $f['lang'], sr_lat($f['title'] . "\n" . $f['description']),
+			$f['title'], $f['description'], $f['lang'], sr_lat($f['title'] . "\n" . $f['description'] . (isset($f['attrs']['model']) ? "\n" . $f['attrs']['model'] : '')),
 			$f['price'], $f['currency'], (int) $f['negotiable'], $f['condition'], $f['attrs'] ? json_encode($f['attrs'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
-			$f['phone'], (int) $f['show_phone'], $f['category'], $f['city'],
+			in_array($f['contact'] ?? '', LISTING_CONTACTS, true) ? $f['contact'] : 'messages', $f['category'], $f['city'],
 			$f['deal'] ?? null, $f['type'] ?? null, $f['brand'] ?? null, $f['seller_type'] ?? null,
 			$f['city'], $f['district'] ?? '',
 		],
@@ -803,10 +823,19 @@ function deactivate_listing(int $id, int $userId): bool
 	return db_exec("UPDATE listings SET status = 'inactive' WHERE id = ? AND user_id = ? AND status = 'active'", [$id, $userId]) > 0;
 }
 
-// Inactive → active again (it was moderated before); the expiry date stays
+// Inactive or sold → active again (it was moderated before); the expiry date stays
+// (past it the listing reads as expired and is renewed as usual)
 function activate_listing(int $id, int $userId): bool
 {
-	return db_exec("UPDATE listings SET status = 'active' WHERE id = ? AND user_id = ? AND status = 'inactive'", [$id, $userId]) > 0;
+	return db_exec("UPDATE listings SET status = 'active', sold_at = NULL WHERE id = ? AND user_id = ? AND status IN ('inactive', 'sold')", [$id, $userId]) > 0;
+}
+
+// Marked as sold by the author: off the site, kept in "My listings" → Completed with its
+// price (the total of sales). Only a listing that was published
+function sell_listing(int $id, int $userId): bool
+{
+	return db_exec("UPDATE listings SET status = 'sold', sold_at = UTC_TIMESTAMP()
+		WHERE id = ? AND user_id = ? AND published_at IS NOT NULL AND status IN ('active', 'inactive', 'expired')", [$id, $userId]) > 0;
 }
 
 // Expired → published for setting('listing_days') more, at the top of the feed
@@ -827,6 +856,9 @@ function delete_listing(int $id, int $userId): ?array
 
 	$paths = db_column('SELECT path FROM listing_photos WHERE listing_id = ?', [$id]);
 	db_exec('DELETE FROM listing_photos WHERE listing_id = ?', [$id]);
+	// Videos: the folder of a ready one; a file still in the queue is cleared by cron (video.php)
+	array_push($paths, ...db_column("SELECT path FROM listing_videos WHERE listing_id = ? AND path <> ''", [$id]));
+	db_exec('DELETE FROM listing_videos WHERE listing_id = ?', [$id]);
 	db_exec('DELETE FROM favorites WHERE listing_id = ?', [$id]);
 
 	return $paths;
@@ -870,6 +902,150 @@ function mark_expiry_mailed(int $id): void
 function delete_old_auth_tokens(): int
 {
 	return db_exec('DELETE FROM auth_tokens WHERE expires_at < UTC_TIMESTAMP() - INTERVAL 7 DAY');
+}
+
+/* ---------- Listing videos (video.php, video-upload.php, media-worker.php) ---------- */
+
+// A new upload: the file comes in parts (status uploading). Returns its id
+function create_video_upload(int $userId, string $source, int $bytes): int
+{
+	db_exec("INSERT INTO listing_videos (user_id, status, source, bytes_in) VALUES (?, 'uploading', ?, ?)", [$userId, $source, $bytes]);
+
+	return (int) db()->lastInsertId();
+}
+
+// The user's own video row (any status) or null
+function find_user_video(int $id, int $userId): ?array
+{
+	return db_one('SELECT * FROM listing_videos WHERE id = ? AND user_id = ?', [$id, $userId]) ?: null;
+}
+
+// An own upload removed before it got into a listing
+function delete_user_video(int $id, int $userId): void
+{
+	db_exec('DELETE FROM listing_videos WHERE id = ? AND user_id = ? AND listing_id IS NULL', [$id, $userId]);
+}
+
+// All parts are in: the worker takes it
+function queue_video(int $id): void
+{
+	db_exec("UPDATE listing_videos SET status = 'queued' WHERE id = ? AND status = 'uploading'", [$id]);
+}
+
+// Videos by id the user may put into this listing (own, not used elsewhere, not failed), in order
+function postable_videos(int $userId, array $ids, ?int $listingId): array
+{
+	$ids = array_values(array_unique(array_map('intval', $ids)));
+	$allowed = db_column("SELECT id FROM listing_videos WHERE id IN (" . db_in($ids) . ") AND user_id = ? AND (listing_id IS NULL OR listing_id = ?) AND status IN ('queued', 'processing', 'ready')",
+		[...$ids, $userId, $listingId ?? 0]);
+
+	return array_values(array_filter($ids, fn($id) => in_array($id, $allowed, true)));
+}
+
+// The listing's videos become exactly $ids; the ones taken out are deleted. Returns the folders of
+// ready ones taken out (the caller removes the files after the transaction)
+function set_listing_videos(int $listingId, int $userId, array $ids): array
+{
+	$old = db_all('SELECT id, path FROM listing_videos WHERE listing_id = ?', [$listingId]);
+
+	foreach (array_values($ids) as $sort => $videoId) {
+		db_exec('UPDATE listing_videos SET listing_id = ?, sort = ? WHERE id = ? AND user_id = ?', [$listingId, $sort, $videoId, $userId]);
+	}
+
+	$removed = array_filter($old, fn($v) => !in_array($v['id'], $ids, true));
+	if ($removed) {
+		db_exec('DELETE FROM listing_videos WHERE id IN (' . db_in(array_column($removed, 'id')) . ')', array_column($removed, 'id'));
+	}
+
+	return array_values(array_filter(array_column($removed, 'path')));
+}
+
+// Videos for the post form, in the given order: ['id', 'status', 'error', 'video' (ready ones: video_from_row())]
+function videos_by_ids(array $ids): array
+{
+	$ids = array_values(array_map('intval', $ids));
+	if (!$ids) {
+		return [];
+	}
+	$rows = array_column(db_all('SELECT * FROM listing_videos WHERE id IN (' . db_in($ids) . ')', $ids), null, 'id');
+
+	return array_values(array_map(fn($id) => [
+		'id' => $id, 'status' => $rows[$id]['status'], 'error' => $rows[$id]['error'],
+		'video' => $rows[$id]['status'] === 'ready' ? video_from_row($rows[$id]) : null,
+	], array_filter($ids, fn($id) => isset($rows[$id]))));
+}
+
+// The listing's videos in any status (author's form, admin): ids in order
+function listing_video_ids(int $listingId): array
+{
+	return array_map('intval', db_column('SELECT id FROM listing_videos WHERE listing_id = ? ORDER BY sort, id', [$listingId]));
+}
+
+// The next video for the worker, taken (status processing, one more attempt), or null.
+// One stuck in processing for an hour (the worker died) is taken again
+function take_video_job(int $maxAttempts): ?array
+{
+	db_exec("UPDATE listing_videos SET status = 'queued' WHERE status = 'processing' AND updated_at < UTC_TIMESTAMP() - INTERVAL 1 HOUR AND attempts < ?", [$maxAttempts]);
+	// Stuck on its last try (the worker died each time): failed, not "processing" for ever
+	db_exec("UPDATE listing_videos SET status = 'failed', error = 'failed' WHERE status = 'processing' AND updated_at < UTC_TIMESTAMP() - INTERVAL 1 HOUR AND attempts >= ?", [$maxAttempts]);
+
+	foreach (db_column("SELECT id FROM listing_videos WHERE status = 'queued' ORDER BY id LIMIT 5") as $id) {
+		if (db_exec("UPDATE listing_videos SET status = 'processing', attempts = attempts + 1 WHERE id = ? AND status = 'queued'", [$id])) {
+			return db_one('SELECT * FROM listing_videos WHERE id = ?', [$id]) ?: null;
+		}
+	}
+
+	return null;
+}
+
+// Processed: the folder with video.mp4 and the poster sizes. False when the row is gone meanwhile
+function set_video_ready(int $id, array $v): bool
+{
+	return db_exec("UPDATE listing_videos SET status = 'ready', source = NULL, error = NULL, path = ?, file = ?, width = ?, height = ?, duration = ?, bytes = ?,
+		poster_color = ?, poster_sizes = ? WHERE id = ? AND status = 'processing'",
+		[$v['path'], $v['file'], $v['width'], $v['height'], $v['duration'], $v['bytes'], $v['poster']['color'], json_encode($v['poster']['sizes']), $id]) > 0;
+}
+
+// Not processed: back to the queue while attempts remain, else failed with the reason (a key for the visitor)
+function set_video_failed(int $id, string $error, bool $final): void
+{
+	db_exec("UPDATE listing_videos SET status = ?, error = ?, source = IF(?, NULL, source) WHERE id = ?", [$final ? 'failed' : 'queued', $error, (int) $final, $id]);
+}
+
+// A listing's video removed by staff (any status): its folder (or '') for the files, null when not found
+function delete_listing_video(int $listingId, int $videoId): ?string
+{
+	$path = db_value('SELECT path FROM listing_videos WHERE id = ? AND listing_id = ?', [$videoId, $listingId]);
+	if ($path === false) {
+		return null;
+	}
+	db_exec('DELETE FROM listing_videos WHERE id = ?', [$videoId]);
+
+	return (string) $path;
+}
+
+// Videos of a listing not ready yet (the admin says how many are still processed)
+function count_pending_videos(int $listingId): int
+{
+	return (int) db_value("SELECT COUNT(*) FROM listing_videos WHERE listing_id = ? AND status IN ('uploading', 'queued', 'processing')", [$listingId]);
+}
+
+// Queue files still referred to (cron removes the others)
+function video_sources_in_use(): array
+{
+	return db_column('SELECT source FROM listing_videos WHERE source IS NOT NULL');
+}
+
+// Videos uploaded more than a day ago and never put into a listing, and failed ones a day old:
+// rows deleted, [folders, queue files] returned
+function take_stale_videos(): array
+{
+	$rows = db_all("SELECT id, path, source FROM listing_videos WHERE (listing_id IS NULL OR status = 'failed') AND updated_at < UTC_TIMESTAMP() - INTERVAL 1 DAY LIMIT 200");
+	if ($rows) {
+		db_exec('DELETE FROM listing_videos WHERE id IN (' . db_in(array_column($rows, 'id')) . ')', array_column($rows, 'id'));
+	}
+
+	return [array_values(array_filter(array_column($rows, 'path'))), array_values(array_filter(array_column($rows, 'source')))];
 }
 
 // Photos uploaded more than a day ago and never put into a listing: rows deleted, paths returned
@@ -927,10 +1103,10 @@ function add_favorite(int $userId, int $listingId): bool
 
 // Favorites whose published listing got cheaper (same currency) for users with price alerts on
 // and a confirmed email (like saved search alerts and messages), at most $limit users:
-// ['user_id', 'email', 'name', 'lang', 'drops' => [['listing' (array), 'was' (price)], …]]
+// ['user_id', 'email', 'name', 'lang', 'channel' (notify_channel), 'drops' => [['listing' (array), 'was' (price)], …]]
 function price_drops(int $limit): array
 {
-	$rows = db_all('SELECT f.user_id, f.listing_id, f.price AS was, u.email, u.name, u.lang FROM favorites f
+	$rows = db_all('SELECT f.user_id, f.listing_id, f.price AS was, u.email, u.name, u.lang, u.notify_channel FROM favorites f
 		JOIN users u ON u.id = f.user_id AND u.status = \'active\' AND u.notify_price = 1 AND u.email_verified_at IS NOT NULL
 		JOIN listings l ON l.id = f.listing_id
 		JOIN categories c ON c.id = l.category_id
@@ -943,7 +1119,7 @@ function price_drops(int $limit): array
 		if (!isset($users[$r['user_id']]) && count($users) >= $limit) {
 			break;
 		}
-		$users[$r['user_id']] ??= ['user_id' => $r['user_id'], 'email' => $r['email'], 'name' => $r['name'], 'lang' => $r['lang'], 'drops' => []];
+		$users[$r['user_id']] ??= ['user_id' => $r['user_id'], 'email' => $r['email'], 'name' => $r['name'], 'lang' => $r['lang'], 'channel' => $r['notify_channel'], 'drops' => []];
 		$users[$r['user_id']]['drops'][] = ['listing' => find_listing($r['listing_id']), 'was' => $r['was']];
 	}
 
@@ -1040,7 +1216,7 @@ function open_saved_search(int $id, int $userId): ?array
 function search_alerts_due(int $limit): array
 {
 	return array_map(fn($r) => ['params' => json_decode($r['params'], true)] + $r, db_all(
-		"SELECT s.id, s.user_id, s.lang, s.params, u.name, u.email, u.lang AS user_lang,
+		"SELECT s.id, s.user_id, s.lang, s.params, u.name, u.email, u.lang AS user_lang, u.notify_channel AS channel,
 			GREATEST(s.created_at, COALESCE(s.seen_at, s.created_at), COALESCE(s.checked_at, s.created_at)) AS since
 		FROM saved_searches s JOIN users u ON u.id = s.user_id
 		WHERE s.alerts = 1 AND u.status = 'active' AND u.email_verified_at IS NOT NULL AND u.notify_saved = 1
@@ -1063,10 +1239,109 @@ function saved_search_json(array $params): string
 	return json_encode($params, JSON_UNESCAPED_UNICODE);
 }
 
+/* ---------- Reviews ---------- */
+
+// A buyer may review the seller of a listing once, after they talked about it: the buyer
+// wrote and the seller answered in the conversation about this listing (so a review cannot
+// come from someone the seller never dealt with). The listing may be sold or deleted by now
+function can_review(int $listingId, int $authorId): bool
+{
+	return (bool) db_value('SELECT 1 FROM conversations c JOIN users s ON s.id = c.seller_id AND s.status = \'active\'
+		WHERE c.listing_id = ? AND c.buyer_id = ?
+			AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.sender_id = c.buyer_id)
+			AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.sender_id = c.seller_id)
+			AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.listing_id = c.listing_id AND r.author_id = c.buyer_id)', [$listingId, $authorId]);
+}
+
+// Listings of $ids the user may review now: [listing id, …] (one query for the conversation list)
+function reviewable_listings(array $ids, int $authorId): array
+{
+	$ids = array_values(array_unique(array_map('intval', array_filter($ids))));
+	if (!$ids) {
+		return [];
+	}
+
+	return db_column('SELECT c.listing_id FROM conversations c JOIN users s ON s.id = c.seller_id AND s.status = \'active\'
+		WHERE c.listing_id IN (' . db_in($ids) . ') AND c.buyer_id = ?
+			AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.sender_id = c.buyer_id)
+			AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.sender_id = c.seller_id)
+			AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.listing_id = c.listing_id AND r.author_id = c.buyer_id)', [...$ids, $authorId]);
+}
+
+// Saves the review (the caller checked can_review()); the id, or null after a double submit
+function create_review(array $listing, int $authorId, int $rating, string $body, string $lang): ?int
+{
+	$added = db_exec('INSERT IGNORE INTO reviews (seller_id, author_id, listing_id, listing_title, listing_lang, rating, body, lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+		[$listing['user_id'], $authorId, $listing['id'], mb_substr($listing['title'], 0, 80), $listing['lang'], $rating, $body, $lang]);
+
+	return $added > 0 ? (int) db()->lastInsertId() : null;
+}
+
+// A review: ['id', 'seller_id', 'author_id', 'listing_id' (null = the listing row is gone),
+// 'listing_title', 'listing_lang', 'rating', 'text', 'lang', 'created' (site time)]
+function review_from_row(array $r): array
+{
+	return [
+		'id' => $r['id'], 'seller_id' => $r['seller_id'], 'author_id' => $r['author_id'], 'listing_id' => $r['listing_id'],
+		'listing_title' => $r['listing_title'], 'listing_lang' => $r['listing_lang'], 'rating' => $r['rating'],
+		'text' => $r['body'], 'lang' => $r['lang'], 'created' => db_local($r['created_at']),
+	];
+}
+
+function find_review(int $id): ?array
+{
+	$row = db_one('SELECT * FROM reviews WHERE id = ?', [$id]);
+
+	return $row ? review_from_row($row) : null;
+}
+
+// Reviews of a seller by active authors, newest first
+function seller_reviews(int $sellerId, int $limit = 50): array
+{
+	return array_map('review_from_row', db_all('SELECT r.* FROM reviews r JOIN users a ON a.id = r.author_id AND a.status = \'active\'
+		WHERE r.seller_id = ? ORDER BY r.created_at DESC, r.id DESC LIMIT ' . max(1, $limit), [$sellerId]));
+}
+
+// Every review about the user and written by the user, newest first (admin user card)
+function user_reviews(int $userId): array
+{
+	return array_map('review_from_row', db_all('SELECT * FROM reviews WHERE seller_id = ? OR author_id = ? ORDER BY created_at DESC, id DESC LIMIT 200', [$userId, $userId]));
+}
+
+// ['count', 'average' (one decimal, 0.0 without reviews)] of a seller
+function seller_rating(int $sellerId): array
+{
+	static $cache = [];
+
+	return $cache[$sellerId] ??= (function () use ($sellerId) {
+		$r = db_one('SELECT COUNT(*) AS n, AVG(r.rating) AS average FROM reviews r JOIN users a ON a.id = r.author_id AND a.status = \'active\' WHERE r.seller_id = ?', [$sellerId]);
+
+		return ['count' => (int) $r['n'], 'average' => round((float) $r['average'], 1)];
+	})();
+}
+
+// Removed by its author ($authorId) or by staff (null)
+function delete_review(int $id, ?int $authorId = null): bool
+{
+	return db_exec('DELETE FROM reviews WHERE id = ?' . ($authorId !== null ? ' AND author_id = ?' : ''), $authorId !== null ? [$id, $authorId] : [$id]) > 0;
+}
+
 /* ---------- Messages ---------- */
 
+// A message as the pages use it: id, from (user id), at (site time), text, lang, read (by the
+// other side), deleted (by its author: the text is gone), reply_to (message id or null)
+function message_from_row(array $m): array
+{
+	return [
+		'id' => $m['id'], 'from' => $m['sender_id'], 'at' => db_local($m['created_at']), 'text' => $m['body'], 'lang' => $m['lang'],
+		'read' => $m['read_at'] !== null, 'deleted' => $m['deleted_at'] !== null, 'reply_to' => $m['reply_to_id'],
+	];
+}
+
+const MESSAGE_COLUMNS = 'id, conversation_id, sender_id, body, lang, reply_to_id, created_at, read_at, deleted_at';
+
 // Conversations of the current user, latest first: id, with (user id), listing_id, unread,
-// messages[] = ['from' (user id), 'at' (site time), 'text', 'lang'].
+// messages[] as message_from_row().
 // One the user deleted shows only the messages after that and only once there are any;
 // $include (an opened one) is listed even when empty
 function conversations(?int $include = null): array
@@ -1091,12 +1366,12 @@ function conversations(?int $include = null): array
 	}
 
 	$ids = array_keys($list);
-	foreach (db_all('SELECT id, conversation_id, sender_id, body, lang, created_at, read_at FROM messages WHERE conversation_id IN (' . db_in($ids) . ') ORDER BY created_at, id', $ids) as $m) {
+	foreach (db_all('SELECT ' . MESSAGE_COLUMNS . ' FROM messages WHERE conversation_id IN (' . db_in($ids) . ') ORDER BY created_at, id', $ids) as $m) {
 		$cid = $m['conversation_id'];
 		if ($hidden[$cid] !== null && $m['created_at'] <= $hidden[$cid]) {
 			continue;
 		}
-		$list[$cid]['messages'][] = ['id' => $m['id'], 'from' => $m['sender_id'], 'at' => db_local($m['created_at']), 'text' => $m['body'], 'lang' => $m['lang']];
+		$list[$cid]['messages'][] = message_from_row($m);
 		if ($m['sender_id'] !== $me && $m['read_at'] === null) {
 			$list[$cid]['unread']++;
 		}
@@ -1119,6 +1394,26 @@ function buyer_conversation(int $listingId, int $buyerId): ?int
 	return $id === false ? null : (int) $id;
 }
 
+// The staff member's conversation with a user (no listing, 026), id or null
+function support_conversation(int $staffId, int $userId): ?int
+{
+	$id = db_value('SELECT id FROM conversations WHERE listing_id IS NULL AND seller_id = ? AND buyer_id = ? ORDER BY id LIMIT 1', [$staffId, $userId]);
+
+	return $id === false ? null : (int) $id;
+}
+
+// Finds or makes it: ['id', 'created']
+function start_support_conversation(int $staffId, int $userId): array
+{
+	$id = support_conversation($staffId, $userId);
+	if ($id !== null) {
+		return ['id' => $id, 'created' => false];
+	}
+	db_exec('INSERT INTO conversations (listing_id, buyer_id, seller_id) VALUES (NULL, ?, ?)', [$userId, $staffId]);
+
+	return ['id' => (int) db()->lastInsertId(), 'created' => true];
+}
+
 // New conversation (or the existing one after a double submit): ['id', 'created'].
 // listings.messages_count counts conversations
 function start_conversation(int $listingId, int $buyerId, int $sellerId): array
@@ -1131,22 +1426,49 @@ function start_conversation(int $listingId, int $buyerId, int $sellerId): array
 	return ['id' => buyer_conversation($listingId, $buyerId), 'created' => $created];
 }
 
-// Returns the message id
-function add_message(int $conversationId, int $senderId, string $body, string $lang): int
+// Returns the message id. $replyTo: a message of the same conversation (checked by the page)
+function add_message(int $conversationId, int $senderId, string $body, string $lang, ?int $replyTo = null): int
 {
-	db_exec('INSERT INTO messages (conversation_id, sender_id, body, lang) VALUES (?, ?, ?, ?)', [$conversationId, $senderId, $body, $lang]);
+	db_exec('INSERT INTO messages (conversation_id, sender_id, body, lang, reply_to_id) VALUES (?, ?, ?, ?, ?)', [$conversationId, $senderId, $body, $lang, $replyTo]);
 	$id = (int) db()->lastInsertId();
 	db_exec('UPDATE conversations SET last_message_at = UTC_TIMESTAMP() WHERE id = ?', [$conversationId]);
 
 	return $id;
 }
 
-// Messages of a conversation after a message id (the open thread asks for new ones):
-// [['id', 'from', 'at', 'text', 'lang'], …], oldest first
+// Messages of a conversation after a message id (the open thread asks for new ones),
+// as message_from_row(), oldest first
 function messages_after(int $conversationId, int $afterId): array
 {
-	return array_map(fn($m) => ['id' => $m['id'], 'from' => $m['sender_id'], 'at' => db_local($m['created_at']), 'text' => $m['body'], 'lang' => $m['lang']],
-		db_all('SELECT id, sender_id, body, lang, created_at FROM messages WHERE conversation_id = ? AND id > ? ORDER BY id LIMIT 100', [$conversationId, $afterId]));
+	return array_map('message_from_row',
+		db_all('SELECT ' . MESSAGE_COLUMNS . ' FROM messages WHERE conversation_id = ? AND id > ? ORDER BY id LIMIT 100', [$conversationId, $afterId]));
+}
+
+// One message of a conversation (message_from_row()) or null
+function find_message(int $id, int $conversationId): ?array
+{
+	$row = db_one('SELECT ' . MESSAGE_COLUMNS . ' FROM messages WHERE id = ? AND conversation_id = ?', [$id, $conversationId]);
+
+	return $row ? message_from_row($row) : null;
+}
+
+// What changed in the messages already on the screen: read_upto — the last message of the
+// user the other side has read; deleted — ids of the deleted ones (the latest 200)
+function conversation_state(int $conversationId, int $userId): array
+{
+	return [
+		'read_upto' => (int) db_value('SELECT COALESCE(MAX(id), 0) FROM messages WHERE conversation_id = ? AND sender_id = ? AND read_at IS NOT NULL AND deleted_at IS NULL', [$conversationId, $userId]),
+		'deleted' => array_map('intval', array_column(db_all('SELECT id FROM messages WHERE conversation_id = ? AND deleted_at IS NOT NULL ORDER BY id DESC LIMIT 200', [$conversationId]), 'id')),
+	];
+}
+
+// The author takes a message back while the other side has not read it: the text is wiped,
+// the row stays ("Message deleted"). It also counts as read from now on, so it is never
+// "unread" for the other side. False — already read (or not theirs)
+function delete_unread_message(int $id, int $conversationId, int $senderId): bool
+{
+	return db_exec('UPDATE messages SET body = \'\', deleted_at = UTC_TIMESTAMP(), read_at = UTC_TIMESTAMP()
+		WHERE id = ? AND conversation_id = ? AND sender_id = ? AND read_at IS NULL AND deleted_at IS NULL', [$id, $conversationId, $senderId]) > 0;
 }
 
 // Unread messages to the user in one conversation
@@ -1166,6 +1488,8 @@ function conversation_lang(int $conversationId, int $userId): ?string
 // Messages to the user in a conversation of theirs become read; number marked
 function mark_conversation_read(int $conversationId, int $userId): int
 {
+	drop_message_notifications($userId, $conversationId);
+
 	return db_exec('UPDATE messages m JOIN conversations c ON c.id = m.conversation_id
 		SET m.read_at = UTC_TIMESTAMP()
 		WHERE m.conversation_id = ? AND (c.buyer_id = ? OR c.seller_id = ?) AND m.sender_id <> ? AND m.read_at IS NULL',
@@ -1236,9 +1560,21 @@ function mark_email_verified(int $id): void
 }
 
 // Personal data from the profile (the email changes only through a confirmed link)
+// A changed phone is not confirmed any more
 function update_profile(int $id, string $name, ?string $phone, string $city, string $lang): void
 {
+	db_exec('UPDATE users SET phone_verified_at = IF(phone <=> ?, phone_verified_at, NULL) WHERE id = ?', [$phone, $id]);
 	db_exec('UPDATE users SET name = ?, phone = ?, city_id = (SELECT id FROM cities WHERE latn = ?), lang = ? WHERE id = ?', [$name, $phone, $city, $lang, $id]);
+}
+
+// Profile photo: the stored path of its folder, null removes it. Returns the previous
+// path (the caller removes its files) or null
+function set_user_avatar(int $id, ?string $path): ?string
+{
+	$old = db_value('SELECT avatar FROM users WHERE id = ?', [$id]);
+	db_exec('UPDATE users SET avatar = ? WHERE id = ?', [$path, $id]);
+
+	return $old ?: null;
 }
 
 // New address waiting for its link (null cancels)
@@ -1261,10 +1597,103 @@ function confirm_new_email(int $id): bool
 }
 
 // Email notifications from the profile: messages, saved, price, news (bool each)
-function set_notifications(int $id, array $on): void
+function set_notifications(int $id, array $on, string $channel = 'email'): void
 {
-	db_exec('UPDATE users SET notify_messages = ?, notify_saved = ?, notify_price = ?, notify_news = ? WHERE id = ?',
-		[(int) $on['messages'], (int) $on['saved'], (int) $on['price'], (int) $on['news'], $id]);
+	db_exec('UPDATE users SET notify_messages = ?, notify_saved = ?, notify_price = ?, notify_news = ?, notify_channel = ? WHERE id = ?',
+		[(int) $on['messages'], (int) $on['saved'], (int) $on['price'], (int) $on['news'], $channel, $id]);
+}
+
+/* ---------- One-time codes (codes.php) ---------- */
+
+// The user's code for a purpose replaces the previous one. $hash null: the SMS service keeps the code
+function save_verify_code(int $userId, string $purpose, string $channel, string $sentTo, string $target, ?string $hash, int $minutes): void
+{
+	db_exec('REPLACE INTO verify_codes (user_id, purpose, channel, sent_to, target, code_hash, attempts, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?, 0, UTC_TIMESTAMP() + INTERVAL ' . max(1, $minutes) . ' MINUTE)', [$userId, $purpose, $channel, $sentTo, $target, $hash]);
+}
+
+// ['id', 'channel', 'sent_to', 'target', 'code_hash', 'attempts', 'expired' (bool)] or null
+function find_verify_code(int $userId, string $purpose): ?array
+{
+	$r = db_one('SELECT id, channel, sent_to, target, code_hash, attempts, expires_at <= UTC_TIMESTAMP() AS expired FROM verify_codes WHERE user_id = ? AND purpose = ?', [$userId, $purpose]);
+
+	return $r ? ['expired' => (bool) $r['expired']] + $r : null;
+}
+
+function count_verify_attempt(int $id): void
+{
+	db_exec('UPDATE verify_codes SET attempts = attempts + 1 WHERE id = ?', [$id]);
+}
+
+function delete_verify_code(int $userId, string $purpose): void
+{
+	db_exec('DELETE FROM verify_codes WHERE user_id = ? AND purpose = ?', [$userId, $purpose]);
+}
+
+// Codes past their time (cron.php)
+function delete_old_verify_codes(): int
+{
+	return db_exec('DELETE FROM verify_codes WHERE expires_at < UTC_TIMESTAMP() - INTERVAL 1 DAY');
+}
+
+// The phone is confirmed on another active account (one number — one account)
+function phone_confirmed_elsewhere(string $phone, int $userId): bool
+{
+	return (bool) db_value("SELECT 1 FROM users WHERE phone = ? AND phone_verified_at IS NOT NULL AND status <> 'deleted' AND id <> ? LIMIT 1", [$phone, $userId]);
+}
+
+// The user's phone is confirmed, as long as it is still the number the code went to
+function confirm_user_phone(int $id, string $phone): bool
+{
+	return db_exec('UPDATE users SET phone_verified_at = UTC_TIMESTAMP() WHERE id = ? AND phone = ?', [$id, $phone]) > 0;
+}
+
+/* ---------- Notifications in the browser (notify.php) ---------- */
+
+// Whether a notify_channel value includes the way: notify_via('both', 'email') → true
+function notify_via(string $channel, string $way): bool
+{
+	return $channel === $way || $channel === 'both';
+}
+
+// An event waits for the user's open tab. $data by type: message — conversation, sender (user id),
+// text, lang; search — count (new listings), searches; price — count (listings), listing_id (of the first)
+function add_notification(int $userId, string $type, array $data): void
+{
+	db_exec('INSERT INTO notifications (user_id, type, data) VALUES (?, ?, ?)', [$userId, $type, json_encode($data, JSON_UNESCAPED_UNICODE)]);
+}
+
+// The user's waiting notifications, oldest first, handed out once: [['id', 'type', 'data'], …]
+function take_notifications(int $userId, int $limit = 5): array
+{
+	$rows = db_all('SELECT id, type, data FROM notifications WHERE user_id = ? AND delivered_at IS NULL ORDER BY id LIMIT ' . max(1, $limit), [$userId]);
+	if (!$rows) {
+		return [];
+	}
+
+	// Only the rows this request marked are shown: two tabs asking at once do not both show one
+	$taken = [];
+	foreach ($rows as $r) {
+		if (db_exec('UPDATE notifications SET delivered_at = UTC_TIMESTAMP() WHERE id = ? AND delivered_at IS NULL', [$r['id']]) > 0) {
+			$taken[] = ['id' => $r['id'], 'type' => $r['type'], 'data' => json_decode($r['data'], true) ?: []];
+		}
+	}
+
+	return $taken;
+}
+
+// Message notifications of a conversation the user has opened are not needed any more
+function drop_message_notifications(int $userId, int $conversationId): void
+{
+	db_exec("DELETE FROM notifications WHERE user_id = ? AND type = 'message' AND delivered_at IS NULL AND data LIKE ?",
+		[$userId, '{"conversation":' . $conversationId . ',%']);
+}
+
+// Shown ones after a week, never shown ones after a month (cron.php); returns how many
+function delete_old_notifications(): int
+{
+	return db_exec('DELETE FROM notifications WHERE (delivered_at IS NOT NULL AND delivered_at < UTC_TIMESTAMP() - INTERVAL 7 DAY)
+		OR created_at < UTC_TIMESTAMP() - INTERVAL 30 DAY');
 }
 
 // Account deleted by its owner: listings deleted (photo paths returned for the files),
@@ -1278,13 +1707,21 @@ function delete_account(int $id): array
 	}
 	array_push($paths, ...db_column('SELECT path FROM listing_photos WHERE user_id = ? AND listing_id IS NULL', [$id]));
 	db_exec('DELETE FROM listing_photos WHERE user_id = ? AND listing_id IS NULL', [$id]);
-
-	foreach (['favorites', 'saved_searches', 'remember_tokens', 'auth_tokens'] as $table) {
-		db_exec('DELETE FROM ' . $table . ' WHERE user_id = ?', [$id]);
+	array_push($paths, ...db_column("SELECT path FROM listing_videos WHERE user_id = ? AND listing_id IS NULL AND path <> ''", [$id]));
+	db_exec('DELETE FROM listing_videos WHERE user_id = ? AND listing_id IS NULL', [$id]);
+	if ($avatar = db_value('SELECT avatar FROM users WHERE id = ?', [$id])) {
+		$paths[] = $avatar;
 	}
 
+	// notifications keep the start of message texts, verify_codes a new e-mail address
+	foreach (['favorites', 'saved_searches', 'remember_tokens', 'auth_tokens', 'notifications', 'verify_codes'] as $table) {
+		db_exec('DELETE FROM ' . $table . ' WHERE user_id = ?', [$id]);
+	}
+	// Reviews written by the account and about it
+	db_exec('DELETE FROM reviews WHERE author_id = ? OR seller_id = ?', [$id, $id]);
+
 	db_exec("UPDATE users SET status = 'deleted', deleted_at = UTC_TIMESTAMP(), name = 'Deleted user',
-		email = CONCAT('deleted-', id, '@deleted.invalid'), new_email = NULL, phone = NULL, password_hash = NULL,
+		email = CONCAT('deleted-', id, '@deleted.invalid'), new_email = NULL, phone = NULL, avatar = NULL, password_hash = NULL,
 		email_verified_at = NULL, phone_verified_at = NULL, notify_messages = 0, notify_saved = 0, notify_price = 0, notify_news = 0
 		WHERE id = ?", [$id]);
 

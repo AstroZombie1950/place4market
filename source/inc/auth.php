@@ -222,12 +222,22 @@ const RATE_LIMITS = [
 	'reset_ip' => [10, 3600],
 	'verify_resend' => [3, 3600],
 	'photo_upload' => [120, 3600],
+	// Videos started per account a day (each one is up to VIDEO_MAX_BYTES on the disk until processed)
+	'video_upload' => [10, 86400],
 	'report' => [10, 3600],
+	'review' => [10, 86400],
+	// An SMS costs money (codes.php): per account, per number and per IP a day, and a ceiling for
+	// the whole site (a farm of accounts with numbers of their own would not empty the balance)
+	'sms_user' => [5, 86400],
+	'sms_phone' => [3, 86400],
+	'sms_ip' => [10, 86400],
+	'sms_total' => [300, 86400],
+	'code_email' => [5, 3600],
 	'favorite' => [300, 3600],
 	'saved_search' => [30, 3600],
 	'message' => [100, 3600],
 	'conversation' => [30, 86400],
-	'email_change' => [3, 3600],
+	'email_change' => [5, 3600],
 	'contact_ip' => [5, 3600],
 	'phone_ip' => [30, 3600],
 	'view' => [1, 86400],
@@ -265,11 +275,46 @@ function account_data_error(array $f): string
 		// No addresses in a name: it opens our letters ("Hello, {name}") sent to any email typed at registration
 		mb_strlen($f['name']) < 2 || mb_strlen($f['name']) > 100 || preg_match('~://|www\.|[<>]~i', $f['name']) => t('auth.err_name'),
 		!filter_var($f['email'], FILTER_VALIDATE_EMAIL) || mb_strlen($f['email']) > 190 => t('auth.err_email'),
-		$f['phone'] !== '' && !preg_match('/^\+?[0-9 ()\-]{6,20}$/', $f['phone']) => t('auth.err_phone'),
+		// A Serbian number, already in its stored form (the caller passes phone_normalize() ?? as typed)
+		$f['phone'] !== '' && phone_normalize($f['phone']) !== $f['phone'] => t('auth.err_phone'),
 		// The place is optional: without it search starts with all Serbia
 		$f['city'] !== '' && !in_array($f['city'], array_column(active_cities(), 'latn'), true) => t('auth.err_city'),
 		default => '',
 	};
+}
+
+/* ---------- Phone numbers ---------- */
+
+// A Serbian number as typed ("064 123-45-67", "+381 64 1234567", "00381…", "381…") → its
+// stored form +381XXXXXXXXX; null when it is not one. After the country code: 8–9 digits,
+// mobile networks start with 6, landlines with 1–3
+function phone_normalize(string $raw): ?string
+{
+	$n = preg_replace('/[\s().\/\-]/u', '', trim($raw));
+	$n = match (true) {
+		str_starts_with($n, '00381') => '+' . substr($n, 2),
+		str_starts_with($n, '381') => '+' . $n,
+		str_starts_with($n, '0') => '+381' . substr($n, 1),
+		default => $n,
+	};
+
+	return preg_match('/^\+381(?:[1-3]\d{6,8}|6\d{7,8})$/', $n) ? $n : null;
+}
+
+// Only a mobile number can get an SMS (and be confirmed)
+function phone_is_mobile(?string $phone): bool
+{
+	return $phone !== null && preg_match('/^\+3816\d{7,8}$/', $phone) === 1;
+}
+
+// "+381641234567" → "+381 64 123 4567" (anything else is shown as it is)
+function phone_format(?string $phone): string
+{
+	if ($phone === null || !preg_match('/^\+381(\d{2})(\d{3})(\d{3,4})$/', $phone, $m)) {
+		return (string) $phone;
+	}
+
+	return '+381 ' . $m[1] . ' ' . $m[2] . ' ' . $m[3];
 }
 
 /* ---------- Passwords ---------- */

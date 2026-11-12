@@ -119,7 +119,7 @@ require ADMIN_INC . '/header.php';
 							</div>
 						</div>
 					</td>
-					<td class="nowrap"><?= e($user['phone'] ?? '') ?></td>
+					<td class="nowrap"><?= e(phone_format($user['phone'] ?? null)) ?></td>
 					<td class="nowrap"><?= e($user['city']) ?></td>
 					<td class="num"><?php if ($user['listings']): ?><a href="listings.php?user=<?= (int) $user['id'] ?>"><?= (int) $user['listings'] ?></a><?php else: ?>0<?php endif; ?></td>
 					<td><?= role_badge($user['role']) ?></td>
@@ -136,7 +136,9 @@ require ADMIN_INC . '/header.php';
 								<input type="hidden" name="back" value="<?= e($back) ?>">
 								<a class="dropdown__item" href="user.php?id=<?= (int) $user['id'] ?>"><?= icon('user', 18) ?><?= e(at('edit.open_profile')) ?></a>
 								<?php if ($user['status'] !== 'deleted'): ?>
-								<a class="dropdown__item" href="mailto:<?= e($user['email']) ?>"><?= icon('mail', 18) ?><?= e(at('users.send_email')) ?></a>
+								<?php if ($user['status'] === 'active' && $user['id'] !== $currentAdmin['id']): ?>
+								<a class="dropdown__item" href="<?= e(lang_link(DEFAULT_LANG, 'messages.php', ['user' => $user['id']])) ?>" target="_blank" rel="noopener"><?= icon('message', 18) ?><?= e(at('user.message_btn')) ?></a>
+								<?php endif; ?>
 								<?php if (is_admin() && $user['id'] !== $currentAdmin['id']): ?>
 								<input type="hidden" name="role" value="<?= $isStaff ? 'user' : 'moderator' ?>">
 								<button type="submit" class="dropdown__item" name="action" value="role" formaction="user-actions.php"><?= icon('shield', 18) ?><?= e(at($isStaff ? 'users.make_user' : 'users.make_moderator')) ?></button>

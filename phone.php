@@ -4,6 +4,8 @@
 	main.js): the number is not in the page, so scrapers do not collect it.
 	POST: id. Answer (JSON): {"phone": "+381 63 000 1101", "tel": "+381630001101"}
 	or {"error": "text for the visitor"} with a 4xx status.
+	Logged-in users only (a guest gets {"login": address of the login page}):
+	numbers are not handed out to anyone who just opens the page.
 	Only a published listing with the phone shown; no bots;
 	RATE_LIMITS['phone_ip'] numbers per IP an hour.
 	========================================================================== */
@@ -22,6 +24,10 @@ function phone_answer(int $status, array $data): never
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || is_bot()) {
 	phone_answer(403, ['error' => t('common.failed')]);
+}
+
+if (!current_user()) {
+	phone_answer(401, ['login' => url('auth.php', ['next' => safe_next((string) ($_POST['next'] ?? ''), '/')])]);
 }
 
 if (rate_limited('phone_ip', client_ip())) {

@@ -2,7 +2,8 @@
 /* ==========================================================================
 	Post an ad or edit one: category, details, photos, price, contacts + live preview
 	GET: id = edit an own ad. POST: the form + csrf; photos come as photo_ids[]
-	in display order (uploaded beforehand by photo-upload.php), details as attrs[].
+	in display order (uploaded beforehand by photo-upload.php), videos as video_ids[]
+	(video-upload.php; they may still be processed), details as attrs[].
 	New ads and edited ones go to moderation (status pending).
 	action=draft: saved as a draft with lighter checks (a new ad or a draft only),
 	then the form opens again for that draft.
@@ -10,20 +11,23 @@
 require __DIR__ . '/source/inc/bootstrap.php';
 require INC_DIR . '/media.php';
 require INC_DIR . '/attrs.php';
+require INC_DIR . '/video.php';
 
 $me = require_login();
 
-// Editing: the author's own ad only (not a deleted one)
+// Editing: the author's own ad only (not a deleted or sold one: a sold ad is activated first)
 $editId = isset($_GET['id']) ? (int) $_GET['id'] : null;
 $editing = $editId !== null ? find_listing($editId) : null;
 
-if ($editId !== null && (!$editing || $editing['user_id'] !== $me['id'] || $editing['status'] === 'deleted')) {
+if ($editId !== null && (!$editing || $editing['user_id'] !== $me['id'] || in_array($editing['status'], ['deleted', 'sold'], true))) {
 	require ROOT_DIR . '/404.php';
 	exit;
 }
 
 // Not sent to moderation yet: a new ad or a draft (texts of the form, draft button)
 $isNew = !$editing || $editing['status'] === 'draft';
+// Calls go to the confirmed phone of the profile only (listing_contact())
+$canCall = $me['verified'] && $me['phone'] !== null;
 
 // Form values: the ad being edited (or defaults), replaced by the sent form
 $v = [
@@ -43,9 +47,11 @@ $v = [
 	'negotiable' => $editing['negotiable'] ?? false,
 	'agreement' => $editing !== null && $editing['price'] === null,
 	'city' => $editing['city'] ?? $me['city'],
-	'phone' => $editing['phone'] ?? $me['phone'] ?? '',
-	'show_phone' => $editing['show_phone'] ?? true,
+	// How buyers reach the author (D6): calls only with a confirmed phone in the profile
+	'contact' => $editing['contact'] ?? ($canCall ? 'both' : 'messages'),
 	'photos' => array_column($editing['images'] ?? [], 'id'),
+	// All of the listing's videos, also the ones still being processed
+	'videos' => $editing ? listing_video_ids($editing['id']) : [],
 ];
 $error = '';
 
@@ -68,9 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		'agreement' => !empty($_POST['agreement']),
 		// The place is typed (datalist): its Latin name, or the text as typed to show it again with the error
 		'city' => city_by_input((string) ($_POST['city'] ?? '')) ?? trim((string) ($_POST['city'] ?? '')),
-		'phone' => trim((string) ($_POST['phone'] ?? '')),
-		'show_phone' => !empty($_POST['show_phone']),
+		'contact' => in_array($_POST['contact'] ?? '', LISTING_CONTACTS, true) ? $_POST['contact'] : 'messages',
 		'photos' => postable_photos($me['id'], (array) ($_POST['photo_ids'] ?? []), $editId),
+		'videos' => array_slice(postable_videos($me['id'], (array) ($_POST['video_ids'] ?? []), $editId), 0, setting('max_videos')),
 	];
 	[$parent, $child] = find_category($v['subcategory']);
 	// A category hidden in the admin takes no ads
@@ -96,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				'condition' => $hasCondition && in_array($v['condition'], ['new', 'like_new', 'used'], true) ? $v['condition'] : null,
 				'attrs' => $attrs, 'facets' => $facets,
 				'city' => in_array($v['city'], array_column(active_cities(), 'latn'), true) ? $v['city'] : ($me['city'] ?: active_cities()[0]['latn']),
-				'phone' => preg_match('/^\+?[0-9 ()\-]{6,20}$/', $v['phone']) ? $v['phone'] : null,
+				'contact' => $canCall ? $v['contact'] : 'messages',
 				'photos' => array_slice($v['photos'], 0, setting('max_photos')),
 			]);
 			log_action('listing.draft', ['listing_id' => $id, 'photos' => min(setting('max_photos'), count($v['photos']))]);
@@ -119,8 +125,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$error = t('post.err_price');
 	} elseif (!in_array($v['city'], array_column(active_cities(), 'latn'), true)) {
 		$error = t('auth.err_city');
-	} elseif ($v['phone'] !== '' && !preg_match('/^\+?[0-9 ()\-]{6,20}$/', $v['phone'])) {
-		$error = t('auth.err_phone');
+	} elseif ($v['contact'] !== 'messages' && !$canCall) {
+		$error = t('post.err_contact');
 	} elseif (count($v['photos']) > setting('max_photos')) {
 		$error = tp('post.err_photos', setting('max_photos'));
 	} elseif (empty($_POST['terms'])) {
@@ -130,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$id = post_save($me, $v, $editId, [
 			'status' => 'pending', 'title' => $v['title'], 'description' => $v['description'],
 			'price' => $v['agreement'] ? null : $price, 'condition' => $hasCondition ? $v['condition'] : null,
-			'attrs' => $attrs, 'facets' => $facets, 'city' => $v['city'], 'phone' => $v['phone'] ?: null, 'photos' => $v['photos'], 'moderation_note' => $note,
+			'attrs' => $attrs, 'facets' => $facets, 'city' => $v['city'], 'contact' => $v['contact'], 'photos' => $v['photos'], 'moderation_note' => $note,
 		], $publish);
 		log_action($isNew ? 'listing.create' : 'listing.update', ['listing_id' => $id, 'photos' => count($v['photos'])]
 			+ ($publish ? ['published' => true] : []) + ($note ? ['note' => $note] : []));
@@ -163,7 +169,7 @@ function post_route(array $me, ?array $editing, string $text): array
 
 // Saves the ad and its photos in one transaction, then removes the files of photos taken out.
 // $v: the sent form, $f: checked values (status, title, description, price, condition, attrs, facets (clean_facets()),
-// city, phone, photos, moderation_note); $publish: approved right away (like a moderator's approval: term, place in the feed)
+// city, contact, photos, moderation_note); $publish: approved right away (like a moderator's approval: term, place in the feed)
 function post_save(array $me, array $v, ?int $editId, array $f, bool $publish = false): int
 {
 	db()->beginTransaction();
@@ -172,10 +178,11 @@ function post_save(array $me, array $v, ?int $editId, array $f, bool $publish = 
 			'user_id' => $me['id'], 'status' => $f['status'], 'category' => $v['subcategory'], 'city' => $f['city'],
 			'title' => $f['title'], 'description' => $f['description'], 'lang' => detect_text_lang($f['title'] . ' ' . $f['description']),
 			'price' => $f['price'], 'currency' => $v['currency'], 'negotiable' => $v['negotiable'] && $f['price'] !== null,
-			'condition' => $f['condition'], 'attrs' => $f['attrs'], 'phone' => $f['phone'], 'show_phone' => $v['show_phone'],
+			'condition' => $f['condition'], 'attrs' => $f['attrs'], 'contact' => $f['contact'],
 			'moderation_note' => $f['moderation_note'] ?? null,
 		] + $f['facets'], $editId);
 		$removed = set_listing_photos($id, $me['id'], $f['photos']);
+		array_push($removed, ...set_listing_videos($id, $me['id'], $v['videos']));
 		if ($publish) {
 			approve_listing($id);
 		}
@@ -195,6 +202,17 @@ $formPhotos = array_map(fn($photo) => [
 	'id' => $photo['id'],
 	'url' => photo_url($photo, isset($photo['sizes'][320]) ? 320 : array_key_last($photo['sizes'])),
 ], photos_by_ids($v['photos']));
+
+// Videos already uploaded: the poster when ready, the status otherwise (main.js asks for it until ready)
+$videoText = ['max' => VIDEO_MAX_SECONDS, 'mb' => (int) (VIDEO_MAX_BYTES / 1048576)];
+$formVideos = array_map(fn($item) => ['id' => $item['id'], 'status' => $item['status']] + match (true) {
+	$item['video'] !== null => [
+		'poster' => photo_url($item['video']['poster'], isset($item['video']['poster']['sizes'][320]) ? 320 : array_key_last($item['video']['poster']['sizes'])),
+		'time' => video_time($item['video']['duration']),
+	],
+	$item['status'] === 'failed' => ['error' => t('post.video_err_' . ($item['error'] ?: 'failed'), $videoText)],
+	default => [],
+}, videos_by_ids($v['videos']));
 
 // Subcategories for JS: {"vehicles": [{"slug": "cars", "name": "Cars"}, …]}
 $subcats = [];
@@ -221,6 +239,8 @@ foreach (visible_categories() as $category) {
 		array_push($districtSubs, ...array_column($category['children'], 'slug'));
 	}
 }
+// The model is asked next to the brand, not among the other details
+$modelSubs = array_values(array_filter($visibleSubs, fn($slug) => isset(category_attr_fields($slug)['model'])));
 $for = fn(array $slugs) => e(implode(' ', $slugs));
 $shown = fn(array $slugs) => in_array($v['subcategory'], $slugs, true);
 
@@ -303,6 +323,13 @@ require INC_DIR . '/header.php';
 						</select>
 					</fieldset>
 					<?php endforeach; ?>
+					<!-- Model: a detail (attrs.php) asked right after the brand -->
+					<?php if ($modelSubs): $on = $shown($modelSubs); ?>
+					<fieldset class="field filters__fieldset" data-for="<?= $for($modelSubs) ?>"<?= $on ? '' : ' disabled hidden' ?>>
+						<label class="field__label" for="p-model"><?= e(t('a.model')) ?></label>
+						<input class="input" id="p-model" name="attrs[model]" type="text" maxlength="<?= (int) attr_fields()['model']['max'] ?>" value="<?= e($on ? (string) ($v['attrs']['model'] ?? '') : '') ?>">
+					</fieldset>
+					<?php endif; ?>
 				</div>
 			</section>
 
@@ -343,6 +370,7 @@ require INC_DIR . '/header.php';
 						<legend class="visually-hidden"><?= e(t('post.f_attrs')) ?></legend>
 						<div class="form-grid">
 							<?php foreach (category_attr_fields($slug) as $key => $field):
+								if ($key === 'model') continue;
 								$fieldId = 'a-' . $setIndex . '-' . $key;
 								$value = $on ? (string) ($v['attrs'][$key] ?? '') : '';
 								$unit = $field['unit'] ?? '';
@@ -385,6 +413,25 @@ require INC_DIR . '/header.php';
 					<input type="file" accept="image/jpeg,image/png,image/webp" multiple data-photo-input data-max="<?= (int) setting('max_photos') ?>">
 				</label>
 				<ul class="photo-grid" data-photo-list data-photos="<?= attr_json($formPhotos) ?>" aria-live="polite"></ul>
+
+				<?php if (setting('max_videos') > 0): ?>
+				<!-- Video (D8): sent in parts to video-upload.php, processed in the background (video.php) -->
+				<div class="video-upload" data-video-upload="<?= e(url('video-upload.php')) ?>" data-max="<?= (int) setting('max_videos') ?>"
+					data-seconds="<?= VIDEO_MAX_SECONDS + VIDEO_SECONDS_SLACK ?>" data-bytes="<?= VIDEO_MAX_BYTES ?>" data-videos="<?= attr_json($formVideos) ?>"
+					data-text-uploading="<?= e(t('post.video_uploading')) ?>" data-text-processing="<?= e(t('post.video_processing')) ?>"
+					data-text-too-long="<?= e(t('post.video_err_too_long', $videoText)) ?>" data-text-too-big="<?= e(t('post.video_err_too_big', $videoText)) ?>"
+					data-text-failed="<?= e(t('post.video_err_failed', $videoText)) ?>" data-text-limit="<?= e(tp('post.video_limit', setting('max_videos'))) ?>"
+					data-text-busy="<?= e(t('post.video_busy')) ?>" data-text-compressing="<?= e(t('post.video_compressing')) ?>"
+					data-compressor="<?= e(asset('js/vendor/mediabunny.min.js')) ?>">
+					<h3 class="video-upload__title"><?= icon('play', 18) ?><?= e(t('post.video_title')) ?></h3>
+					<p class="field__hint"><?= e(t('post.video_hint', $videoText)) ?></p>
+					<label class="btn btn--outline video-upload__btn">
+						<?= icon('plus', 18) ?><?= e(t('post.video_add')) ?>
+						<input class="visually-hidden" type="file" accept="video/mp4,video/quicktime,video/webm,video/*" data-video-input>
+					</label>
+					<ul class="photo-grid" data-video-list aria-live="polite"></ul>
+				</div>
+				<?php endif; ?>
 			</section>
 
 			<!-- 4. Price -->
@@ -440,13 +487,20 @@ require INC_DIR . '/header.php';
 							<?php endforeach; ?>
 						</div>
 					</fieldset>
-					<div class="field">
-						<label class="field__label" for="p-phone"><?= e(t('post.f_phone')) ?></label>
-						<input class="input" id="p-phone" name="phone" type="tel" autocomplete="tel" value="<?= e($v['phone']) ?>">
-					</div>
-					<div class="field field--full">
-						<label class="switch"><input type="checkbox" role="switch" name="show_phone" value="1"<?= $v['show_phone'] ? ' checked' : '' ?>><span><?= e(t('post.show_phone')) ?></span></label>
-					</div>
+					<!-- How buyers reach the author: calls only to the confirmed phone of the profile -->
+					<fieldset class="field field--full filters__fieldset">
+						<legend class="field__label"><?= e(t('post.f_contact')) ?></legend>
+						<div class="seg seg--spaced">
+							<?php foreach (LISTING_CONTACTS as $way): $off = $way !== 'messages' && !$canCall; ?>
+							<label class="seg__item"><input type="radio" name="contact" value="<?= $way ?>"<?= ($canCall ? $v['contact'] : 'messages') === $way ? ' checked' : '' ?><?= $off ? ' disabled' : '' ?>><span class="seg__label"><?= e(t('post.contact_' . $way)) ?></span></label>
+							<?php endforeach; ?>
+						</div>
+						<?php if ($canCall): ?>
+						<span class="field__hint"><?= e(t('post.contact_phone', ['phone' => phone_format($me['phone'])])) ?></span>
+						<?php else: ?>
+						<span class="field__hint"><?= e(t('post.contact_no_phone')) ?> <a href="<?= e(url('profile.php')) ?>#settings"><?= e(t('post.contact_confirm')) ?></a></span>
+						<?php endif; ?>
+					</fieldset>
 				</div>
 			</section>
 
@@ -508,6 +562,17 @@ require INC_DIR . '/header.php';
 		<span class="photo-item__actions">
 			<button type="button" class="photo-item__btn" data-make-cover aria-label="<?= e(t('post.photo_make_cover')) ?>" title="<?= e(t('post.photo_make_cover')) ?>"><?= icon('star', 18) ?></button>
 			<button type="button" class="photo-item__btn" data-remove-photo aria-label="<?= e(t('post.photo_remove')) ?>" title="<?= e(t('post.photo_remove')) ?>"><?= icon('trash', 18) ?></button>
+		</span>
+	</li>
+</template>
+
+<template id="video-item-tpl">
+	<li class="photo-item video-item">
+		<img src="data:," alt="" hidden>
+		<span class="video-item__state" data-video-state></span>
+		<span class="tag video-item__time" data-video-time hidden></span>
+		<span class="photo-item__actions">
+			<button type="button" class="photo-item__btn" data-remove-video aria-label="<?= e(t('post.video_remove')) ?>" title="<?= e(t('post.video_remove')) ?>"><?= icon('trash', 18) ?></button>
 		</span>
 	</li>
 </template>

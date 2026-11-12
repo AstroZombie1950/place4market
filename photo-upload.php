@@ -6,6 +6,8 @@
 	or {"error": "text for the visitor"} with a 4xx/5xx status.
 	The photo is processed right away (media.php) and waits for the form
 	(listing_id NULL); unused ones are removed after a day.
+	POST purpose=avatar: the file becomes the profile photo at once (the previous
+	one is removed); answer {"ok": true}, the profile page reloads with a message.
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
 require INC_DIR . '/media.php';
@@ -63,6 +65,31 @@ if ($error !== UPLOAD_ERR_OK) {
 }
 
 rate_hit('photo_upload', (string) current_user_id());
+
+// Profile photo: same checks and limits, saved to the account right away
+if (($_POST['purpose'] ?? '') === 'avatar') {
+	try {
+		$avatar = process_avatar($file['tmp_name']);
+		$old = set_user_avatar(current_user_id(), $avatar);
+	} catch (PhotoError $e) {
+		log_event('info', 'Photo rejected', ['reason' => $e->getMessage(), 'bytes' => $file['size'], 'purpose' => 'avatar'], 'upload');
+		upload_fail(422, $e->getMessage());
+	} catch (Throwable $e) {
+		log_exception($e);
+		if (isset($avatar)) {
+			delete_photo_files($avatar);
+		}
+		upload_fail(500, 'failed');
+	}
+
+	if ($old !== null) {
+		delete_photo_files($old);
+	}
+	log_action('account.avatar', ['user_id' => current_user_id()]);
+	flash('success', t('p.avatar_saved'));
+	echo json_encode(['ok' => true]);
+	exit;
+}
 
 try {
 	$photo = process_photo($file['tmp_name']);

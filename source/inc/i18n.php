@@ -351,9 +351,14 @@ function route_match(string $path): ?array
 }
 
 // The same page in another language (switcher): the page's canonical address
-// with the current query (filters, sorting) kept
+// with the current query (filters, sorting) kept. A page that is not there has no
+// twin in another language: the switcher on a 404 leads to the home page
 function lang_url(string $code): string
 {
+	if (http_response_code() === 404) {
+		return lang_link($code, 'index.php');
+	}
+
 	[$path, $params] = $GLOBALS['page']['canonical'] ?? [current_script(), []];
 	$query = array_diff_key($_GET, ['lang' => true, 'cat_path' => true]);
 

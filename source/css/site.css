@@ -831,6 +831,12 @@ button {
 	outline-offset: -3px;
 }
 
+/* A way not open yet (calls without a confirmed phone, post.php) */
+.seg__item input:disabled + .seg__label {
+	color: var(--color-text-muted);
+	cursor: not-allowed;
+}
+
 /* Switch (checkbox with role="switch") */
 .switch {
 	display: flex;
@@ -1536,7 +1542,71 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 }
 
 .badge--active,
+.badge--sold,
 .badge--verified { background: var(--color-success-soft); color: var(--color-success); }
+
+/* Trust marks after a person's name (trust_marks()): administrator, confirmed e-mail
+   and phone. The explanation opens under the name on hover, focus or tap */
+.seller__name,
+.profile-head__name,
+.thread__name {
+	position: relative;
+}
+
+.trust {
+	display: inline-flex;
+	gap: 2px;
+	margin-left: var(--space-1);
+	vertical-align: middle;
+}
+
+.trust__mark {
+	display: inline-grid;
+	place-items: center;
+	width: 24px;
+	height: 24px;
+	border-radius: var(--radius-sm);
+	color: var(--color-success);
+	cursor: help;
+}
+
+.trust__mark--admin {
+	color: var(--color-accent);
+}
+
+.trust__mark .icon__cut {
+	stroke: var(--color-surface);
+	stroke-width: 2.2;
+}
+
+.trust__mark::after {
+	content: attr(data-tip);
+	position: absolute;
+	top: 100%;
+	left: 0;
+	z-index: var(--z-dropdown);
+	max-width: 100%;
+	margin-top: var(--space-1);
+	padding: var(--space-1) var(--space-2);
+	border-radius: var(--radius-sm);
+	background: var(--color-text);
+	color: var(--color-surface);
+	font-family: var(--font-sans);
+	font-size: var(--fs-sm);
+	font-weight: var(--fw-regular);
+	line-height: var(--lh-base);
+	white-space: nowrap;
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+	transition: opacity var(--transition), visibility var(--transition);
+}
+
+.trust__mark:hover::after,
+.trust__mark:focus::after {
+	opacity: 1;
+	visibility: visible;
+}
 .badge--pending { background: var(--color-warning-soft); color: var(--color-warning); }
 .badge--expired,
 .badge--inactive,
@@ -2546,6 +2616,210 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 	font-size: var(--fs-2xl);
 }
 
+/* Profile photo instead of the initials (avatar() in site.php) */
+.avatar--photo {
+	overflow: hidden;
+	background: var(--color-neutral-soft);
+}
+
+.avatar--photo img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+/* Own profile: the avatar is the button that picks a new photo (a pencil on it) */
+.avatar-edit {
+	position: relative;
+	display: inline-flex;
+	flex-shrink: 0;
+	border-radius: 50%;
+	cursor: pointer;
+}
+
+.avatar-edit__badge {
+	position: absolute;
+	right: -4px;
+	bottom: -4px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	border: 1px solid var(--color-border);
+	border-radius: 50%;
+	background: var(--color-surface);
+	color: var(--color-text-muted);
+	transition: color var(--transition);
+}
+
+.avatar-edit:hover .avatar-edit__badge {
+	color: var(--color-accent-ink);
+}
+
+.avatar-edit:focus-within {
+	outline: 2px solid var(--focus-color);
+	outline-offset: 3px;
+}
+
+.avatar-edit.is-busy {
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+.profile-head__photo {
+	margin-top: var(--space-2);
+}
+
+.profile-head__photo button {
+	min-height: 44px;
+	padding: 0;
+	border: 0;
+	background: none;
+	cursor: pointer;
+	color: var(--color-text-muted);
+	font-size: var(--fs-sm);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.profile-head__photo button:hover {
+	color: var(--color-text);
+}
+
+/* Rating and reviews (stars() and seller_rating_html() in site.php, seller.php) */
+.stars {
+	display: inline-flex;
+	gap: 2px;
+	vertical-align: middle;
+}
+
+.stars__star {
+	display: inline-flex;
+	color: var(--color-border);
+}
+
+.stars__star svg {
+	fill: currentColor;
+}
+
+.stars__star.is-on {
+	color: var(--color-accent);
+}
+
+.rating {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--color-text-muted);
+}
+
+.rating strong {
+	color: var(--color-text);
+}
+
+.reviews {
+	margin-top: var(--space-8);
+}
+
+.reviews__total {
+	margin-left: var(--space-3);
+	font-family: var(--font-sans);
+	font-size: var(--fs-md);
+	font-weight: var(--fw-regular);
+}
+
+.reviews__form {
+	margin-bottom: var(--space-5);
+}
+
+.reviews__form .panel__body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-4);
+}
+
+.reviews__list {
+	padding: 0;
+	list-style: none;
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius);
+}
+
+.review {
+	display: flex;
+	gap: var(--space-4);
+	padding: var(--space-5);
+}
+
+.review + .review {
+	border-top: 1px solid var(--color-border);
+}
+
+.review__main {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	min-width: 0;
+}
+
+.review__head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-1) var(--space-3);
+}
+
+.review__date,
+.review__about {
+	color: var(--color-text-muted);
+	font-size: var(--fs-sm);
+}
+
+.review__about a {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.review__text {
+	overflow-wrap: anywhere;
+}
+
+/* Rating choice: radios from 5 to 1 shown right to left, so the chosen star and
+	the ones before it (after it in the markup) light up */
+.stars-input {
+	display: inline-flex;
+	flex-direction: row-reverse;
+	justify-content: flex-end;
+}
+
+.stars-input label {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	color: var(--color-border);
+	cursor: pointer;
+	transition: color var(--transition);
+}
+
+.stars-input label svg {
+	fill: currentColor;
+}
+
+.stars-input input:checked ~ label,
+.stars-input label:hover,
+.stars-input label:hover ~ label {
+	color: var(--color-accent);
+}
+
+.stars-input input:focus-visible + label {
+	outline: 2px solid var(--focus-color);
+	outline-offset: -2px;
+}
+
 /* Safety tips */
 .safety__title {
 	display: flex;
@@ -2815,6 +3089,53 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 	background: var(--color-hover);
 }
 
+/* Video in the post form (main.js): poster when ready, the state on the tile before */
+.video-upload {
+	margin-top: var(--space-5);
+	padding-top: var(--space-5);
+	border-top: 1px solid var(--color-border);
+}
+
+.video-upload__title {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	margin: 0 0 var(--space-1);
+	font-size: var(--fs-base);
+}
+
+.video-upload__btn {
+	margin-top: var(--space-3);
+}
+
+.video-upload__btn:focus-within {
+	outline: 2px solid var(--focus-color);
+	outline-offset: 2px;
+}
+
+.video-item__state {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: var(--space-2) var(--space-2) 44px;
+	font-size: var(--fs-sm);
+	font-weight: var(--fw-semibold);
+	text-align: center;
+	color: var(--color-text-muted);
+}
+
+.video-item.is-failed .video-item__state {
+	color: var(--color-danger);
+}
+
+.video-item__time {
+	position: absolute;
+	left: 6px;
+	top: 6px;
+}
+
 /* Live preview */
 .preview__hint {
 	margin: calc(var(--space-2) * -1) 0 var(--space-3);
@@ -2979,13 +3300,6 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
-}
-
-.profile-head__badges {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--space-2);
-	margin-top: var(--space-3);
 }
 
 /* My listings */
@@ -3311,6 +3625,19 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 	overflow: hidden;
 }
 
+/* A conversation with the site's staff has no listing: a shield in place of the photo */
+.thread__thumb--support {
+	display: grid;
+	place-items: center;
+	background: var(--color-accent-soft);
+	color: var(--color-accent-ink);
+}
+
+.thread__listing-note {
+	color: var(--color-text-muted);
+	font-size: var(--fs-sm);
+}
+
 .thread__listing-text {
 	flex: 1 1 auto;
 	min-width: 0;
@@ -3351,10 +3678,113 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 }
 
 .msg {
+	position: relative;
 	max-width: min(72%, 520px);
 	padding: 10px 14px;
 	border-radius: var(--radius);
 	line-height: 1.45;
+}
+
+/* Line breaks of the author are kept */
+.msg__text {
+	display: block;
+	overflow-wrap: anywhere;
+	white-space: pre-wrap;
+}
+
+.msg--deleted .msg__text {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--color-text-muted);
+	font-style: italic;
+}
+
+/* The message this one answers: a press scrolls to it (main.js) */
+.msg__quote {
+	display: block;
+	width: 100%;
+	margin-bottom: 6px;
+	padding: 2px 0 2px var(--space-2);
+	border: 0;
+	border-left: 3px solid var(--color-accent);
+	background: none;
+	color: inherit;
+	font: inherit;
+	font-size: var(--fs-sm);
+	text-align: left;
+	cursor: pointer;
+}
+
+.msg__quote-name {
+	display: block;
+	color: var(--color-accent-ink);
+	font-weight: var(--fw-semibold);
+}
+
+.msg__quote-text {
+	display: block;
+	overflow: hidden;
+	color: var(--color-text-muted);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.msg.is-flash {
+	animation: msg-flash 1.2s ease;
+}
+
+@keyframes msg-flash {
+	0%, 60% { box-shadow: 0 0 0 3px var(--color-accent); }
+	100% { box-shadow: 0 0 0 3px transparent; }
+}
+
+/* Reply / delete beside the message: on hover and keyboard focus, on touch screens after
+   a tap on the message (.is-active) */
+.msg__tools {
+	position: absolute;
+	top: 50%;
+	display: flex;
+	opacity: 0;
+	visibility: hidden;
+	transform: translateY(-50%);
+	transition: opacity var(--transition), visibility var(--transition);
+}
+
+.msg--in .msg__tools {
+	left: 100%;
+}
+
+.msg--out .msg__tools {
+	right: 100%;
+	flex-direction: row-reverse;
+}
+
+.msg:hover .msg__tools,
+.msg:focus-within .msg__tools,
+.msg.is-active .msg__tools {
+	opacity: 1;
+	visibility: visible;
+}
+
+.msg__tool {
+	display: grid;
+	place-items: center;
+	width: var(--tap-size);
+	height: var(--tap-size);
+	border: 0;
+	border-radius: var(--radius-sm);
+	background: none;
+	color: var(--color-text-muted);
+	cursor: pointer;
+}
+
+.msg__tool:hover {
+	color: var(--color-text);
+}
+
+.msg__tool[data-msg-delete]:hover {
+	color: var(--color-danger);
 }
 
 .msg--in {
@@ -3368,12 +3798,23 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 	background: var(--color-accent-soft);
 }
 
-.msg__time {
-	display: block;
+.msg__meta {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--space-1);
 	margin-top: 2px;
 	color: var(--color-text-muted);
 	font-size: var(--fs-xs);
-	text-align: right;
+}
+
+/* Ticks of one's own message: delivered — grey, read — coloured */
+.msg__ticks {
+	display: inline-flex;
+}
+
+.msg.is-read .msg__ticks {
+	color: var(--color-accent);
 }
 
 .quick {
@@ -3390,6 +3831,38 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 
 .quick .chip {
 	cursor: pointer;
+}
+
+/* The message being answered, above the input */
+.reply-bar {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	padding: var(--space-2) var(--space-2) 0 var(--space-4);
+	background: var(--color-surface);
+	color: var(--color-accent-ink);
+}
+
+.reply-bar[hidden] {
+	display: none;
+}
+
+.reply-bar__text {
+	flex: 1 1 auto;
+	min-width: 0;
+	padding-left: var(--space-2);
+	border-left: 3px solid var(--color-accent);
+	overflow: hidden;
+	color: var(--color-text-muted);
+	font-size: var(--fs-sm);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.reply-bar__name {
+	display: block;
+	color: var(--color-accent-ink);
+	font-weight: var(--fw-semibold);
 }
 
 .composer {
@@ -3543,6 +4016,32 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 
 .toast--info {
 	border-left-color: var(--toast-info);
+}
+
+/* A notification (notify.php): a title and a line of text, the whole toast is a link */
+.toast--rich {
+	text-decoration: none;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	font-weight: var(--fw-regular);
+}
+
+.toast--rich strong {
+	font-weight: var(--fw-bold);
+}
+
+.toast--rich span {
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow-wrap: anywhere;
+}
+
+/* Profile: where notifications go */
+.notify-channel {
+	margin-top: var(--space-5);
 }
 
 .toast--danger {
@@ -4766,7 +5265,8 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 		bottom: 0;
 		z-index: var(--z-bottom-nav);
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		grid-auto-flow: column;
+		grid-auto-columns: minmax(0, 1fr);
 		gap: var(--space-2);
 		padding: 10px var(--gutter) calc(10px + env(safe-area-inset-bottom));
 		background: var(--color-header-bg);
@@ -4888,6 +5388,21 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 		padding-left: var(--space-2);
 	}
 
+	/* The review button is a star only: the listing's name and price keep their room */
+	.thread__review {
+		flex: 0 0 44px;
+		padding-inline: 0;
+	}
+
+	.thread__review span {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+
 	.thread__back {
 		display: inline-flex;
 	}
@@ -4908,8 +5423,18 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 		border-top: 1px solid var(--color-border);
 	}
 
+	/* Room beside the message for its two tools */
 	.msg {
-		max-width: 85%;
+		max-width: calc(100% - 2 * var(--tap-size));
+	}
+
+	.reply-bar {
+		flex: 0 0 auto;
+		border-top: 1px solid var(--color-border);
+	}
+
+	.reply-bar:not([hidden]) + .composer {
+		border-top: 0;
 	}
 
 	/* A short dialog (confirm) is a bottom sheet, a dialog with a form takes the whole screen.

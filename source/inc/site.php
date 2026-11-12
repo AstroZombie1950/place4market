@@ -528,11 +528,24 @@ function listing_description(array $listing): string
 	return user_text($listing['description'], $listing['lang']);
 }
 
-// Phone shown on a listing: its own or the seller's; null when the author hid it.
+// Ways to reach the seller the author can choose (listings.contact, 031)
+const LISTING_CONTACTS = ['messages', 'calls', 'both'];
+
+// How the seller of a listing can be reached now: ['messages' => bool, 'calls' => bool].
+// The author chooses messages, calls or both (listings.contact); calls go only to the
+// confirmed phone of the profile, so without one the listing falls back to messages
+function listing_contact(array $listing, array $seller): array
+{
+	$calls = ($listing['contact'] ?? 'messages') !== 'messages' && !empty($seller['verified']) && !empty($seller['phone']);
+
+	return ['messages' => ($listing['contact'] ?? 'messages') !== 'calls' || !$calls, 'calls' => $calls];
+}
+
+// Phone shown on a listing: the seller's confirmed number when calls are on, else null.
 // Never printed into the page: phone.php gives it on request
 function listing_phone(array $listing, array $seller): ?string
 {
-	return $listing['show_phone'] ? ($listing['phone'] ?? $seller['phone']) : null;
+	return listing_contact($listing, $seller)['calls'] ? phone_format($seller['phone']) : null;
 }
 
 // Address of a listing: /oglas/vw-golf-7-1-6-tdi-2016-1048. The words come from the
@@ -850,12 +863,52 @@ function fav_button(int $id, string $class = '', bool $removeOnUnsave = false): 
 		. icon('heart', 20) . '</button>';
 }
 
-// Avatar with initials
-function avatar(string $name, string $size = ''): string
+// Avatar of a user (user()): the profile photo, or the initials when there is none (or only
+// a name is given). The photo has two files, 96 and 320 px (media.php, process_avatar());
+// the box sizes are those of .avatar in site.css
+function avatar(array|string $user, string $size = ''): string
 {
+	$name = is_array($user) ? $user['name'] : $user;
+	$class = 'avatar' . ($size ? ' avatar--' . e($size) : '');
+
+	if (is_array($user) && !empty($user['avatar'])) {
+		$px = ['sm' => 40, 'xl' => 88][$size] ?? 48;
+
+		return '<span class="' . $class . ' avatar--photo" aria-hidden="true"><img src="' . e(storage_file_url($user['avatar'], '96.webp')) . '"'
+			. ' srcset="' . e(storage_file_url($user['avatar'], '96.webp')) . ' 96w, ' . e(storage_file_url($user['avatar'], '320.webp')) . ' 320w"'
+			. ' sizes="' . $px . 'px" width="' . $px . '" height="' . $px . '" alt="" decoding="async"' . ($size === 'xl' ? '' : ' loading="lazy"') . '></span>';
+	}
+
 	$display = lang() === 'sr-cyrl' ? sr_cyr($name) : $name;
 
-	return '<span class="avatar' . ($size ? ' avatar--' . e($size) : '') . '" aria-hidden="true">' . e(initials($display)) . '</span>';
+	return '<span class="' . $class . '" aria-hidden="true">' . e(initials($display)) . '</span>';
+}
+
+// Marks after a person's name: site administrator (seal), confirmed e-mail (letter) and
+// phone (handset). Each explains itself on hover, focus or tap (data-tip, site.css "Trust marks").
+// Goes inside the element with the name
+function trust_marks(array $user): string
+{
+	$marks = [];
+	if (($user['status'] ?? 'active') !== 'active') {
+		return '';
+	}
+	if (($user['role'] ?? '') === 'admin') {
+		$marks[] = ['admin', 'seal', t('trust.admin')];
+	}
+	if (!empty($user['email_verified'])) {
+		$marks[] = ['email', 'mail', t('p.verified_email')];
+	}
+	if (!empty($user['verified'])) {
+		$marks[] = ['phone', 'phone', t('p.verified_phone')];
+	}
+
+	$out = '';
+	foreach ($marks as [$kind, $icon, $label]) {
+		$out .= '<span class="trust__mark trust__mark--' . $kind . '" role="img" tabindex="0" aria-label="' . e($label) . '" data-tip="' . e($label) . '">' . icon($icon, 18) . '</span>';
+	}
+
+	return $out === '' ? '' : ' <span class="trust">' . $out . '</span>';
 }
 
 // Person name in the current script
@@ -965,6 +1018,34 @@ function terms_label(string $key): string
 }
 
 /* ---------- Sellers ---------- */
+
+// Five stars for a rating of 1–5 (halves round to the nearer star), read as "4,5 od 5"
+function stars(float $rating): string
+{
+	$on = (int) round($rating);
+	$out = '';
+	for ($i = 1; $i <= 5; $i++) {
+		$out .= '<span class="stars__star' . ($i <= $on ? ' is-on' : '') . '">' . icon('star', 16) . '</span>';
+	}
+
+	return '<span class="stars" role="img" aria-label="' . e(t('rv.stars', ['n' => rating_text($rating)])) . '">' . $out . '</span>';
+}
+
+// "4,5" (a dot in English)
+function rating_text(float $rating): string
+{
+	return number_format($rating, 1, lang() === 'en' ? '.' : ',', '');
+}
+
+// "★ 4,5 · 12 ocena" of a seller, '' without reviews; goes inside a link or a meta line
+function seller_rating_html(int $sellerId): string
+{
+	$rating = seller_rating($sellerId);
+
+	return $rating['count'] === 0 ? ''
+		: '<span class="rating"><span class="stars__star is-on" aria-hidden="true">' . icon('star', 16) . '</span>'
+			. '<strong>' . e(rating_text($rating['average'])) . '</strong> · ' . e(tp('rv.count', $rating['count'])) . '</span>';
+}
 
 function seller_url(array $user): string
 {

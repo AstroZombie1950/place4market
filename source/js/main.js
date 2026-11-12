@@ -80,21 +80,36 @@
 	/* ----------------------------------------------------------------------
 		Toasts: toast('Saved'), toast('Copied', 'info'), toast('Failed', 'danger')
 		---------------------------------------------------------------------- */
+	// A notification: toast({ title, text, url }, 'info') is a link with two lines and stays longer
 	const toast = (message, type = 'success') => {
 		const region = $('[data-toast-region]');
 		if (!region || !message) return;
 
-		const el = document.createElement('div');
+		const rich = typeof message === 'object';
+		const el = document.createElement(rich && message.url ? 'a' : 'div');
 		el.className = `toast toast--${type}`;
 		el.setAttribute('role', 'status');
-		el.textContent = message;
+		if (rich) {
+			if (message.url) el.href = message.url;
+			const title = document.createElement('strong');
+			title.textContent = message.title;
+			el.appendChild(title);
+			if (message.text) {
+				const text = document.createElement('span');
+				text.textContent = message.text;
+				el.appendChild(text);
+			}
+			el.classList.add('toast--rich');
+		} else {
+			el.textContent = message;
+		}
 		region.appendChild(el);
 
 		requestAnimationFrame(() => el.classList.add('is-visible'));
 		setTimeout(() => {
 			el.classList.remove('is-visible');
 			setTimeout(() => el.remove(), 250);
-		}, 3200);
+		}, rich ? 8000 : 3200);
 	};
 
 	// A multi-line field grows with its text from its CSS min-height up to
@@ -413,7 +428,8 @@
 		Confirm: [data-confirm="Question?"]
 		data-confirm-label: OK button text
 		After OK: follows the link or submits the form (a submit button is sent
-		as the submitter, with its name and value).
+		as the submitter, with its name and value); a button without a form gets
+		the "confirmed" event.
 		---------------------------------------------------------------------- */
 	const initConfirm = () => {
 		const dialog = $('#confirm-dialog');
@@ -442,6 +458,9 @@
 				window.location.href = pending.href;
 			} else if (pending.form) {
 				pending.form.requestSubmit(pending.type === 'submit' ? pending : undefined);
+			} else {
+				// A button outside a form: its own script goes on
+				pending.dispatchEvent(new CustomEvent('confirmed', { bubbles: true }));
 			}
 			pending = null;
 		});
@@ -728,7 +747,12 @@
 				let data;
 				btn.disabled = true;
 				try {
-					data = await postJson(i18n.phoneUrl, { id });
+					data = await postJson(i18n.phoneUrl, { id, next: location.pathname + location.search });
+					// The session ended while the page was open
+					if (data.login) {
+						window.location.href = data.login;
+						return;
+					}
 				} catch (err) {
 					btn.disabled = false;
 					toast(err.message, 'danger');
@@ -778,6 +802,171 @@
 		});
 	};
 
+	// Decoded image with EXIF rotation applied; error.unreadable for formats the
+	// browser cannot open (e.g. HEIC outside Safari)
+	const decodePhoto = async (file) => {
+		try {
+			return await createImageBitmap(file, { imageOrientation: 'from-image' });
+		} catch (err) { /* older browsers: <img> applies EXIF rotation itself */ }
+
+		const url = URL.createObjectURL(file);
+		try {
+			const img = new Image();
+			img.src = url;
+			await img.decode();
+			return img;
+		} catch (err) {
+			const error = new Error('Photo cannot be decoded');
+			error.unreadable = true;
+			throw error;
+		} finally {
+			URL.revokeObjectURL(url);
+		}
+	};
+
+	/* ----------------------------------------------------------------------
+		Profile photo: label[data-avatar-upload="photo-upload.php"] with a file
+		input. The middle square of the chosen photo, up to 640 px, goes to the
+		server as JPEG (EXIF and GPS dropped on the way); then the page reloads
+		with the server's message
+		---------------------------------------------------------------------- */
+	const initAvatar = () => {
+		const box = $('[data-avatar-upload]');
+		const input = box && $('input[type="file"]', box);
+		if (!input) return;
+
+		const SIDE = 640;
+
+		input.addEventListener('change', async () => {
+			const file = (input.files || [])[0];
+			input.value = '';
+			if (!file) return;
+
+			box.classList.add('is-busy');
+			toast(i18n.photoUploading, 'info');
+			try {
+				const source = await decodePhoto(file);
+				const crop = Math.min(source.width, source.height);
+				const side = Math.min(SIDE, crop);
+				const canvas = document.createElement('canvas');
+				canvas.width = side;
+				canvas.height = side;
+				const ctx = canvas.getContext('2d');
+				ctx.fillStyle = '#fff';
+				ctx.fillRect(0, 0, side, side);
+				ctx.imageSmoothingQuality = 'high';
+				ctx.drawImage(source, (source.width - crop) / 2, (source.height - crop) / 2, crop, crop, 0, 0, side, side);
+				if (source.close) source.close();
+
+				const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+				canvas.width = 0;
+				canvas.height = 0;
+				if (!blob) throw new Error('canvas.toBlob returned nothing');
+
+				await postJson(box.dataset.avatarUpload, { purpose: 'avatar', photo: new File([blob], 'avatar.jpg', { type: 'image/jpeg' }) });
+				location.reload();
+			} catch (err) {
+				box.classList.remove('is-busy');
+				toast(err.unreadable ? i18n.photoUnreadable : err.message || i18n.photoUploadFailed, 'info');
+			}
+		});
+	};
+
+	/* ----------------------------------------------------------------------
+		Notifications in the browser (profile → Notifications → "in the browser"):
+		- i18n.notifyUrl (notify.php) is asked every 30 s while the site is open in
+		  a tab; each event comes once: a toast with a link and a short sound, or a
+		  system notification when the tab is in the background and they are allowed
+		- the sound needs a click somewhere on the page first (browser rule)
+		- a message of the conversation open on the screen makes only the sound:
+		  the chat shows it itself
+		- profile: fieldset[data-notify-channel] is hidden while every notification
+		  type is off; choosing the browser there asks for the permission, and
+		  [data-notify-blocked] says so when the browser refuses it
+		---------------------------------------------------------------------- */
+	const initNotify = () => {
+		const channel = $('[data-notify-channel]');
+		if (channel) {
+			const form = channel.closest('form');
+			const switches = $$('input[name^="notify["]', form);
+			const sync = () => {
+				const any = switches.some((el) => el.checked);
+				channel.hidden = !any;
+				channel.disabled = !any;
+			};
+			switches.forEach((el) => el.addEventListener('change', sync));
+			$$('input[name="channel"]', channel).forEach((el) => el.addEventListener('change', async () => {
+				if (el.value === 'email' || !('Notification' in window)) {
+					$('[data-notify-blocked]', channel).hidden = true;
+					return;
+				}
+				if (Notification.permission === 'default') {
+					try { await Notification.requestPermission(); } catch (err) { /* old Safari: callback form, not needed */ }
+				}
+				$('[data-notify-blocked]', channel).hidden = Notification.permission !== 'denied';
+			}));
+		}
+
+		if (!i18n.notifyUrl) return;
+
+		// Two short tones; silent until the visitor has clicked on the page
+		let audio = null;
+		const beep = () => {
+			try {
+				const Ctx = window.AudioContext || window.webkitAudioContext;
+				if (!Ctx) return;
+				audio = audio || new Ctx();
+				if (audio.state === 'suspended') audio.resume();
+				[[880, 0], [1175, 0.16]].forEach(([freq, at]) => {
+					const osc = audio.createOscillator();
+					const gain = audio.createGain();
+					osc.type = 'sine';
+					osc.frequency.value = freq;
+					gain.gain.setValueAtTime(0.0001, audio.currentTime + at);
+					gain.gain.exponentialRampToValueAtTime(0.15, audio.currentTime + at + 0.02);
+					gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + at + 0.14);
+					osc.connect(gain).connect(audio.destination);
+					osc.start(audio.currentTime + at);
+					osc.stop(audio.currentTime + at + 0.15);
+				});
+			} catch (err) { /* no sound: the notification is still shown */ }
+		};
+
+		const show = (item) => {
+			const openThread = $('[data-thread]:not([hidden])');
+			if (item.type === 'message' && !document.hidden && openThread && openThread.dataset.thread === String(item.conversation)) return;
+
+			if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+				try {
+					const note = new Notification(item.title, { body: item.text, tag: item.type + (item.conversation || '') });
+					note.onclick = () => {
+						window.focus();
+						location.href = item.url;
+					};
+					return;
+				} catch (err) { /* e.g. Android Chrome without a service worker: the toast below */ }
+			}
+			toast(item, 'info');
+		};
+
+		let busy = false;
+		const ask = async () => {
+			if (busy) return;
+			busy = true;
+			try {
+				const data = await postJson(i18n.notifyUrl, {});
+				if (data.items && data.items.length) {
+					data.items.forEach(show);
+					beep();
+				}
+			} catch (err) { /* offline or logged out: next time */ }
+			busy = false;
+		};
+
+		setTimeout(ask, 1500);
+		setInterval(ask, 30000);
+	};
+
 	/* ----------------------------------------------------------------------
 		Post an ad: [data-post-form]
 		- category select [data-category-select] (data-subcats JSON) fills
@@ -788,6 +977,14 @@
 		  away to [data-upload-url]; the form sends only photo_ids[] in order.
 		  Photos already uploaded (editing, a form with an error) come in
 		  [data-photo-list] data-photos='[{"id", "url"}]'
+		- video (video.php): [data-video-upload] with data-max, data-seconds,
+		  data-bytes, data-videos='[{"id", "status", "poster", "time", "error"}]'
+		  and its texts (data-text-*); <template id="video-item-tpl">. First the
+		  video is compressed on the device when the browser can (compressVideo:
+		  data-compressor, loaded on the first pick only), then it goes in parts,
+		  a few at once (start → part… → finish); then the status is asked every
+		  5 s until the worker has made it ready (or failed). The form sends
+		  video_ids[]; not while a file is still being prepared or sent
 		- [data-subcategory-select] data-selected: subcategory chosen on load
 		- blocks of some subcategories: [data-for="slug slug…"], a district block
 		  also [data-city] = the address word of its city, typed in [data-city-input]
@@ -931,28 +1128,6 @@
 		try {
 			photos = JSON.parse(list.dataset.photos || '[]').map((photo) => ({ id: photo.id, url: photo.url, name: '', busy: false }));
 		} catch (err) { photos = []; }
-
-		// Decoded image with EXIF rotation applied; error.unreadable for formats the
-		// browser cannot open (e.g. HEIC outside Safari)
-		const decodePhoto = async (file) => {
-			try {
-				return await createImageBitmap(file, { imageOrientation: 'from-image' });
-			} catch (err) { /* older browsers: <img> applies EXIF rotation itself */ }
-
-			const url = URL.createObjectURL(file);
-			try {
-				const img = new Image();
-				img.src = url;
-				await img.decode();
-				return img;
-			} catch (err) {
-				const error = new Error('Photo cannot be decoded');
-				error.unreadable = true;
-				throw error;
-			} finally {
-				URL.revokeObjectURL(url);
-			}
-		};
 
 		const preparePhoto = async (file) => {
 			const source = await decodePhoto(file);
@@ -1108,13 +1283,325 @@
 			renderPhotos();
 		}
 
-		// Photo ids in display order go with the form; not while uploads are running
+		// Video: { id, status, poster, time, error, progress, name }; status compressing and
+		// uploading only in this tab (abort stops them)
+		const vbox = $('[data-video-upload]', form);
+		const vlist = vbox ? $('[data-video-list]', vbox) : null;
+		const vtpl = $('#video-item-tpl');
+		let videos = [];
+		let vpoll = 0;
+		if (vbox) {
+			try { videos = JSON.parse(vbox.dataset.videos || '[]'); } catch (err) { videos = []; }
+		}
+		const vtext = (key) => (vbox ? vbox.dataset['text' + key] || '' : '');
+		const vurl = vbox ? vbox.dataset.videoUpload : '';
+		const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+		// One request to video-upload.php (FormData fields); the error carries the server's text.
+		// XHR, not fetch: a part reports how much of it is sent (onSent) and can be aborted (video.xhrs).
+		// 409 on finish = a part is not there yet (data.missing)
+		const videoPost = (fields, part, video, onSent) => new Promise((resolve, reject) => {
+			const body = new FormData();
+			Object.entries(fields).forEach(([key, value]) => (Array.isArray(value) ? value.forEach((v) => body.append(key + '[]', v)) : body.append(key, value)));
+			if (part) body.append('chunk', part, 'part');
+			body.append('csrf', csrf);
+			const xhr = new XMLHttpRequest();
+			const fail = (props) => reject(Object.assign(new Error(vtext('Failed')), props));
+			if (video) video.xhrs.add(xhr);
+			xhr.open('POST', vurl);
+			xhr.setRequestHeader('Accept', 'application/json');
+			xhr.responseType = 'json';
+			if (onSent) xhr.upload.onprogress = (e) => onSent(e.loaded);
+			xhr.onloadend = () => {
+				if (video) video.xhrs.delete(xhr);
+				const data = xhr.response || {};
+				if (xhr.status === 0) fail({ network: true });
+				else if (xhr.status >= 400 && xhr.status !== 409) fail({ message: data.error || vtext('Failed'), shown: true });
+				else resolve(data);
+			};
+			xhr.send(body);
+		});
+
+		// Length as the browser reads it (null when it cannot: the server checks anyway)
+		const videoSeconds = (file) => new Promise((resolve) => {
+			const el = document.createElement('video');
+			const url = URL.createObjectURL(file);
+			let settled = false;
+			const done = (value) => {
+				if (settled) return;
+				settled = true;
+				URL.revokeObjectURL(url);
+				el.removeAttribute('src');
+				resolve(value);
+			};
+			el.preload = 'metadata';
+			el.muted = true;
+			el.onloadedmetadata = () => done(Number.isFinite(el.duration) ? el.duration : null);
+			el.onerror = () => done(null);
+			setTimeout(() => done(null), 8000);
+			el.src = url;
+		});
+
+		/* Compression on the device before the upload (video.php, step 0): a phone minute of
+		   100–300 MB → ~20 MB, so the upload takes seconds instead of minutes. WebCodecs with the
+		   phone's hardware encoder through Mediabunny (vendor/mediabunny.min.js, ~110 KB gzip,
+		   loaded on the first pick). 720 by the short side, H.264 ~2.5 Mbit/s, up to 30 fps; sound
+		   copied when it fits MP4; no metadata (the phone's location stays on the phone). The
+		   server compresses again with the watermark, so a little more quality here is fine.
+		   Returns the new file, or null → the original goes (old browser, a codec it cannot
+		   decode, sound it cannot keep, not smaller, or slower than COMPRESS_MAX_SECONDS) */
+		const COMPRESS_SHORT_SIDE = 720;
+		const COMPRESS_BITRATE = 2500000;
+		const COMPRESS_MAX_SECONDS = 150;
+		let mediabunny = null;
+		const loadMediabunny = () => {
+			mediabunny = mediabunny || new Promise((resolve, reject) => {
+				const script = document.createElement('script');
+				script.src = vbox.dataset.compressor;
+				script.onload = () => (window.Mediabunny ? resolve(window.Mediabunny) : reject(new Error('Mediabunny missing')));
+				script.onerror = () => { mediabunny = null; reject(new Error('Mediabunny not loaded')); };
+				document.head.appendChild(script);
+			});
+			return mediabunny;
+		};
+		const compressVideo = async (file, video, onProgress) => {
+			if (!vbox.dataset.compressor || !('VideoEncoder' in window) || !('VideoDecoder' in window)) return null;
+			const MB = await loadMediabunny();
+			const input = new MB.Input({ source: new MB.BlobSource(file), formats: [MB.MP4, MB.QTFF, MB.WEBM, MB.MATROSKA] });
+			try {
+				const track = await input.getPrimaryVideoTrack();
+				if (!track || video.aborted) return null;
+				const w = track.displayWidth;
+				const h = track.displayHeight;
+				const scale = Math.min(1, COMPRESS_SHORT_SIDE / Math.min(w, h));
+				const even = (n) => Math.max(2, Math.round(n / 2) * 2);
+				const size = { width: even(w * scale), height: even(h * scale) };
+				if (!(await MB.canEncodeVideo('avc', { ...size, bitrate: COMPRESS_BITRATE }))) return null;
+				const stats = await track.computePacketStats(90);
+				const output = new MB.Output({ format: new MB.Mp4OutputFormat({ fastStart: 'in-memory' }), target: new MB.BufferTarget() });
+				const conversion = await MB.Conversion.init({
+					input,
+					output,
+					tracks: 'primary',
+					video: { ...size, fit: 'fill', codec: 'avc', bitrate: COMPRESS_BITRATE, keyFrameInterval: 2, forceTranscode: true, ...(stats.averagePacketRate > 31 ? { frameRate: 30 } : {}) },
+					audio: { codec: 'aac', bitrate: 128000 },
+					tags: () => ({}),
+					showWarnings: false,
+				});
+				// Without its sound the video is not the seller's video: better the original, slower
+				if (!conversion.isValid || conversion.discardedTracks.length) return null;
+				const started = Date.now();
+				conversion.onProgress = (progress) => {
+					onProgress(progress);
+					const spent = (Date.now() - started) / 1000;
+					// A slow phone (software encoding): the original may well be faster to send
+					if (spent > 8 && (progress < 0.02 || spent / progress > COMPRESS_MAX_SECONDS)) conversion.cancel();
+				};
+				video.abort = () => conversion.cancel();
+				try {
+					await conversion.execute();
+				} catch (err) {
+					if (err instanceof MB.ConversionCanceledError || conversion.state === 'canceled') return null;
+					throw err;
+				} finally {
+					video.abort = null;
+				}
+				const blob = new Blob([output.target.buffer], { type: 'video/mp4' });
+				return blob.size > 0 && blob.size < file.size * 0.9 ? blob : null;
+			} finally {
+				input.dispose && input.dispose();
+			}
+		};
+
+		const videoState = (video) => {
+			const label = { compressing: vtext('Compressing'), uploading: vtext('Uploading') }[video.status];
+			return label ? label + ' ' + (video.progress || 0) + '%' : vtext('Processing');
+		};
+		// Progress changes only the text: a tile drawn anew many times a second would swallow a tap on its button
+		const showProgress = (video) => {
+			const state = video.el && video.el.isConnected ? $('[data-video-state]', video.el) : null;
+			if (state) state.textContent = videoState(video);
+			else renderVideos();
+		};
+
+		const renderVideos = () => {
+			if (!vlist || !vtpl) return;
+			vlist.innerHTML = '';
+			videos.forEach((video, index) => {
+				const item = vtpl.content.firstElementChild.cloneNode(true);
+				const img = $('img', item);
+				const state = $('[data-video-state]', item);
+				const time = $('[data-video-time]', item);
+				const remove = $('[data-remove-video]', item);
+				video.el = item;
+				if (video.status === 'ready' && video.poster) {
+					img.src = video.poster;
+					img.hidden = false;
+					time.textContent = video.time || '';
+					time.hidden = !video.time;
+				} else if (video.status === 'failed') {
+					item.classList.add('is-failed');
+					state.textContent = video.error || vtext('Failed');
+				} else {
+					item.classList.add('is-busy');
+					item.setAttribute('aria-busy', 'true');
+					state.textContent = videoState(video);
+				}
+				remove.addEventListener('click', () => {
+					videos.splice(index, 1);
+					if (['compressing', 'uploading'].includes(video.status)) {
+						// Still on its way: stop it; uploadVideo removes it on the server
+						video.aborted = true;
+						if (video.abort) video.abort();
+						video.xhrs.forEach((xhr) => xhr.abort());
+					} else {
+						// Not in a listing yet: removed on the server at once; one in a listing goes with the form
+						videoPost({ action: 'cancel', id: video.id }).catch(() => {});
+					}
+					renderVideos();
+				});
+				vlist.appendChild(item);
+			});
+		};
+
+		// Asks for the status of videos still being processed, every 5 s while there are any
+		const pollVideos = () => {
+			clearTimeout(vpoll);
+			const waiting = videos.filter((video) => ['queued', 'processing'].includes(video.status));
+			if (!waiting.length) return;
+			vpoll = setTimeout(async () => {
+				try {
+					const data = await videoPost({ action: 'status', ids: waiting.map((video) => video.id) });
+					Object.entries(data.videos || {}).forEach(([id, info]) => {
+						const video = videos.find((v) => String(v.id) === id);
+						if (video) Object.assign(video, info);
+					});
+					renderVideos();
+				} catch (err) { /* next time */ }
+				pollVideos();
+			}, 5000);
+		};
+
+		// Parts go VIDEO_PARALLEL at a time; a part lost to the network is sent again (it overwrites itself)
+		const VIDEO_PARALLEL = 3;
+		const sendParts = async (video, blob, chunk) => {
+			const total = Math.ceil(blob.size / chunk);
+			const sent = new Array(total).fill(0);
+			let next = 0;
+			const progress = () => {
+				video.progress = Math.min(99, Math.round((sent.reduce((a, b) => a + b, 0) / blob.size) * 100));
+				showProgress(video);
+			};
+			const lane = async () => {
+				while (next < total && !video.aborted) {
+					const index = next++;
+					const part = blob.slice(index * chunk, (index + 1) * chunk);
+					for (let attempt = 1; ; attempt++) {
+						try {
+							await videoPost({ action: 'part', id: video.id, index }, part, video, (loaded) => { sent[index] = Math.min(loaded, part.size); progress(); });
+							sent[index] = part.size;
+							progress();
+							break;
+						} catch (err) {
+							if (video.aborted || !err.network || attempt > 4) throw err;
+							sent[index] = 0;
+							await sleep(1500 * attempt);
+						}
+					}
+				}
+			};
+			await Promise.all(Array.from({ length: Math.min(VIDEO_PARALLEL, total) }, lane));
+		};
+
+		const uploadVideo = async (file) => {
+			if (videos.length >= (Number(vbox.dataset.max) || 1)) {
+				toast(vtext('Limit'), 'info');
+				return;
+			}
+			const seconds = await videoSeconds(file);
+			if (seconds !== null && seconds > Number(vbox.dataset.seconds)) {
+				toast(vtext('TooLong'), 'info');
+				return;
+			}
+
+			const video = { id: 0, status: 'compressing', progress: 0, name: file.name, xhrs: new Set(), aborted: false, abort: null };
+			videos.push(video);
+			renderVideos();
+			try {
+				// A file too big to send as it is may still fit once compressed
+				let blob = null;
+				try {
+					blob = await compressVideo(file, video, (progress) => {
+						video.progress = Math.min(99, Math.round(progress * 100));
+						showProgress(video);
+					});
+				} catch (err) {
+					reportError('Video compression failed: ' + (err.message || err), 'post form: compressVideo', err.stack);
+				}
+				if (video.aborted) throw Object.assign(new Error(''), { aborted: true });
+				const upload = blob || file;
+				if (upload.size > Number(vbox.dataset.bytes)) {
+					throw Object.assign(new Error(vtext('TooBig')), { shown: true });
+				}
+				video.status = 'uploading';
+				video.progress = 0;
+				renderVideos();
+				const start = await videoPost({ action: 'start', bytes: upload.size, seconds: seconds || 0 }, null, video);
+				video.id = start.id;
+				await sendParts(video, upload, start.chunk);
+				if (video.aborted) throw Object.assign(new Error(''), { aborted: true });
+				let done = await videoPost({ action: 'finish', id: video.id, compressed: blob ? 1 : 0 }, null, video);
+				// A part still on its way on the server side (rare): once more after a pause
+				if (done.missing) {
+					await sleep(2000);
+					done = await videoPost({ action: 'finish', id: video.id, compressed: blob ? 1 : 0 }, null, video);
+				}
+				if (done.missing) throw new Error(vtext('Failed'));
+				Object.assign(video, done);
+			} catch (err) {
+				if (videos.includes(video)) videos.splice(videos.indexOf(video), 1);
+				if (video.id) videoPost({ action: 'cancel', id: video.id }).catch(() => {});
+				if (!video.aborted) {
+					toast(err.message || vtext('Failed'), 'info');
+					if (!err.shown && !err.network) reportError(err.message, 'post form: uploadVideo', err.stack);
+				}
+			}
+			delete video.xhrs;
+			renderVideos();
+			pollVideos();
+		};
+
+		if (vbox && vlist) {
+			const vinput = $('[data-video-input]', vbox);
+			vinput.addEventListener('change', () => {
+				const file = vinput.files && vinput.files[0];
+				vinput.value = '';
+				if (file) uploadVideo(file);
+			});
+			renderVideos();
+			pollVideos();
+		}
+
+		// Photo and video ids in display order go with the form; not while uploads are running
 		form.addEventListener('submit', (e) => {
 			if (photos.some((photo) => photo.busy)) {
 				e.preventDefault();
 				toast(i18n.photosBusy, 'info');
 				return;
 			}
+			if (videos.some((video) => ['compressing', 'uploading'].includes(video.status))) {
+				e.preventDefault();
+				toast(vtext('Busy'), 'info');
+				return;
+			}
+			$$('input[name="video_ids[]"]', form).forEach((el) => el.remove());
+			videos.filter((video) => video.id && video.status !== 'failed').forEach((video) => {
+				const el = document.createElement('input');
+				el.type = 'hidden';
+				el.name = 'video_ids[]';
+				el.value = video.id;
+				form.appendChild(el);
+			});
 			$$('input[name="photo_ids[]"]', form).forEach((el) => el.remove());
 			photos.forEach((photo) => {
 				const el = document.createElement('input');
@@ -1137,6 +1624,13 @@
 		  into the created one
 		- the open thread asks for new messages (action poll) every 10 s while
 		  the tab is visible; they are read at once, the header badges follow
+		- messages come from messages.php as ready markup (message.html). Own ones
+		  carry ticks: delivered, and coloured (.is-read) once the other side has
+		  read them — the poll brings state.read_upto and state.deleted
+		- .msg__tools of a message (shown on hover, focus or tap): [data-msg-reply]
+		  puts it into [data-reply-bar] and [data-reply-input] of the composer;
+		  [data-msg-delete] (own, unread; asks first) — action unsend.
+		  [data-quote="id"] scrolls to the message it answers
 		- [data-quick] buttons put a ready phrase into the input
 		- [data-chat-search] filters the list
 		---------------------------------------------------------------------- */
@@ -1153,7 +1647,80 @@
 			if (body) body.scrollTop = body.scrollHeight;
 		};
 
-		// A message from messages.php ({id, mine, text, time, day}) at the end of the thread,
+		// Markup of a message from messages.php as an element, its tools switched on
+		const messageNode = (html) => {
+			const box = document.createElement('template');
+			box.innerHTML = html;
+			const node = box.content.firstElementChild;
+			$$('.msg__tools', node).forEach((tools) => { tools.hidden = false; });
+			return node;
+		};
+
+		const lastLine = (thread, text, mine) => {
+			const conv = $(`[data-conv="${thread.dataset.thread}"]`, chat);
+			const last = conv && $('.conv__last', conv);
+			if (last) last.textContent = mine ? `${i18n.you}: ${text}` : text;
+			return conv;
+		};
+
+		// The message being answered, above the input (null — none)
+		const setReply = (thread, msg) => {
+			const bar = $('[data-reply-bar]', thread);
+			const input = $('[data-reply-input]', thread);
+			if (!bar || !input) return;
+			bar.hidden = !msg;
+			input.value = msg ? msg.dataset.msg : '';
+			if (!msg) return;
+			$('[data-reply-name]', bar).textContent = msg.classList.contains('msg--out') ? i18n.you : thread.getAttribute('aria-label');
+			$('[data-reply-text]', bar).textContent = $('.msg__text', msg).textContent.trim().slice(0, 140);
+			const field = $('textarea', thread);
+			if (field) field.focus();
+		};
+
+		// What follows a deleted message: quotes of it lose the text, the list shows the label,
+		// an answer being written to it is dropped
+		const afterDelete = (thread, id, wasLast, mine) => {
+			$$(`[data-quote="${id}"] .msg__quote-text`, thread).forEach((el) => { el.textContent = chat.dataset.deletedLabel; });
+			if (wasLast) lastLine(thread, chat.dataset.deletedLabel, mine);
+			const input = $('[data-reply-input]', thread);
+			if (input && input.value === String(id)) setReply(thread, null);
+		};
+
+		// One's own message deleted: the markup of the deleted one comes from messages.php
+		const showDeleted = (thread, message) => {
+			const old = $(`[data-msg="${message.id}"]`, thread);
+			if (!old || old.classList.contains('msg--deleted')) return;
+			const wasLast = old === $$('[data-msg]', thread).pop();
+			old.replaceWith(messageNode(message.html));
+			afterDelete(thread, message.id, wasLast, true);
+		};
+
+		// What the poll says about the messages on screen: read by the other side, deleted
+		const applyState = (thread, state) => {
+			if (!state) return;
+			$$('.msg--out[data-msg]:not(.is-read):not(.msg--deleted)', thread).forEach((msg) => {
+				if (Number(msg.dataset.msg) > state.read_upto) return;
+				msg.classList.add('is-read');
+				const ticks = $('.msg__ticks', msg);
+				if (ticks) {
+					ticks.setAttribute('aria-label', chat.dataset.readLabel);
+					ticks.title = chat.dataset.readLabel;
+				}
+				const del = $('[data-msg-delete]', msg);
+				if (del) del.remove();
+			});
+			state.deleted.forEach((id) => {
+				const msg = $(`[data-msg="${id}"]:not(.msg--deleted)`, thread);
+				if (!msg) return;
+				// The other side took it back: the same look as after a reload
+				$$('.msg__quote, .msg__ticks, .msg__tools', msg).forEach((el) => el.remove());
+				msg.classList.add('msg--deleted');
+				$('.msg__text', msg).textContent = chat.dataset.deletedLabel;
+				afterDelete(thread, id, msg === $$('[data-msg]', thread).pop(), msg.classList.contains('msg--out'));
+			});
+		};
+
+		// A message from messages.php ({id, mine, text, time, day, html}) at the end of the thread,
 		// and as the last one in the conversation list (moved to the top)
 		const appendMessage = (thread, message) => {
 			const body = $('.thread__body', thread);
@@ -1166,21 +1733,11 @@
 				sep.textContent = message.day;
 				body.appendChild(sep);
 			}
-			const msg = document.createElement('div');
-			msg.className = `msg ${message.mine ? 'msg--out' : 'msg--in'}`;
-			msg.dataset.msg = message.id;
-			msg.textContent = message.text;
-			const time = document.createElement('span');
-			time.className = 'msg__time';
-			time.textContent = message.time;
-			msg.appendChild(time);
-			body.appendChild(msg);
+			body.appendChild(messageNode(message.html));
 
-			const conv = $(`[data-conv="${thread.dataset.thread}"]`, chat);
+			const conv = lastLine(thread, message.text, message.mine);
 			if (conv) {
-				const last = $('.conv__last', conv);
 				const when = $('.conv__time', conv);
-				if (last) last.textContent = message.mine ? `${i18n.you}: ${message.text}` : message.text;
 				if (when) when.textContent = message.time;
 				const item = conv.closest('li');
 				item.parentElement.prepend(item);
@@ -1213,6 +1770,7 @@
 				const body = $('.thread__body', thread);
 				const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 80;
 				data.messages.forEach((message) => appendMessage(thread, message));
+				applyState(thread, data.state);
 				if (data.messages.length && atBottom) scrollDown(thread);
 				$$('[data-unread-total]').forEach((total) => {
 					if (data.unread > 0) total.textContent = data.unread;
@@ -1309,12 +1867,14 @@
 				if (data.created || thread.dataset.thread === '0') {
 					const params = new URLSearchParams(location.search);
 					params.delete('listing');
+					params.delete('user');
 					params.set('c', data.conversation);
 					window.location.href = '?' + params.toString();
 					return;
 				}
 
 				appendMessage(thread, data.message);
+				setReply(thread, null);
 				field.value = '';
 				field.dispatchEvent(new Event('input'));
 				scrollDown(thread);
@@ -1331,6 +1891,53 @@
 					send();
 				}
 			});
+		});
+
+		// Tools of a message. On touch screens a tap on the message shows them
+		$$('.msg__tools', chat).forEach((tools) => { tools.hidden = false; });
+		chat.addEventListener('click', (e) => {
+			const msg = e.target.closest('[data-msg]');
+			const thread = e.target.closest('[data-thread]');
+			$$('.msg.is-active', chat).forEach((el) => { if (el !== msg) el.classList.remove('is-active'); });
+			if (!thread) return;
+
+			const quote = e.target.closest('[data-quote]');
+			if (quote) {
+				const target = $(`[data-msg="${quote.dataset.quote}"]`, thread);
+				if (target) {
+					target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+					target.classList.remove('is-flash');
+					void target.offsetWidth;
+					target.classList.add('is-flash');
+				}
+				return;
+			}
+			if (e.target.closest('[data-reply-cancel]')) {
+				setReply(thread, null);
+				return;
+			}
+			if (!msg) return;
+			if (e.target.closest('[data-msg-reply]')) {
+				setReply(thread, msg);
+				msg.classList.remove('is-active');
+			} else if (!e.target.closest('.msg__tool')) {
+				msg.classList.toggle('is-active');
+			}
+		});
+
+		// Delete an unread message of one's own (after the confirm dialog)
+		chat.addEventListener('confirmed', async (e) => {
+			const btn = e.target.closest('[data-msg-delete]');
+			const thread = btn && btn.closest('[data-thread]');
+			if (!thread) return;
+			const msg = btn.closest('[data-msg]');
+			try {
+				const data = await postJson(chat.dataset.chatUrl, { action: 'unsend', conversation: thread.dataset.thread, message: msg.dataset.msg });
+				showDeleted(thread, data.message);
+			} catch (err) {
+				toast(err.message, 'danger');
+				poll();
+			}
 		});
 
 		// Quick replies
@@ -1564,6 +2171,8 @@
 	initViewToggle();
 	initDetails();
 	initExpand();
+	initAvatar();
+	initNotify();
 	initToTop();
 	initGallery();
 	initVideos();

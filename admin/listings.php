@@ -18,6 +18,7 @@ $statusTabs = [
 	'rejected' => at('status.rejected'),
 	'expired' => at('status.expired'),
 	'inactive' => at('status.inactive'),
+	'sold' => at('status.sold'),
 	'draft' => at('status.draft'),
 	'deleted' => at('status.deleted'),
 ];

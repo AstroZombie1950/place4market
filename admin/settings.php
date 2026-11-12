@@ -8,10 +8,12 @@
 	  city_toggle   (toggle=1 instead of action) id, active — offered on the site
 	                or not (listings stay)
 	  city_delete   id — only without listings
+	  eur_refresh   fetch the EUR rate now (rates.php)
 	Languages and their URL prefixes come with stage 5 (addresses per language).
 	========================================================================== */
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
 require SOURCE_DIR . '/inc/media.php';
+require SOURCE_DIR . '/inc/rates.php';
 
 if (!is_admin()) {
 	flash('danger', at('set.admins_only'));
@@ -23,8 +25,8 @@ $activeNav = 'settings';
 
 // Fields of each form
 $sections = [
-	'general' => ['support_email', 'per_page', 'eur_rate', 'maintenance'],
-	'moderation' => ['premoderate_new', 'premoderate_edits', 'trust_verified', 'stop_words', 'listing_days', 'raise_hours', 'max_photos'],
+	'general' => ['support_email', 'per_page', 'eur_rate', 'eur_auto', 'maintenance'],
+	'moderation' => ['premoderate_new', 'premoderate_edits', 'trust_verified', 'stop_words', 'listing_days', 'raise_hours', 'max_photos', 'max_videos'],
 ];
 $labels = [];
 foreach (array_merge(...array_values($sections)) as $name) {
@@ -88,6 +90,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			}
 			flash('success', $changed ? at('common.saved_fields', ['fields' => implode(', ', array_map(fn($name) => mb_strtolower($labels[$name]), $changed))]) : at('common.nothing_changed'));
 		}
+	} elseif ($action === 'eur_refresh') {
+		$rate = update_eur_rate($currentAdmin['id']);
+		if ($rate) {
+			log_action('admin.eur_refresh', ['rate' => $rate['rate'], 'source' => $rate['source']]);
+			flash('success', at('set.eur_refreshed', ['rate' => $rate['rate'], 'exact' => number_format($rate['exact'], 4, ',', ''), 'source' => at('set.eur_source_' . $rate['source'])]));
+		} else {
+			flash('danger', at('set.eur_failed'));
+		}
 	} elseif ($action === 'city_add') {
 		$tab = '#cities';
 		$latn = trim(preg_replace('/\s+/u', ' ', mb_substr((string) ($_POST['latn'] ?? ''), 0, 64)));
@@ -124,6 +134,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 	redirect('settings.php' . $tab);
 }
+
+$eurInfo = eur_rate_info();
 
 $cityCounts = [];
 foreach (cities() as $city) {
@@ -174,6 +186,14 @@ require ADMIN_INC . '/header.php';
 					<span class="field__hint"><?= e(at('set.eur_hint')) ?></span>
 				</div>
 			</div>
+			<div class="form-extra">
+			<label class="switch">
+				<input type="checkbox" role="switch" name="eur_auto" value="1"<?= setting('eur_auto') ? ' checked' : '' ?>>
+				<span class="switch__text"><span class="switch__title"><?= e(at('set.eur_auto')) ?></span><span class="switch__hint"><?= e(at('set.eur_auto_hint')) ?> <?= e($eurInfo ? at('set.eur_last', ['date' => date('d.m.Y H:i', strtotime(db_local($eurInfo['at']))), 'rate' => number_format((float) ($eurInfo['exact'] ?? $eurInfo['rate']), 4, ',', ''), 'source' => at('set.eur_source_' . $eurInfo['source'])]) : at('set.eur_never')) ?></span></span>
+			</label>
+				<!-- Its own form (below the panel's form): here it would be the first button, and Enter in any field would fetch the rate instead of saving -->
+				<button type="submit" class="btn btn--secondary" form="eur-refresh"><?= icon('refresh', 18) ?><?= e(at('set.eur_refresh')) ?></button>
+			</div>
 		</div>
 
 		<div class="form-section">
@@ -186,6 +206,10 @@ require ADMIN_INC . '/header.php';
 		<div class="form-actions">
 			<button type="submit" class="btn btn--primary"><?= icon('check', 18) ?><?= e(at('common.save')) ?></button>
 		</div>
+	</form>
+	<form id="eur-refresh" method="post" action="settings.php">
+		<?= csrf_field() ?>
+		<input type="hidden" name="action" value="eur_refresh">
 	</form>
 	</div>
 
@@ -239,6 +263,11 @@ require ADMIN_INC . '/header.php';
 					<label class="field__label" for="s-photos"><?= e(at('set.photos_label')) ?></label>
 					<input class="input" id="s-photos" name="max_photos" type="number" min="<?= SETTINGS['max_photos'][2] ?>" max="<?= SETTINGS['max_photos'][3] ?>" value="<?= (int) setting('max_photos') ?>">
 					<span class="field__hint"><?= e(at('set.photos_hint', ['n' => (int) (PHOTO_MAX_BYTES / 1024 / 1024)])) ?></span>
+				</div>
+				<div class="field">
+					<label class="field__label" for="s-videos"><?= e(at('set.videos_label')) ?></label>
+					<input class="input" id="s-videos" name="max_videos" type="number" min="<?= SETTINGS['max_videos'][2] ?>" max="<?= SETTINGS['max_videos'][3] ?>" value="<?= (int) setting('max_videos') ?>">
+					<span class="field__hint"><?= e(at('set.videos_hint')) ?></span>
 				</div>
 			</div>
 		</div>

@@ -25,6 +25,8 @@ function icon(string $name, int $size = 20, string $class = ''): string
 		'edit' => '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
 		'trash' => '<path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
 		'check' => '<path d="M20 6 9 17l-5-5"/>',
+		'checks' => '<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>',
+		'reply' => '<path d="m9 14-5-5 5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v4"/>',
 		'ban' => '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
 		'eye' => '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
 		'eye-off' => '<path d="M17.9 17.9A10 10 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.1-5.9"/><path d="M9.9 4.2A9 9 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.2 3.2"/><path d="M14.1 14.1a3 3 0 1 1-4.2-4.2"/><path d="m1 1 22 22"/>',
@@ -61,6 +63,8 @@ function icon(string $name, int $size = 20, string $class = ''): string
 		'info' => '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>',
 		'power' => '<path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><path d="M12 2v10"/>',
 		'check-circle' => '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+		// Filled seal with a tick: the mark of the site's administrators (trust_marks())
+		'seal' => '<path fill="currentColor" d="M12 2 15.2 4.3 19.1 4.9 19.7 8.8 22 12 19.7 15.2 19.1 19.1 15.2 19.7 12 22 8.8 19.7 4.9 19.1 4.3 15.2 2 12 4.3 8.8 4.9 4.9 8.8 4.3z"/><path class="icon__cut" d="m8.2 12.2 2.6 2.6 5-5.4"/>',
 
 		// Categories
 		'car' => '<path d="M5 12 7 7.6A2 2 0 0 1 8.8 6.5h6.4A2 2 0 0 1 17 7.6l2 4.4"/><path d="M3.5 12h17v4.5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/>',

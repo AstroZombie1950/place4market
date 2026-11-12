@@ -9,7 +9,9 @@ $flash = take_flash();
 // Guests see "Log in" in place of the profile link
 $accountLink = current_user() ? ['profile.php', t('nav.profile')] : ['auth.php', t('auth.login')];
 $searchQuery = (string) ($_GET['q'] ?? '');
-$searchCity = (string) ($_GET['city'] ?? '');
+// The search starts from the place of the user's profile; on the results the select shows
+// what is really chosen there ("all places" too)
+$searchCity = (string) ($_GET['city'] ?? (current_script() === 'category.php' ? '' : (current_user()['city'] ?? '')));
 ?>
 <!doctype html>
 <html lang="<?= e(lang_meta()['html']) ?>">

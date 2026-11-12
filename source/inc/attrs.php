@@ -9,7 +9,8 @@
 
 // Subcategory → fields; 'condition' => false: new/used does not apply (property, stays, jobs, services,
 // animals, food). A field is a key of attr_fields() or key => overrides (motorbike body types).
-// Kind, brand and deal are columns of their own (taxonomy.php), not fields here
+// Kind, brand and deal are columns of their own (taxonomy.php), not fields here; the model is a
+// field, typed by the seller and shown next to the brand (post.php)
 const ATTRS_VEHICLE = ['year', 'mileage', 'fuel', 'gearbox', 'power'];
 const ATTRS_FURNITURE = ['material', 'dimensions', 'color'];
 const ATTRS_WEAR = ['size', 'color'];
@@ -17,8 +18,8 @@ const ATTRS_ANIMAL = ['breed', 'age'];
 const ATTRS_STAY = ['guests'];
 const CATEGORY_ATTRS = [
 	// Vozila
-	'cars' => ['fields' => [...ATTRS_VEHICLE, 'body', 'color', 'damaged', 'financing']],
-	'motorcycles' => ['fields' => ['year', 'mileage', 'engine', 'body' => ['options' => ['naked', 'sport', 'touring', 'enduro', 'scooter', 'chopper', 'other']], 'color']],
+	'cars' => ['fields' => ['model', ...ATTRS_VEHICLE, 'body', 'color', 'damaged', 'financing']],
+	'motorcycles' => ['fields' => ['model', 'year', 'mileage', 'engine', 'body' => ['options' => ['naked', 'sport', 'touring', 'enduro', 'scooter', 'chopper', 'other']], 'color']],
 	'trucks-vans' => ['fields' => [...ATTRS_VEHICLE, 'damaged', 'financing']],
 	'trailers' => ['fields' => ['year']],
 	'boats' => ['fields' => ['year', 'length']],
@@ -88,7 +89,7 @@ const CATEGORY_ATTRS = [
 	'garden-furniture' => ['fields' => ATTRS_FURNITURE],
 	'kitchens' => ['fields' => ['dimensions', 'color']],
 	// Poljoprivreda
-	'tractors' => ['fields' => ['year', 'power', 'hours']],
+	'tractors' => ['fields' => ['model', 'year', 'power', 'hours']],
 	'farm-machinery' => ['fields' => ['year']],
 	'livestock' => ['fields' => ATTRS_ANIMAL, 'condition' => false],
 	'plants' => ['fields' => [], 'condition' => false],
@@ -124,13 +125,15 @@ const CATEGORY_ATTRS = [
 ];
 
 // Field types: number (min, max, step, unit; a unit "u.*" is translated), select (options:
-// v.<option>, or shown as is with 'raw'), text (max length), bool (a checkbox: stored as true when on)
+// v.<option>, or shown as is with 'raw'), text (max length; 'raw' = a name, never put into Cyrillic),
+// bool (a checkbox: stored as true when on)
 function attr_fields(): array
 {
 	$nextYear = (int) date('Y') + 1;
 	$colors = ['white', 'black', 'grey', 'silver', 'blue', 'red', 'green', 'yellow', 'brown', 'beige', 'other'];
 
 	return [
+		'model' => ['type' => 'text', 'max' => 40, 'raw' => true],
 		'year' => ['type' => 'number', 'min' => 1900, 'max' => $nextYear],
 		'mileage' => ['type' => 'number', 'min' => 0, 'max' => 2_000_000, 'unit' => 'km'],
 		'fuel' => ['type' => 'select', 'options' => ['petrol', 'diesel', 'lpg', 'hybrid', 'electric']],
@@ -277,7 +280,11 @@ function attr_value(string $key, mixed $value): string
 		return $unit === '' ? $number : $number . ($unit === '%' ? '' : "\u{00A0}") . $unit;
 	}
 
-	return str_starts_with($value, 'v.') ? t($value) : (lang() === 'sr-cyrl' ? sr_cyr($value) : $value);
+	if (str_starts_with($value, 'v.')) {
+		return t($value);
+	}
+
+	return lang() === 'sr-cyrl' && empty(attr_fields()[$key]['raw']) ? sr_cyr($value) : $value;
 }
 
 // Rows of the details block: deal, kind and brand, condition (from their own columns) first, then the

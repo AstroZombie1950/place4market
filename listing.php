@@ -27,8 +27,9 @@ enforce_url(lang_link(lang(), 'listing.php', listing_url_params($listing) + arra
 
 // The "similar" cards below reuse $listing: the bottom of the page uses this id
 $listingId = (int) $listing['id'];
-// Phone buttons only when there is a phone to show (the ad's or the seller's); the number comes from phone.php
-$phoneFor = listing_phone($listing, $seller) !== null ? $listingId : null;
+// The ways the seller chose (D6): calls only to a confirmed phone, the number comes from phone.php
+$contactWays = listing_contact($listing, $seller);
+$phoneFor = $contactWays['calls'] ? $listingId : null;
 [$parentCat, $childCat] = find_category($listing['category']);
 $title = listing_title($listing) ?: t('p.untitled');
 $isOwn = $listing['user_id'] === current_user_id();
@@ -168,7 +169,7 @@ require INC_DIR . '/header.php';
 		<aside class="listing__aside">
 			<div class="listing-head"<?= !$isOwn && $listing['status'] === 'active' ? ' data-listing-view="' . (int) $listing['id'] . '"' : '' ?>>
 				<?php if ($listing['status'] !== 'active'): ?>
-				<p class="notice"><?= icon('info', 20) ?><?= e(t('l.not_active')) ?></p>
+				<p class="notice"><?= icon('info', 20) ?><?= e(t($listing['status'] === 'sold' ? 'l.sold' : 'l.not_active')) ?></p>
 				<?php endif; ?>
 
 				<?php if ($listing['negotiable']): ?>
@@ -186,11 +187,16 @@ require INC_DIR . '/header.php';
 
 				<div class="listing-head__actions">
 					<?php if (!$isOwn): ?>
+					<?php if ($contactWays['messages']): ?>
 					<a class="btn btn--primary btn--lg btn--block" href="<?= e($messageUrl) ?>"><?= icon('message', 20) ?><?= e(t('l.write')) ?></a>
-					<?php if ($phoneFor): ?>
-					<button type="button" class="btn btn--outline btn--block" data-reveal-phone="<?= $phoneFor ?>"><?= icon('call', 18) ?><?= e(t('l.show_phone')) ?></button>
 					<?php endif; ?>
-					<?php else: ?>
+					<?php if ($phoneFor && current_user()): ?>
+					<button type="button" class="btn <?= $contactWays['messages'] ? 'btn--outline' : 'btn--primary btn--lg' ?> btn--block" data-reveal-phone="<?= $phoneFor ?>"><?= icon('call', 18) ?><?= e(t('l.show_phone')) ?></button>
+					<?php elseif ($phoneFor): ?>
+					<!-- Guests: the number is for logged-in users only (phone.php) -->
+					<a class="btn <?= $contactWays['messages'] ? 'btn--outline' : 'btn--primary btn--lg' ?> btn--block" href="<?= e(url('auth.php', ['next' => listing_url($listing)])) ?>" rel="nofollow"><?= icon('call', 18) ?><?= e(t('l.phone_login')) ?></a>
+					<?php endif; ?>
+					<?php elseif ($listing['status'] !== 'sold'): ?>
 					<a class="btn btn--outline btn--block" href="<?= e(url('post.php', ['id' => $listing['id']])) ?>"><?= icon('edit', 18) ?><?= e(t('common.edit')) ?></a>
 					<?php endif; ?>
 					<div class="listing-head__small">
@@ -205,17 +211,20 @@ require INC_DIR . '/header.php';
 				<div class="panel__body">
 					<h2 class="visually-hidden" id="seller-title"><?= e(t('l.seller')) ?></h2>
 					<div class="seller">
-						<?= avatar($seller['name']) ?>
+						<?= avatar($seller) ?>
 						<div>
-							<p class="seller__name"><a href="<?= e(seller_url($seller)) ?>"><?= e(person_name($seller['name'])) ?></a></p>
+							<p class="seller__name"><a href="<?= e(seller_url($seller)) ?>"><?= e(person_name($seller['name'])) ?></a><?= trust_marks($seller) ?></p>
 							<p class="seller__meta"><?= e(t('l.member_since', ['date' => date_label($seller['registered'])])) ?></p>
+							<?php if (seller_rating($seller['id'])['count']): ?>
+							<p class="seller__meta"><a href="<?= e(seller_url($seller)) ?>#reviews"><?= seller_rating_html($seller['id']) ?></a></p>
+							<?php endif; ?>
 						</div>
 					</div>
 					<div class="seller__foot">
-						<?php if ($seller['verified']): ?>
-						<span class="badge badge--verified"><?= icon('check-circle', 16) ?><?= e(t('l.verified')) ?></span>
-						<?php endif; ?>
 						<a href="<?= e(seller_url($seller)) ?>"><?= e(t('l.all_seller')) ?> (<?= $sellerCount ?>)</a>
+						<?php if (!$isOwn && current_user() && can_review($listing['id'], current_user_id())): ?>
+						<a href="<?= e(url('seller.php', ['id' => $seller['id'], 'review' => $listing['id']])) ?>#reviews" rel="nofollow"><?= e(t('rv.write')) ?></a>
+						<?php endif; ?>
 					</div>
 				</div>
 			</section>
@@ -289,10 +298,16 @@ require INC_DIR . '/header.php';
 <!-- Contact bar (phones) -->
 <?php if (!$isOwn): ?>
 <div class="contact-bar">
-	<?php if ($phoneFor): ?>
-	<button type="button" class="btn btn--outline" data-reveal-phone="<?= $phoneFor ?>" data-reveal-call><?= icon('call', 18) ?><?= e(t('l.call')) ?></button>
+	<?php if ($phoneFor && current_user()): ?>
+	<button type="button" class="btn <?= $contactWays['messages'] ? 'btn--outline' : 'btn--primary' ?>" data-reveal-phone="<?= $phoneFor ?>" data-reveal-call><?= icon('call', 18) ?><?= e(t('l.call')) ?></button>
 	<?php endif; ?>
+	<?php if ($phoneFor && !current_user() && !$contactWays['messages']): ?>
+	<!-- Guests: only when the seller takes calls only (otherwise "Message", as before) -->
+	<a class="btn btn--primary" href="<?= e(url('auth.php', ['next' => listing_url($listing)])) ?>" rel="nofollow"><?= icon('call', 18) ?><?= e(t('l.call')) ?></a>
+	<?php endif; ?>
+	<?php if ($contactWays['messages']): ?>
 	<a class="btn btn--primary" href="<?= e($messageUrl) ?>"><?= icon('message', 18) ?><?= e(t('l.message')) ?></a>
+	<?php endif; ?>
 </div>
 <?php endif; ?>
 

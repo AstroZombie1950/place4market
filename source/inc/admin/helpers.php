@@ -8,7 +8,7 @@ function status_meta(string $status): array
 {
 	$modifiers = [
 		'active' => 'success', 'pending' => 'warning', 'rejected' => 'danger', 'expired' => 'neutral', 'draft' => 'neutral',
-		'inactive' => 'neutral', 'deleted' => 'danger', 'blocked' => 'danger', 'open' => 'warning', 'review' => 'info', 'resolved' => 'success',
+		'inactive' => 'neutral', 'sold' => 'success', 'deleted' => 'danger', 'blocked' => 'danger', 'open' => 'warning', 'review' => 'info', 'resolved' => 'success',
 	];
 
 	return isset($modifiers[$status]) ? [at('status.' . $status), $modifiers[$status]] : [ucfirst($status), 'neutral'];
@@ -392,6 +392,13 @@ function audit_line(array $entry): array
 		'listing.deactivate' => ['listing', 'power', 'listing_deactivate'],
 		'listing.activate' => ['listing', 'power', 'listing_activate'],
 		'listing.renew' => ['listing', 'refresh', 'listing_renew'],
+		'listing.sell' => ['listing', 'check', 'listing_sell'],
+		'review.create' => ['user', 'star', 'review_create'],
+		'review.delete' => ['user', 'trash', 'review_delete'],
+		'admin.review_delete' => ['moderation', 'trash', 'review_staff_delete'],
+		'account.avatar' => ['user', 'image', 'avatar'],
+		'account.avatar_removed' => ['user', 'image', 'avatar_removed'],
+		'admin.user_avatar_remove' => ['moderation', 'image', 'avatar_staff_removed'],
 		'report.create' => ['report', 'flag', 'report_create'],
 		'report.review' => ['report', 'flag', 'report_review'],
 		'report.resolve' => ['report', 'check', 'report_resolve'],

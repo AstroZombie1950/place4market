@@ -10,6 +10,7 @@
 	  photo_upload   photos[] (processed like on the site, added at the end)
 	  photo_cover    photo_id becomes the cover
 	  photo_delete   photo_id is removed with its files
+	  video_delete   video_id is removed with its files (video.php)
 	Moderation (approve, reject, delete) and blocking the seller go to
 	moderate.php; History is the audit log of this listing.
 	========================================================================== */
@@ -38,8 +39,7 @@ $v = [
 	'currency' => $listing['currency'],
 	'negotiable' => $listing['negotiable'],
 	'condition' => $listing['condition'] ?? '',
-	'phone' => $listing['phone'] ?? '',
-	'show_phone' => $listing['show_phone'],
+	'contact' => $listing['contact'],
 	// Facets of the subcategory and the city (taxonomy.php)
 	'deal' => (string) $listing['deal'],
 	'type' => (string) $listing['type'],
@@ -71,8 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			'currency' => ($_POST['currency'] ?? '') === 'EUR' ? 'EUR' : 'RSD',
 			'negotiable' => !empty($_POST['negotiable']),
 			'condition' => (string) ($_POST['condition'] ?? ''),
-			'phone' => trim((string) ($_POST['phone'] ?? '')),
-			'show_phone' => !empty($_POST['show_phone']),
+			'contact' => in_array($_POST['contact'] ?? '', LISTING_CONTACTS, true) ? $_POST['contact'] : $listing['contact'],
 			'deal' => (string) ($_POST['deal'] ?? ''),
 			'type' => (string) ($_POST['type'] ?? ''),
 			'brand' => (string) ($_POST['brand'] ?? ''),
@@ -90,7 +89,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			$hasCondition && !in_array($v['condition'], ['new', 'like_new', 'used'], true) => at('edit.err_condition'),
 			$price !== null && ($price < 1 || $price > 2_000_000_000) => at('edit.err_price'),
 			!in_array($v['city'], array_column(cities(), 'latn'), true) => at('edit.err_city'),
-			$v['phone'] !== '' && !preg_match('/^\+?[0-9 ()\-]{6,20}$/', $v['phone']) => at('edit.err_phone'),
 			default => '',
 		};
 
@@ -105,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				'title' => $v['title'], 'description' => $v['description'], 'lang' => $lang, 'category' => $child['slug'], 'city' => $v['city'],
 				'price' => $price, 'currency' => $v['currency'], 'negotiable' => $v['negotiable'] && $price !== null,
 				'condition' => $hasCondition ? $v['condition'] : null, 'attrs' => $attrs,
-				'phone' => $v['phone'] !== '' ? $v['phone'] : null, 'show_phone' => $v['show_phone'],
+				'contact' => $v['contact'],
 			] + clean_facets($child['slug'], $parent['slug'], $v['city'], $v, false)[0];
 			staff_save_listing($listing['id'], $new);
 
@@ -184,6 +182,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			log_action('listing.staff_photos', ['listing_id' => $listing['id'], 'op' => $action === 'photo_cover' ? 'cover' : 'delete', 'photo_id' => $photoId]);
 		}
 		flash($done ? 'success' : 'info', $done ? at($action === 'photo_cover' ? 'edit.cover_changed' : 'edit.photo_deleted') : at('edit.photo_gone'));
+		redirect($back . '#photos');
+	} elseif ($action === 'video_delete') {
+		$videoId = (int) ($_POST['video_id'] ?? 0);
+		$path = delete_listing_video($listing['id'], $videoId);
+		if ($path) {
+			delete_photo_files($path);
+		}
+		if ($path !== null) {
+			log_action('listing.staff_photos', ['listing_id' => $listing['id'], 'op' => 'video_delete', 'video_id' => $videoId]);
+		}
+		flash($path !== null ? 'success' : 'info', at($path !== null ? 'edit.video_deleted' : 'edit.photo_gone'));
 		redirect($back . '#photos');
 	} else {
 		flash('danger', at('common.unknown_action'));
@@ -336,18 +345,15 @@ require ADMIN_INC . '/header.php';
 						<span class="field__hint"><?= e(at('edit.desc_hint')) ?></span>
 					</div>
 
+					<!-- How buyers reach the seller: calls work only with the seller's confirmed phone (listing_contact()) -->
 					<div class="field">
-						<label class="field__label" for="l-phone"><?= e(at('edit.phone')) ?></label>
-						<input class="input" id="l-phone" name="phone" type="tel" value="<?= e($v['phone']) ?>" placeholder="<?= e($seller['phone'] ?? '') ?>">
-						<span class="field__hint"><?= e(at('edit.phone_hint')) ?></span>
-					</div>
-
-					<div class="field">
-						<span class="field__label"><?= e(at('edit.visibility')) ?></span>
-						<label class="switch">
-							<input type="checkbox" role="switch" name="show_phone"<?= $v['show_phone'] ? ' checked' : '' ?>>
-							<span><?= e(at('edit.show_phone')) ?></span>
-						</label>
+						<label class="field__label" for="l-contact"><?= e(at('edit.contact')) ?></label>
+						<select class="select" id="l-contact" name="contact">
+							<?php foreach (LISTING_CONTACTS as $way): ?>
+							<option value="<?= $way ?>"<?= $v['contact'] === $way ? ' selected' : '' ?>><?= e(at('edit.contact_' . $way)) ?></option>
+							<?php endforeach; ?>
+						</select>
+						<span class="field__hint"><?= e(at($seller && $seller['verified'] && $seller['phone'] ? 'edit.contact_hint' : 'edit.contact_hint_none', ['phone' => phone_format($seller['phone'] ?? null)])) ?></span>
 					</div>
 				</fieldset>
 				<?php if ($editable): ?>
@@ -390,11 +396,22 @@ require ADMIN_INC . '/header.php';
 					<video controls preload="none" width="<?= (int) $video['width'] ?>" height="<?= (int) $video['height'] ?>" poster="<?= e(photo_url($video['poster'], isset($video['poster']['sizes'][480]) ? 480 : array_key_last($video['poster']['sizes']))) ?>" aria-label="<?= e(at('edit.video_of', ['n' => $i + 1, 'name' => admin_title($listing)])) ?>">
 						<source src="<?= e(video_url($video)) ?>" type="video/mp4">
 					</video>
-					<figcaption class="photo__bar"><span class="text-sm"><?= e(video_time($video['duration'])) ?> · <?= (int) $video['width'] ?>×<?= (int) $video['height'] ?> · <?= e(number_format($video['bytes'] / 1048576, 1, ',', ' ')) ?> MB</span></figcaption>
+					<figcaption class="photo__bar">
+						<span class="text-sm"><?= e(video_time($video['duration'])) ?> · <?= (int) $video['width'] ?>×<?= (int) $video['height'] ?> · <?= e(number_format($video['bytes'] / 1048576, 1, ',', ' ')) ?> MB</span>
+						<?php if ($editable && isset($video['id'])): ?>
+						<form method="post" action="<?= e($back) ?>">
+							<?= csrf_field() ?>
+							<input type="hidden" name="video_id" value="<?= (int) $video['id'] ?>">
+							<button type="submit" class="btn btn--danger-ghost btn--icon btn--sm" name="action" value="video_delete" aria-label="<?= e(at('edit.delete_video', ['n' => $i + 1])) ?>" data-confirm="<?= e(at('edit.delete_video_q')) ?>" data-confirm-label="<?= e(at('common.delete')) ?>"><?= icon('trash', 16) ?></button>
+						</form>
+						<?php endif; ?>
+					</figcaption>
 				</figure>
 				<?php endforeach; ?>
 			</div>
-			<p class="field__hint"><?= e(at('edit.video_later')) ?></p>
+			<?php endif; ?>
+			<?php if ($pendingVideos = count_pending_videos($listing['id'])): ?>
+			<p class="field__hint"><?= e(at('edit.video_pending', ['n' => $pendingVideos])) ?></p>
 			<?php endif; ?>
 
 			<?php if ($editable && $listing['photos'] < setting('max_photos')): ?>

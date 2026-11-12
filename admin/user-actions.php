@@ -9,6 +9,8 @@
 	  note           id, note — internal note, staff
 	  reset_link     id — password reset link to the user (their language), staff
 	  end_sessions   id — every session and "remember me" ends, staff
+	  avatar_remove  id — the profile photo goes (back to the initials), staff
+	  review_delete  id, review — a review about or by this user is deleted, staff
 	  delete         ids[] (or id) — as the owner's own deletion: listings and
 	                 photos go, personal data removed; admins only, not staff
 	                 accounts (change the role first)
@@ -51,7 +53,8 @@ switch ($action) {
 		$f = [
 			'name' => trim(preg_replace('/\s+/u', ' ', (string) ($_POST['name'] ?? ''))),
 			'email' => mb_strtolower(trim((string) ($_POST['email'] ?? ''))),
-			'phone' => trim((string) ($_POST['phone'] ?? '')),
+			// Serbian numbers only, stored as +381XXXXXXXXX (auth.php, phone_normalize())
+			'phone' => ($phone = trim((string) ($_POST['phone'] ?? ''))) !== '' ? (phone_normalize($phone) ?? $phone) : '',
 			'city' => (string) ($_POST['city'] ?? ''),
 			'role' => (string) ($_POST['role'] ?? ''),
 			'email_verified' => !empty($_POST['email_verified']),
@@ -61,7 +64,10 @@ switch ($action) {
 			mb_strlen($f['name']) < 2 || mb_strlen($f['name']) > 100 => at('ua.err_name'),
 			!filter_var($f['email'], FILTER_VALIDATE_EMAIL) || mb_strlen($f['email']) > 190 => at('ua.err_email'),
 			$f['email'] !== $user['email'] && email_taken($f['email']) => at('ua.err_email_taken', ['email' => $f['email']]),
-			$f['phone'] !== '' && !preg_match('/^\+?[0-9 ()\-]{6,20}$/', $f['phone']) => at('edit.err_phone'),
+			$f['phone'] !== '' && phone_normalize($f['phone']) !== $f['phone'] => at('ua.err_phone'),
+			$f['phone_verified'] && $f['phone'] === '' => at('ua.err_phone_none'),
+			// One number — one account (as with the SMS check)
+			$f['phone_verified'] && phone_confirmed_elsewhere($f['phone'], $id) => at('ua.err_phone_taken'),
 			!in_array($f['city'], array_column(cities(), 'latn'), true) => at('edit.err_city'),
 			!isset($roles[$f['role']]) => at('ua.err_role'),
 			$f['role'] !== $user['role'] && $id === $currentAdmin['id'] => at('ua.err_own_role'),
@@ -126,6 +132,22 @@ switch ($action) {
 		end_user_sessions($id);
 		log_action('admin.user_sessions_end', ['user_id' => $id]);
 		flash('success', at('ua.sessions_ended', ['name' => $user['name']]));
+		break;
+
+	case 'avatar_remove':
+		if (($old = set_user_avatar($id, null)) !== null) {
+			delete_photo_files($old);
+			log_action('admin.user_avatar_remove', ['user_id' => $id]);
+		}
+		flash('success', at('ua.avatar_removed', ['name' => $user['name']]));
+		break;
+
+	case 'review_delete':
+		$review = find_review((int) ($_POST['review'] ?? 0));
+		if ($review && in_array($id, [$review['seller_id'], $review['author_id']], true) && delete_review($review['id'])) {
+			log_action('admin.review_delete', ['review_id' => $review['id'], 'user_id' => $review['seller_id'], 'author_id' => $review['author_id'], 'listing_id' => $review['listing_id']]);
+			flash('success', at('ua.review_deleted'));
+		}
 		break;
 
 	case 'delete':

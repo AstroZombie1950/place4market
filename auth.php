@@ -5,6 +5,7 @@
 	POST: action = login | register (+ csrf)
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
+require INC_DIR . '/codes.php';
 
 $next = safe_next((string) ($_POST['next'] ?? $_GET['next'] ?? ''), url('profile.php'));
 
@@ -19,7 +20,8 @@ $errors = ['login' => '', 'register' => ''];
 $old = [
 	'email' => mb_strtolower(trim((string) ($_POST['email'] ?? ''))),
 	'name' => trim(preg_replace('/\s+/u', ' ', (string) ($_POST['name'] ?? ''))),
-	'phone' => trim((string) ($_POST['phone'] ?? '')),
+	// Serbian numbers only: stored as +381XXXXXXXXX, shown back as typed when it is not one
+	'phone' => ($phone = trim((string) ($_POST['phone'] ?? ''))) !== '' ? (phone_normalize($phone) ?? $phone) : '',
 	// The place is not asked at registration (it can be set in the profile): search starts with all Serbia
 	'city' => '',
 ];
@@ -82,7 +84,8 @@ if ($action === 'register') {
 
 		$token = issue_auth_token($userId, 'verify_email');
 		$sent = send_template_mail($old['email'], 'verify', ['name' => $old['name'], 'link' => site_url(url('verify.php', ['token' => $token]))], ['user_id' => $userId]);
-		flash($sent ? 'success' : 'warning', $sent ? t('auth.registered') : t('auth.err_mail'));
+		// A mobile number can be confirmed by SMS from the profile (codes.php): said right away
+		flash($sent ? 'success' : 'warning', $sent ? t('auth.registered') . (phone_is_mobile($old['phone'] ?: null) && sms_available() ? ' ' . t('auth.registered_phone') : '') : t('auth.err_mail'));
 		redirect($next);
 	}
 }
@@ -161,7 +164,7 @@ require INC_DIR . '/header.php';
 					</div>
 					<div class="field">
 						<label class="field__label" for="reg-phone"><?= e(t('auth.phone')) ?></label>
-						<input class="input" id="reg-phone" name="phone" type="tel" autocomplete="tel" placeholder="+381" value="<?= e($action === 'register' ? $old['phone'] : '') ?>">
+						<input class="input" id="reg-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="<?= e(t('auth.phone_placeholder')) ?>" value="<?= e($action === 'register' ? $old['phone'] : '') ?>">
 					</div>
 					<div class="field">
 						<label class="field__label" for="reg-password"><?= e(t('auth.password')) ?></label>

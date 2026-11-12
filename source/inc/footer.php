@@ -113,6 +113,9 @@ $footerCols = [
 	'photoTooBig' => t('post.photo_too_big'),
 	'photoUnreadable' => t('post.photo_unreadable'),
 	'photoUploadFailed' => t('post.photo_err_failed'),
+	'photoUploading' => t('p.avatar_uploading'),
+	// Notifications in the browser: only for a user who chose them (main.js, initNotify())
+	'notifyUrl' => ($nUser = current_user()) && notify_via($nUser['notify_channel'], 'browser') && array_filter($nUser['notify']) ? url('notify.php') : '',
 	'photosBusy' => t('post.photos_busy'),
 	'photoCover' => t('post.photo_cover'),
 	'makeCover' => t('post.photo_make_cover'),

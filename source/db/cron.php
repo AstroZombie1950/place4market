@@ -4,6 +4,9 @@
 	/usr/local/php85/bin/php /home/placemar/domains/place4market.com/public_html/source/db/cron.php
 	- active listings past their expiry date become expired (the site already
 	  hides them; this fixes the status for "My listings" and the admin)
+	- videos (video.php) uploaded more than a day ago and never put into a
+	  listing, and failed ones, are deleted; files in the video queue that no
+	  row refers to (a day old: a part may be on its way) too
 	- photos uploaded more than a day ago and never put into a listing are
 	  deleted (photo-upload.php also does it now and then, as a fallback)
 	- journal: records from the fallback files (database was down) go into
@@ -14,8 +17,13 @@
 	  (PRICE_ALERT_BATCH users a run); the new price is remembered
 	- listings that expire within EXPIRY_NOTICE_DAYS days: one letter to the
 	  seller per term (023), EXPIRY_NOTICE_BATCH a run
+	- where the user chose notifications in the browser (030), the same events
+	  also (or only) wait for their open tab (notifications, notify.php); shown
+	  and stale ones are deleted
 	- session files older than the session lifetime and old sign-in tokens
 	  are deleted (PHP's own cleanup runs once in 1000 requests on the server)
+	- EUR rate: once a day from outside when "update automatically" is on
+	  (rates.php); after a failure it is tried again next run
 	========================================================================== */
 
 require __DIR__ . '/cli.php';
@@ -24,6 +32,8 @@ require INC_DIR . '/site.php';
 require INC_DIR . '/taxonomy.php';
 require INC_DIR . '/seo.php';
 require INC_DIR . '/mail.php';
+require INC_DIR . '/rates.php';
+require INC_DIR . '/video.php';
 
 // Saved searches checked per run (one count query each)
 const SEARCH_ALERT_BATCH = 500;
@@ -115,6 +125,24 @@ while ($paths = take_stale_photos()) {
 	$photos += count($paths);
 }
 
+$videos = 0;
+while (([$folders, $sources] = take_stale_videos()) && ($folders || $sources)) {
+	array_map('delete_photo_files', $folders);
+	array_map('video_queue_remove', $sources);
+	$videos += max(count($folders), count($sources));
+}
+// Queue files without a row (an upload removed, a listing deleted before processing)
+if (is_dir(VIDEO_QUEUE_DIR)) {
+	$inUse = array_flip(video_sources_in_use());
+	// <name>.part and its parts <name>.part.000, .001, …
+	foreach (glob(VIDEO_QUEUE_DIR . '/*.part*') ?: [] as $file) {
+		if (!isset($inUse[preg_replace('/\.\d{3}$/', '', basename($file))]) && filemtime($file) < time() - 86400) {
+			@unlink($file);
+			$videos++;
+		}
+	}
+}
+
 $imported = log_import_files();
 $purged = delete_old_log_entries(LOG_RETENTION_DAYS);
 
@@ -139,7 +167,13 @@ foreach ($byUser as $searches) {
 			}
 		}
 
-		if (!$found || send_search_alert($searches, $found)) {
+		// In the browser, by e-mail or both (profile → Notifications)
+		$channel = $searches[0]['channel'] ?? 'email';
+		if ($found && notify_via($channel, 'browser')) {
+			add_notification($searches[0]['user_id'], 'search', ['count' => array_sum(array_column($found, 1)), 'searches' => count($found)]);
+		}
+
+		if (!$found || !notify_via($channel, 'email') || send_search_alert($searches, $found)) {
 			mark_searches_checked(array_column($searches, 'id'));
 			$alerts += $found ? 1 : 0;
 		}
@@ -152,7 +186,10 @@ foreach ($byUser as $searches) {
 $priceAlerts = 0;
 foreach (price_drops(PRICE_ALERT_BATCH) as $user) {
 	try {
-		if (send_price_alert($user)) {
+		if (notify_via($user['channel'], 'browser')) {
+			add_notification($user['user_id'], 'price', ['count' => count($user['drops']), 'listing_id' => $user['drops'][0]['listing']['id'] ?? 0]);
+		}
+		if (!notify_via($user['channel'], 'email') || send_price_alert($user)) {
 			remember_favorite_prices($user['user_id']);
 			$priceAlerts++;
 		}
@@ -176,21 +213,30 @@ foreach (listings_expiring(EXPIRY_NOTICE_DAYS, EXPIRY_NOTICE_BATCH) as $row) {
 	}
 }
 
-// Leftovers: session files, sign-in tokens
+// Leftovers: session files, sign-in tokens, browser notifications
 $sessions = 0;
 $tokens = 0;
 try {
+	delete_old_notifications();
+	delete_old_verify_codes();
 	$sessions = purge_session_files();
 	$tokens = delete_old_auth_tokens();
 } catch (Throwable $e) {
 	log_exception($e);
 }
 
-if ($expiryNotices || $tokens || $expired || $photos || $imported || $purged || $alerts || $priceAlerts || array_sum($retention)) {
-	log_event('info', 'Cron: maintenance done', ['expired' => $expired, 'stale_photos' => $photos, 'log_imported' => $imported, 'log_purged' => $purged,
+// EUR rate, once a day (UTC)
+$rate = null;
+if (setting('eur_auto') && substr((string) (eur_rate_info()['at'] ?? ''), 0, 10) !== gmdate('Y-m-d')) {
+	$rate = update_eur_rate();
+}
+
+if ($expiryNotices || $tokens || $expired || $photos || $videos || $imported || $purged || $alerts || $priceAlerts || array_sum($retention)) {
+	log_event('info', 'Cron: maintenance done', ['expired' => $expired, 'stale_photos' => $photos, 'stale_videos' => $videos, 'log_imported' => $imported, 'log_purged' => $purged,
 		'search_alerts' => $alerts, 'price_alerts' => $priceAlerts,
 		'expiry_notices' => $expiryNotices, 'sessions_removed' => $sessions, 'tokens_removed' => $tokens] + $retention, 'cron');
 }
-out('Expired listings: ' . $expired . ', stale photos removed: ' . $photos . ', journal: ' . $imported . ' imported from files, ' . $purged . ' old removed, search alerts sent: ' . $alerts . ', price alerts sent: ' . $priceAlerts
+out('Expired listings: ' . $expired . ', stale photos removed: ' . $photos . ', stale videos: ' . $videos . ', journal: ' . $imported . ' imported from files, ' . $purged . ' old removed, search alerts sent: ' . $alerts . ', price alerts sent: ' . $priceAlerts
 	. ', expiry notices sent: ' . $expiryNotices . ', session files removed: ' . $sessions . ', old tokens removed: ' . $tokens
+	. ($rate ? ', EUR rate: ' . $rate['rate'] . ' (' . $rate['source'] . ')' : '')
 	. ', retention: ' . $retention['listings_scrubbed'] . ' deleted listings cleared, ' . $retention['contact_deleted'] . ' contact messages, ' . $retention['reports_deleted'] . ' reports removed');

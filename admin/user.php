@@ -18,6 +18,7 @@ if (!$user) {
 $userListings = user_listings($user['id']);
 $userReports = reports(['seller' => $user['id']]);
 $reportListings = find_listings(array_column($userReports, 'listing_id'));
+$userReviews = user_reviews($user['id']);
 $activity = audit_entries(30, null, $user['id']);
 $back = 'user.php?id=' . $user['id'];
 $isSelf = $user['id'] === $currentAdmin['id'];
@@ -50,19 +51,25 @@ require ADMIN_INC . '/header.php';
 <!-- Profile summary -->
 <section class="card" aria-label="<?= e(at('user.summary')) ?>">
 	<div class="card__body profile">
+		<?php if ($user['avatar']): ?>
+		<span class="avatar avatar--lg avatar--photo"><img src="<?= e(storage_file_url($user['avatar'], '320.webp')) ?>" width="72" height="72" alt=""></span>
+		<?php else: ?>
 		<span class="avatar avatar--lg"><?= e(initials($user['name'])) ?></span>
+		<?php endif; ?>
 		<div class="profile__main">
 			<div class="profile__name"><?= e($user['name']) ?> <?= status_badge($user['status']) ?> <?= role_badge($user['role']) ?></div>
 			<div class="profile__meta">
 				<span><?= icon('mail', 16) ?><?= e($user['email']) ?></span>
-				<?php if ($user['phone']): ?><span><?= icon('phone', 16) ?><?= e($user['phone']) ?></span><?php endif; ?>
+				<?php if ($user['phone']): ?><span><?= icon('phone', 16) ?><?= e(phone_format($user['phone'])) ?></span><?php endif; ?>
 				<?php if ($user['city']): ?><span><?= icon('map-pin', 16) ?><?= e($user['city']) ?></span><?php endif; ?>
 				<span><?= icon('calendar', 16) ?><?= e(at('user.joined', ['date' => format_date($user['registered'])])) ?></span>
 			</div>
 		</div>
 		<div class="profile__actions">
 			<?php if (!$isDeleted): ?>
-			<a class="btn btn--secondary" href="mailto:<?= e($user['email']) ?>"><?= icon('mail', 18) ?><?= e(at('user.email_btn')) ?></a>
+			<?php if ($user['status'] === 'active' && $user['id'] !== $currentAdmin['id']): ?>
+			<a class="btn btn--secondary" href="<?= e(lang_link(DEFAULT_LANG, 'messages.php', ['user' => $user['id']])) ?>" target="_blank" rel="noopener"><?= icon('message', 18) ?><?= e(at('user.message_btn')) ?></a>
+			<?php endif; ?>
 			<?php endif; ?>
 			<?php if ($user['role'] === 'user' && !$isDeleted): ?>
 			<form method="post" action="moderate.php">
@@ -86,6 +93,7 @@ require ADMIN_INC . '/header.php';
 		<button type="button" class="tabs__tab" role="tab" id="tab-profile" aria-controls="panel-profile" aria-selected="true"><?= e(at('user.tab_profile')) ?></button>
 		<button type="button" class="tabs__tab" role="tab" id="tab-listings" aria-controls="panel-listings" aria-selected="false"><?= e(at('nav.listings')) ?> <span class="tabs__count"><?= count($userListings) ?></span></button>
 		<button type="button" class="tabs__tab" role="tab" id="tab-reports" aria-controls="panel-reports" aria-selected="false"><?= e(at('nav.reports')) ?> <span class="tabs__count"><?= count($userReports) ?></span></button>
+		<button type="button" class="tabs__tab" role="tab" id="tab-reviews" aria-controls="panel-reviews" aria-selected="false"><?= e(at('user.tab_reviews')) ?> <span class="tabs__count"><?= count($userReviews) ?></span></button>
 		<button type="button" class="tabs__tab" role="tab" id="tab-activity" aria-controls="panel-activity" aria-selected="false"><?= e(at('user.tab_activity')) ?></button>
 	</div>
 
@@ -171,6 +179,9 @@ require ADMIN_INC . '/header.php';
 				<input type="hidden" name="id" value="<?= (int) $user['id'] ?>">
 				<input type="hidden" name="back" value="<?= e($back) ?>">
 				<button type="submit" class="btn btn--secondary" name="action" value="reset_link" data-confirm="<?= e(at('user.reset_q', ['email' => $user['email']])) ?>" data-confirm-label="<?= e(at('user.send')) ?>"<?= $user['status'] !== 'active' ? ' disabled' : '' ?>><?= icon('lock', 18) ?><?= e(at('user.reset_btn')) ?></button>
+				<?php if ($user['avatar']): ?>
+				<button type="submit" class="btn btn--secondary" name="action" value="avatar_remove" data-confirm="<?= e(at('user.avatar_q', ['name' => $user['name']])) ?>" data-confirm-label="<?= e(at('user.avatar_btn')) ?>"><?= icon('trash', 18) ?><?= e(at('user.avatar_btn')) ?></button>
+				<?php endif; ?>
 				<?php if (!$isSelf): ?>
 				<button type="submit" class="btn btn--secondary" name="action" value="end_sessions" data-confirm="<?= e(at('user.sessions_q', ['name' => $user['name']])) ?>" data-confirm-label="<?= e(at('user.sessions_btn')) ?>"><?= icon('logout', 18) ?><?= e(at('user.sessions_btn')) ?></button>
 				<?php endif; ?>
@@ -263,6 +274,33 @@ require ADMIN_INC . '/header.php';
 		</ul>
 		<?php else: ?>
 		<div class="card__body muted"><?= e(at('user.no_reports')) ?></div>
+		<?php endif; ?>
+	</div>
+
+	<!-- Reviews about this user (as a seller) and written by them; staff may delete one -->
+	<div class="tabs__panel" role="tabpanel" id="panel-reviews" aria-labelledby="tab-reviews" tabindex="0" hidden>
+		<?php if ($userReviews): ?>
+		<ul class="list">
+			<?php foreach ($userReviews as $review): $about = $review['seller_id'] === $user['id']; ?>
+			<li class="list__item">
+				<span class="stat__icon"><?= icon('star', 18) ?></span>
+				<div class="list__main">
+					<span class="list__title"><?= (int) $review['rating'] ?>/5 · <?= e($about ? at('user.review_from', ['name' => user_name($review['author_id'])]) : at('user.review_to', ['name' => user_name($review['seller_id'])])) ?> · “<?= e($review['listing_title']) ?>”</span>
+					<?php if ($review['text'] !== ''): ?><div><?= nl2br(e($review['text'])) ?></div><?php endif; ?>
+					<div class="list__meta"><?= e(format_date($review['created'], true)) ?></div>
+				</div>
+				<form class="list__aside" method="post" action="user-actions.php">
+					<?= csrf_field() ?>
+					<input type="hidden" name="id" value="<?= (int) $user['id'] ?>">
+					<input type="hidden" name="review" value="<?= (int) $review['id'] ?>">
+					<input type="hidden" name="back" value="<?= e($back) ?>">
+					<button type="submit" class="btn btn--ghost btn--icon btn--sm" name="action" value="review_delete" aria-label="<?= e(at('user.review_delete')) ?>" data-confirm="<?= e(at('user.review_delete_q')) ?>" data-confirm-label="<?= e(at('common.delete')) ?>"><?= icon('trash', 18) ?></button>
+				</form>
+			</li>
+			<?php endforeach; ?>
+		</ul>
+		<?php else: ?>
+		<div class="card__body muted"><?= e(at('user.no_reviews')) ?></div>
 		<?php endif; ?>
 	</div>
 
