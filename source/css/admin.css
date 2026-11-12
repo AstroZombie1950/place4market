@@ -2515,3 +2515,133 @@ code {
 .tabs__tab[aria-current="page"] {
 	color: var(--color-accent-ink);
 }
+
+/* ---------- Storage & costs (usage.php) ---------- */
+
+/* Bar chart: inline SVG stretched to the card (bar_chart() in admin helpers) */
+.chart {
+	margin: 0;
+}
+
+.chart__max {
+	color: var(--color-text-muted);
+	font-size: var(--fs-xs);
+}
+
+.chart__plot {
+	display: block;
+	width: 100%;
+	height: 160px;
+	border-bottom: 1px solid var(--color-border-strong);
+}
+
+.chart__bar--photo { fill: var(--color-accent); background: var(--color-accent); }
+.chart__bar--video { fill: var(--color-sea); background: var(--color-sea); }
+.chart__bar--other { fill: var(--color-border-strong); background: var(--color-border-strong); }
+.chart__bar--sent { fill: var(--color-olive); background: var(--color-olive); }
+
+/* The whole day column answers the pointer: its tooltip, a soft highlight */
+.chart__hit {
+	fill: transparent;
+}
+
+.chart__hit:hover {
+	fill: var(--color-hover);
+	fill-opacity: 0.5;
+}
+
+.chart__axis {
+	display: flex;
+	justify-content: space-between;
+	gap: var(--space-3);
+	margin-top: var(--space-1);
+	color: var(--color-text-muted);
+	font-size: var(--fs-xs);
+}
+
+.chart__legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2) var(--space-4);
+	margin: var(--space-3) 0 0;
+	padding: 0;
+	list-style: none;
+	font-size: var(--fs-sm);
+}
+
+.chart__legend li {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.chart__swatch {
+	width: 12px;
+	height: 12px;
+	border-radius: var(--radius-xs);
+}
+
+/* SMS: Twilio's numbers beside our own count; one column when narrow */
+.usage-sms {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: var(--space-5);
+	margin-bottom: var(--space-5);
+}
+
+.usage-sms__billing {
+	flex: 1 1 260px;
+}
+
+.usage-sms__balance {
+	font-family: var(--font-serif);
+	font-size: var(--fs-xl);
+}
+
+.usage-sms__counts {
+	flex: 999 1 420px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-sm);
+}
+
+/* Inside a bordered box the first and last cells need no card padding */
+.usage-sms__counts .table th:first-child,
+.usage-sms__counts .table td:first-child {
+	padding-left: var(--space-3);
+}
+
+.usage-sms__counts .table th:last-child,
+.usage-sms__counts .table td:last-child {
+	padding-right: var(--space-3);
+}
+
+.usage-sms__counts .table tr:last-child td {
+	border-bottom: 0;
+}
+
+.usage-subtitle {
+	margin-bottom: var(--space-3);
+	font-size: var(--fs-base);
+	font-weight: var(--fw-semibold);
+}
+
+.usage-path {
+	min-width: 220px;
+	overflow-wrap: anywhere;
+}
+
+.usage-missing {
+	border-top: 1px solid var(--color-border);
+}
+
+.usage-missing .usage-subtitle {
+	margin-bottom: var(--space-1);
+}
+
+/* Phones: lower chart; the page head button below the title already wraps */
+@media (max-width: 1023px) {
+	.chart__plot {
+		height: 120px;
+	}
+}

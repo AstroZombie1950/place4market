@@ -24,6 +24,9 @@
 	  are deleted (PHP's own cleanup runs once in 1000 requests on the server)
 	- EUR rate: once a day from outside when "update automatically" is on
 	  (rates.php); after a failure it is tried again next run
+	- disk usage: the uploads, the video queue, journal and session files and
+	  the database are measured, orphan files listed (usage.php) — today's row
+	  of storage_snapshots for admin → Storage & costs; nothing is deleted
 	========================================================================== */
 
 require __DIR__ . '/cli.php';
@@ -34,6 +37,7 @@ require INC_DIR . '/seo.php';
 require INC_DIR . '/mail.php';
 require INC_DIR . '/rates.php';
 require INC_DIR . '/video.php';
+require INC_DIR . '/usage.php';
 
 // Saved searches checked per run (one count query each)
 const SEARCH_ALERT_BATCH = 500;
@@ -231,6 +235,14 @@ if (setting('eur_auto') && substr((string) (eur_rate_info()['at'] ?? ''), 0, 10)
 	$rate = update_eur_rate();
 }
 
+// Disk usage for the admin (after the cleanup above: what is left)
+$usage = null;
+try {
+	$usage = usage_refresh();
+} catch (Throwable $e) {
+	log_exception($e);
+}
+
 if ($expiryNotices || $tokens || $expired || $photos || $videos || $imported || $purged || $alerts || $priceAlerts || array_sum($retention)) {
 	log_event('info', 'Cron: maintenance done', ['expired' => $expired, 'stale_photos' => $photos, 'stale_videos' => $videos, 'log_imported' => $imported, 'log_purged' => $purged,
 		'search_alerts' => $alerts, 'price_alerts' => $priceAlerts,
@@ -238,5 +250,6 @@ if ($expiryNotices || $tokens || $expired || $photos || $videos || $imported || 
 }
 out('Expired listings: ' . $expired . ', stale photos removed: ' . $photos . ', stale videos: ' . $videos . ', journal: ' . $imported . ' imported from files, ' . $purged . ' old removed, search alerts sent: ' . $alerts . ', price alerts sent: ' . $priceAlerts
 	. ', expiry notices sent: ' . $expiryNotices . ', session files removed: ' . $sessions . ', old tokens removed: ' . $tokens
+	. ($usage ? ', disk usage measured in ' . $usage['seconds'] . ' s (orphans: ' . $usage['orphans']['count'] . ')' : '')
 	. ($rate ? ', EUR rate: ' . $rate['rate'] . ' (' . $rate['source'] . ')' : '')
 	. ', retention: ' . $retention['listings_scrubbed'] . ' deleted listings cleared, ' . $retention['contact_deleted'] . ' contact messages, ' . $retention['reports_deleted'] . ' reports removed');

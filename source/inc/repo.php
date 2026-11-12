@@ -55,6 +55,8 @@ const SETTINGS = [
 	'trust_verified' => [false, 'bool'],
 	'stop_words' => [[], 'lines'],
 	'maintenance' => [false, 'bool'],
+	// Twilio balance and bill, as the admin last fetched them (usage.php, sms_billing(); JSON)
+	'sms_billing_info' => ['', 'text', 1000],
 ];
 
 // A setting's value, typed (default when it was never saved)
@@ -2285,6 +2287,102 @@ function audit_entries(int $limit, ?int $listingId = null, ?int $userId = null):
 		'time' => db_local($r['created_at']), 'action' => $r['message'], 'user_id' => $r['user_id'], 'role' => $r['user_role'],
 		'context' => $r['context'] !== null ? (json_decode($r['context'], true) ?? []) : [],
 	], db_all($sql . ' ORDER BY id DESC LIMIT ' . max(1, $limit), $params));
+}
+
+// The latest record of a channel (and message): ['time' (site time), 'level', 'message', 'context'] or null
+function latest_log_entry(string $channel, ?string $message = null): ?array
+{
+	$r = db_one('SELECT created_at, level, message, context FROM log_entries WHERE channel = ?' . ($message !== null ? ' AND message = ?' : '') . ' ORDER BY id DESC LIMIT 1',
+		$message !== null ? [$channel, $message] : [$channel]);
+
+	return $r ? [
+		'time' => db_local($r['created_at']), 'level' => $r['level'], 'message' => $r['message'],
+		'context' => $r['context'] !== null ? (json_decode($r['context'], true) ?? []) : [],
+	] : null;
+}
+
+/* ---------- Storage and costs (admin → usage.php; the scan is in usage.php) ---------- */
+
+// Folders of uploaded files the database refers to: path => ['kind' (photo | video | avatar),
+// 'listing_id', 'user_id', 'loose' (uploaded, not in a listing yet)]. Demo files (source/img/demo)
+// are not uploads and are left out; a video still in the queue has no folder yet
+function media_folders(): array
+{
+	$rows = db_all("SELECT path, 'photo' AS kind, listing_id, user_id FROM listing_photos WHERE path LIKE 'uploads/%' OR path LIKE 'cloud:uploads/%'
+		UNION ALL SELECT path, 'video', listing_id, user_id FROM listing_videos WHERE path LIKE 'uploads/%' OR path LIKE 'cloud:uploads/%'
+		UNION ALL SELECT avatar, 'avatar', NULL, id FROM users WHERE avatar LIKE 'uploads/%' OR avatar LIKE 'cloud:uploads/%'");
+
+	$folders = [];
+	foreach ($rows as $r) {
+		$folders[$r['path']] = [
+			'kind' => $r['kind'], 'listing_id' => $r['listing_id'] !== null ? (int) $r['listing_id'] : null,
+			'user_id' => $r['user_id'] !== null ? (int) $r['user_id'] : null, 'loose' => $r['kind'] !== 'avatar' && $r['listing_id'] === null,
+		];
+	}
+
+	return $folders;
+}
+
+// A stored path some row still refers to (checked again right before an orphan is deleted)
+function media_folder_used(string $path): bool
+{
+	return (bool) db_value('SELECT EXISTS (SELECT 1 FROM listing_photos WHERE path = ?) OR EXISTS (SELECT 1 FROM listing_videos WHERE path = ?)
+		OR EXISTS (SELECT 1 FROM users WHERE avatar = ?)', [$path, $path, $path]);
+}
+
+// Size of the site database in bytes: ['total', 'journal' (log_entries)]
+function db_size(): array
+{
+	$rows = db_all('SELECT table_name AS name, data_length + index_length AS bytes FROM information_schema.TABLES WHERE table_schema = DATABASE()');
+	$sizes = array_column($rows, 'bytes', 'name');
+
+	return ['total' => (int) array_sum($sizes), 'journal' => (int) ($sizes['log_entries'] ?? 0)];
+}
+
+// Today's snapshot (UTC day), replaced until the day ends; older rows lose their lists
+function save_storage_snapshot(array $totals, array $details): void
+{
+	$json = fn(array $a) => json_encode($a, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+	db_exec('INSERT INTO storage_snapshots (day, totals, details, updated_at) VALUES (UTC_DATE(), ?, ?, UTC_TIMESTAMP())
+		ON DUPLICATE KEY UPDATE totals = VALUES(totals), details = VALUES(details), updated_at = VALUES(updated_at)', [$json($totals), $json($details)]);
+	db_exec('UPDATE storage_snapshots SET details = NULL WHERE day < UTC_DATE() AND details IS NOT NULL');
+}
+
+// The latest snapshot: ['day', 'time' (site time), 'totals', 'details'] or null before the first scan
+function storage_snapshot(): ?array
+{
+	$r = db_one('SELECT * FROM storage_snapshots ORDER BY day DESC LIMIT 1');
+
+	return $r ? [
+		'day' => $r['day'], 'time' => db_local($r['updated_at']),
+		'totals' => json_decode($r['totals'], true) ?? [], 'details' => $r['details'] !== null ? (json_decode($r['details'], true) ?? []) : [],
+	] : null;
+}
+
+// Totals of the last $days days, oldest first: 'Y-m-d' => totals
+function storage_history(int $days): array
+{
+	$rows = db_all('SELECT day, totals FROM storage_snapshots WHERE day > UTC_DATE() - INTERVAL ' . max(1, $days) . ' DAY ORDER BY day');
+
+	return array_combine(array_column($rows, 'day'), array_map(fn($r) => json_decode($r['totals'], true) ?? [], $rows));
+}
+
+// Codes sent by SMS and SMS codes confirmed (codes.php, the journal), per day of the site's time
+// since a site date: 'Y-m-d' => ['sent' => n, 'confirmed' => n]. The journal keeps LOG_RETENTION_DAYS
+function sms_counts_by_day(string $since): array
+{
+	$offset = date('P');
+	$rows = db_all("SELECT DATE(CONVERT_TZ(created_at, '+00:00', ?)) AS day, message, COUNT(*) AS n FROM log_entries
+		WHERE channel = 'audit' AND message IN ('code.sent', 'code.confirmed') AND JSON_VALUE(context, '$.channel') = 'sms' AND created_at >= ?
+		GROUP BY day, message", [$offset, db_utc($since)]);
+
+	$days = [];
+	foreach ($rows as $r) {
+		$days[$r['day']] ??= ['sent' => 0, 'confirmed' => 0];
+		$days[$r['day']][$r['message'] === 'code.sent' ? 'sent' : 'confirmed'] = (int) $r['n'];
+	}
+
+	return $days;
 }
 
 /* ---------- Retention (cron.php; the terms are in the privacy policy, section 7) ---------- */

@@ -20,9 +20,10 @@ $navGroups = [
 	at('nav.g_system') => [],
 ];
 
-// Settings, the journal (with errors of the last 24 hours) and migrations (pending ones): admins only
+// Settings, storage & costs, the journal (with errors of the last 24 hours) and migrations (pending ones): admins only
 if (is_admin()) {
 	$navGroups[at('nav.g_system')][] = ['key' => 'settings', 'href' => 'settings.php', 'icon' => 'settings', 'label' => at('nav.settings')];
+	$navGroups[at('nav.g_system')][] = ['key' => 'usage', 'href' => 'usage.php', 'icon' => 'database', 'label' => at('nav.usage')];
 	$navGroups[at('nav.g_system')][] = ['key' => 'logs', 'href' => 'logs.php?level=warning', 'icon' => 'list', 'label' => at('nav.logs'),
 		'count' => count_log_problems(date('Y-m-d H:i:s', strtotime('-1 day'))), 'alert' => true];
 	$navGroups[at('nav.g_system')][] = ['key' => 'migrations', 'href' => 'migrations.php', 'icon' => 'refresh', 'label' => at('nav.migrations'),

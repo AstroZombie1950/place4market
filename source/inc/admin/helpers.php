@@ -372,6 +372,8 @@ function audit_line(array $entry): array
 		'report' => '#' . ($c['report_id'] ?? ''),
 		'message' => '#' . ($c['contact_id'] ?? ''),
 		'id' => (string) ($c['landing_id'] ?? $c['category_id'] ?? ''),
+		'count' => (string) ($c['count'] ?? ''),
+		'size' => isset($c['bytes']) ? format_bytes((int) $c['bytes']) : '',
 		// A landing's "title" is its SEO title, not a listing title
 		'fields' => field_labels(array_map(fn($f) => $entry['action'] === 'admin.landing_update' && $f === 'title' ? 'seo_title' : $f, $c['fields'] ?? [])),
 	];
@@ -420,6 +422,7 @@ function audit_line(array $entry): array
 		'contact.message' => ['user', 'mail', 'contact_message'],
 		'contact.answered' => ['user', 'check', 'contact_answered'],
 		'contact.reopened' => ['user', 'mail', 'contact_reopened'],
+		'admin.storage_cleanup' => ['moderation', 'trash', 'storage_cleanup'],
 		default => ['listing', 'info', ''],
 	};
 
@@ -440,4 +443,68 @@ function audit_line(array $entry): array
 	}
 
 	return [$type, $iconName, $text];
+}
+
+/* ---------- Storage & costs (usage.php) ---------- */
+
+// Bytes for people: "7,9 ГБ" / "7.9 GB"; whole numbers below a megabyte
+function format_bytes(int|float $bytes): string
+{
+	$units = ['b', 'kb', 'mb', 'gb', 'tb'];
+	$i = 0;
+	while ($bytes >= 1024 && $i < count($units) - 1) {
+		$bytes /= 1024;
+		$i++;
+	}
+
+	return number_format($bytes, $i >= 2 && $bytes < 100 ? 1 : 0, admin_lang() === 'ru' ? ',' : '.', "\u{00A0}") . "\u{00A0}" . at('unit.' . $units[$i]);
+}
+
+// Money: "$12.34", other currencies after the number ("12.34 EUR")
+function format_money(float $amount, string $currency = 'USD'): string
+{
+	$n = number_format($amount, 2, admin_lang() === 'ru' ? ',' : '.', "\u{00A0}");
+
+	return $currency === 'USD' ? '$' . $n : $n . "\u{00A0}" . $currency;
+}
+
+// Stacked bar chart, inline SVG (no scripts; a bar's numbers in its tooltip):
+// $columns = [label => [series key => value]], $series = [key => label]; colours come from
+// .chart__bar--<key>. $format shows a value (bytes, a count)
+function bar_chart(array $columns, array $series, callable $format, string $label): string
+{
+	$max = max(1, ...array_map(fn($values) => array_sum($values), array_values($columns) ?: [[]]));
+	$width = max(1, count($columns)) * 10;
+	$bars = '';
+	$i = 0;
+
+	foreach ($columns as $name => $values) {
+		$y = 100.0;
+		$tip = [$name];
+		foreach ($series as $key => $seriesLabel) {
+			$value = $values[$key] ?? 0;
+			$tip[] = $seriesLabel . ': ' . $format($value);
+			$h = $value / $max * 100;
+			if ($h > 0) {
+				$y -= $h;
+				$bars .= sprintf('<rect class="chart__bar chart__bar--%s" x="%d" y="%.3f" width="8" height="%.3f"></rect>', e($key), $i * 10 + 1, $y, $h);
+			}
+		}
+		// A transparent column over the whole height: the tooltip for the day, also over an empty one
+		$bars .= sprintf('<rect class="chart__hit" x="%d" y="0" width="10" height="100"><title>%s</title></rect>', $i * 10, e(implode("\n", $tip)));
+		$i++;
+	}
+
+	$names = array_keys($columns);
+	$legend = '';
+	foreach ($series as $key => $seriesLabel) {
+		$legend .= '<li><span class="chart__swatch chart__bar--' . e($key) . '"></span>' . e($seriesLabel) . '</li>';
+	}
+
+	return '<figure class="chart">'
+		. '<div class="chart__max">' . e($format($max)) . '</div>'
+		. '<svg class="chart__plot" viewBox="0 0 ' . $width . ' 100" preserveAspectRatio="none" role="img" aria-label="' . e($label) . '">' . $bars . '</svg>'
+		. '<div class="chart__axis"><span>' . e((string) ($names[0] ?? '')) . '</span><span>' . e((string) (end($names) ?: '')) . '</span></div>'
+		. (count($series) > 1 ? '<ul class="chart__legend">' . $legend . '</ul>' : '')
+		. '</figure>';
 }

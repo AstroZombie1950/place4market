@@ -152,6 +152,37 @@ function s3_list(string $prefix): ?array
 	return array_map(fn($key) => html_entity_decode($key, ENT_QUOTES | ENT_XML1, 'UTF-8'), $m[1]);
 }
 
+// Every object under a prefix, page by page (1000 a request): [['key', 'bytes', 'time' (unix)], …];
+// null on failure. For the admin's disk usage (usage.php), not for pages
+function s3_objects(string $prefix): ?array
+{
+	$objects = [];
+	$token = null;
+
+	do {
+		$r = s3_request('GET', '', ['list-type' => '2', 'prefix' => $prefix] + ($token !== null ? ['continuation-token' => $token] : []));
+		if ($r['status'] !== 200) {
+			log_event('warning', 'Cloud listing failed', ['prefix' => $prefix, 'status' => $r['status']], 'storage');
+
+			return null;
+		}
+		preg_match_all('#<Contents>(.*?)</Contents>#s', $r['body'], $items);
+		foreach ($items[1] as $item) {
+			preg_match('#<Key>([^<]+)</Key>#', $item, $key);
+			preg_match('#<Size>(\d+)</Size>#', $item, $size);
+			preg_match('#<LastModified>([^<]+)</LastModified>#', $item, $time);
+			$objects[] = [
+				'key' => html_entity_decode($key[1] ?? '', ENT_QUOTES | ENT_XML1, 'UTF-8'),
+				'bytes' => (int) ($size[1] ?? 0), 'time' => isset($time[1]) ? (int) strtotime($time[1]) : 0,
+			];
+		}
+		$token = preg_match('#<IsTruncated>true</IsTruncated>#', $r['body']) && preg_match('#<NextContinuationToken>([^<]+)</NextContinuationToken>#', $r['body'], $next)
+			? html_entity_decode($next[1], ENT_QUOTES | ENT_XML1, 'UTF-8') : null;
+	} while ($token !== null);
+
+	return $objects;
+}
+
 // One signed request to the bucket: ['status', 'headers', 'body']; status 0 = no answer
 function s3_request(string $method, string $key, array $query = [], string $body = '', array $headers = []): array
 {

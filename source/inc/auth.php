@@ -226,12 +226,11 @@ const RATE_LIMITS = [
 	'video_upload' => [10, 86400],
 	'report' => [10, 3600],
 	'review' => [10, 86400],
-	// An SMS costs money (codes.php): per account, per number and per IP a day, and a ceiling for
-	// the whole site (a farm of accounts with numbers of their own would not empty the balance)
+	// An SMS costs money (codes.php): per account, per number and per IP a day. No ceiling for the
+	// whole site (user's decision 12.11): the costs are to be watched in the admin instead
 	'sms_user' => [5, 86400],
 	'sms_phone' => [3, 86400],
 	'sms_ip' => [10, 86400],
-	'sms_total' => [300, 86400],
 	'code_email' => [5, 3600],
 	'favorite' => [300, 3600],
 	'saved_search' => [30, 3600],

@@ -23,12 +23,18 @@
 	pages say that confirmation by SMS is not available yet.
 	An SMS costs money: only Serbian mobile numbers, only logged-in users, limits
 	RATE_LIMITS['sms_user'] / ['sms_phone'] (auth.php). Failures are logged
-	(channel "sms") without codes and secrets.
+	(channel "sms") without codes and secrets. The journal keeps code.sent and
+	code.confirmed with the channel: the admin counts SMS and their cost from
+	them (admin/usage.php); the balance and the bill come from Twilio itself.
 	========================================================================== */
 
 const CODE_MINUTES = 10;
 const CODE_ATTEMPTS = 5;
 const TWILIO_VERIFY_URL = 'https://verify.twilio.com/v2/Services/';
+// Estimate of the spend in the admin, USD (Twilio Verify to Serbia, 12.11.2026): an SMS sent,
+// and a code confirmed (Verify bills each approved check). The real bill: Twilio's usage API
+const SMS_PRICE_USD = 0.41;
+const SMS_CHECK_PRICE_USD = 0.05;
 
 /* ---------- SMS ---------- */
 
@@ -134,18 +140,11 @@ function code_send(array $user, string $purpose, string $channel, string $target
 		if (!sms_available() || !phone_is_mobile($to)) {
 			return t('code.err_sms_off');
 		}
-		if (rate_limited('sms_total', 'all')) {
-			// The whole site's ceiling: someone is sending codes on purpose, or the site grew — look now
-			log_event('critical', 'SMS daily ceiling reached', ['limit' => RATE_LIMITS['sms_total'][0]], 'audit');
-
-			return t('code.err_limit');
-		}
 		if (rate_limited('sms_user', (string) $user['id']) || rate_limited('sms_phone', $to) || rate_limited('sms_ip', client_ip())) {
 			log_event('warning', 'SMS rate limit', ['user_id' => $user['id'], 'purpose' => $purpose], 'audit');
 
 			return t('code.err_limit');
 		}
-		rate_hit('sms_total', 'all');
 		rate_hit('sms_user', (string) $user['id']);
 		rate_hit('sms_phone', $to);
 		rate_hit('sms_ip', client_ip());
@@ -198,6 +197,7 @@ function code_confirm(array $user, string $purpose, string $typed): array
 	}
 
 	delete_verify_code($user['id'], $purpose);
+	log_action('code.confirmed', ['user_id' => $user['id'], 'purpose' => $purpose, 'channel' => $row['channel']]);
 
 	return ['ok', $row];
 }
