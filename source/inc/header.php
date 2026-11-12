@@ -9,9 +9,9 @@ $flash = take_flash();
 // Guests see "Log in" in place of the profile link
 $accountLink = current_user() ? ['profile.php', t('nav.profile')] : ['auth.php', t('auth.login')];
 $searchQuery = (string) ($_GET['q'] ?? '');
-// The search starts from the place of the user's profile; on the results the select shows
-// what is really chosen there ("all places" too)
-$searchCity = (string) ($_GET['city'] ?? (current_script() === 'category.php' ? '' : (current_user()['city'] ?? '')));
+// The search starts from the place chosen on other pages, else the profile's (preferred_city(),
+// checklist K1); on the results the select shows what is really chosen there ("all places" too)
+$searchCity = (string) ($_GET['city'] ?? (current_script() === 'category.php' ? '' : preferred_city()));
 ?>
 <!doctype html>
 <html lang="<?= e(lang_meta()['html']) ?>">
@@ -37,6 +37,10 @@ $searchCity = (string) ($_GET['city'] ?? (current_script() === 'category.php' ? 
 	<link rel="stylesheet" href="<?= asset('css/site.css') ?>">
 	<script src="<?= asset('js/select.js') ?>" defer></script>
 	<script src="<?= asset('js/main.js') ?>" defer></script>
+	<?php if (!empty($page['phone_field'])): ?>
+	<!-- Phone number fields (phone_input()): registration, profile -->
+	<script src="<?= asset('js/phone.js') ?>" defer></script>
+	<?php endif; ?>
 </head>
 <body class="<?= e(trim('site ' . $page['body_class'])) ?>" data-select-search="<?= e(t('common.search')) ?>" data-select-empty="<?= e(t('common.nothing_found')) ?>" data-select-close="<?= e(t('common.close')) ?>">
 <a class="skip-link" href="#main"><?= e(t('a11y.skip')) ?></a>

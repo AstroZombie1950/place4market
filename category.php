@@ -22,29 +22,35 @@ if ($f['cat'] !== '' && (!$currentCat || !$currentCat['visible'])) {
 	exit;
 }
 
-// Dictionaries of this page: deals, kinds, brands of the subcategory (kinds of a section: SECTION_TYPES),
-// districts of the city (real estate). A value that does not fit is dropped (→ 301 without it)
-$deals = $childCat ? category_deals($childCat['slug']) : [];
-$types = $childCat ? category_types($childCat['slug']) : ($parentCat ? section_types($parentCat['slug'], array_column($parentCat['children'], 'slug')) : []);
-$brands = $childCat ? category_brands($childCat['slug']) : [];
-$cityDistricts = $parentCat && in_array($parentCat['slug'], DISTRICT_SECTIONS, true) ? districts()[$f['city']] ?? [] : [];
-$attrFlags = array_values(array_intersect(['damaged', 'financing'], array_keys(category_attr_fields($childCat['slug'] ?? ''))));
-$clean = [
-	'deal' => in_array($f['deal'], $deals, true) ? $f['deal'] : '',
-	'type' => isset($types[$f['type']]) ? $f['type'] : '',
-	'brand' => isset($brands[$f['brand']]) || ($brands && $f['brand'] === 'other') ? $f['brand'] : '',
-	'city' => city_by_input($f['city']) ?? '',
-	'district' => in_array($f['district'], array_column($cityDistricts, 'latn'), true) ? $f['district'] : '',
-	'damaged' => $f['damaged'] && in_array('damaged', $attrFlags, true),
-	'financing' => $f['financing'] && in_array('financing', $attrFlags, true),
-];
-if (array_intersect_key($f, $clean) != $clean) {
-	redirect(url('category.php', search_query(array_merge($f, $clean))), 301);
+// Dictionaries of this page (filter_dictionaries()); a value that does not fit is dropped (→ 301 without it)
+[$deals, $types, $brands, $cityDistricts, $attrFlags] = filter_dictionaries($f);
+$fit = fit_filters($f);
+if ($fit != $f) {
+	redirect(url('category.php', search_query($fit)), 301);
+}
+
+// The place chosen on other pages (checklist K1, preferred_city()): a page without a place shows
+// that place. 302 and for this visitor only: robots send no cookie and are not logged in, so the
+// indexed addresses stay as they are. "All Serbia" chosen → no redirect
+if ($f['city'] === '' && !is_bot() && ($city = preferred_city()) !== '') {
+	$withCity = fit_filters(array_merge($f, ['city' => $city, 'district' => '']));
+	if ($withCity['city'] !== '') {
+		redirect(url('category.php', search_query($withCity)), 302);
+	}
 }
 
 // Results + pagination
 $perPage = setting('per_page');
 $total = count_listings($f);
+
+// Live filters on tablets and phones (main.js, checklist K3): only the number, for the button
+// "Show N listings" of the filters drawer
+if (($_SERVER['HTTP_X_P4M_COUNT'] ?? '') === '1') {
+	header('Content-Type: application/json; charset=utf-8');
+	header('Cache-Control: no-store');
+	echo json_encode(['total' => $total, 'label' => $total ? tp('cat.show_count', $total) : t('cat.show_none')], JSON_UNESCAPED_UNICODE);
+	exit;
+}
 $pageNum = max(1, min((int) ($_GET['page'] ?? 1), max(1, (int) ceil($total / $perPage))));
 
 // One address per results page: ?page=1, 0, "abc", "2x" or past the last page → 301
@@ -66,6 +72,19 @@ $title = $f['q'] !== '' ? t('cat.results_for', ['q' => $f['q']]) : results_h1($f
 
 // Link to this page with some params changed (null removes a param)
 $linkWith = fn(array $changes): string => url('category.php', search_query(array_merge($f, $changes)));
+// Another category from the list on the left: its link and count without filters that do not fit it (A31)
+$catFilters = fn(?string $cat): array => fit_filters(array_merge($f, ['cat' => (string) $cat]));
+$catLink = fn(?string $cat): string => url('category.php', search_query($catFilters($cat)));
+// A row of that list: a link with the count, or grey text when nothing there fits these filters —
+// no links to empty results (A32); the open page itself stays a link
+$catRow = function (string $label, string $slug, bool $current) use ($catLink, $catFilters): string {
+	$count = count_listings($catFilters($slug));
+	$inner = '<span>' . e($label) . '</span><span class="muted">' . $count . '</span>';
+
+	return $count > 0 || $current
+		? '<a class="filters__link" href="' . e($catLink($slug)) . '"' . ($current ? ' aria-current="page"' : '') . '>' . $inner . '</a>'
+		: '<span class="filters__link filters__link--empty">' . $inner . '</span>';
+};
 
 // Active filter chips: label + link without that filter
 $chipRemove = [
@@ -76,7 +95,8 @@ $chipRemove = [
 ];
 $chips = [];
 foreach (search_filter_labels($f) as $key => $label) {
-	$chips[] = ['label' => $label, 'href' => $linkWith($chipRemove[$key])];
+	// The place chip's cross also chooses all Serbia for the next pages (K1, main.js)
+	$chips[] = ['label' => $label, 'href' => $linkWith($chipRemove[$key]), 'city' => $key === 'city'];
 }
 
 // Save search: guests log in first; an already saved one links to it
@@ -130,8 +150,9 @@ $emptyIndexed = !$total && !$isFiltered && !$hasFacets && $currentCat && categor
 $page['robots'] = $isFiltered || (!$total && !$emptyIndexed) ? 'noindex, follow' : 'index, follow';
 
 // SEO text under the listings (stage C): the landing's, else the category's on its clean page.
+// Only on indexed pages (not with search, filters or sorting: checklist 3.2.4), first page.
 // As it is stored (English or Serbian Latin): seo_text_html() builds its links and converts it for the Cyrillic page
-$seoText = $f['q'] === '' && $pageNum === 1 ? ($landing['text'] ?? (!$hasFacets && $currentCat ? $currentCat['text'] : null)) : null;
+$seoText = !$isFiltered && $pageNum === 1 ?($landing['text'] ?? (!$hasFacets && $currentCat ? $currentCat['text'] : null)) : null;
 $seoText = (string) ($seoText[lang() === 'en' ? 'en' : 'sr'] ?? '') !== '' ? $seoText[lang() === 'en' ? 'en' : 'sr'] : null;
 
 // Interlinking on indexed pages: landings with listings one step further (a place, a kind, a brand,
@@ -193,14 +214,14 @@ require INC_DIR . '/header.php';
 						<h2 class="filters__title"><?= e($parentCat ? t('cat.subcategories') : t('cat.categories')) ?></h2>
 						<ul class="filters__list">
 							<?php if ($parentCat): ?>
-							<li><a class="filters__link filters__link--back" href="<?= e($linkWith(['cat' => null])) ?>"><?= icon('chevron-left', 16) ?><?= e(t('cat.all_categories')) ?></a></li>
-							<li><a class="filters__link" href="<?= e($linkWith(['cat' => $parentCat['slug']])) ?>"<?= !$childCat ? ' aria-current="page"' : '' ?>><span><?= e(cat_name($parentCat)) ?></span><span class="muted"><?= count_listings(array_merge($f, ['cat' => $parentCat['slug']])) ?></span></a></li>
+							<li><a class="filters__link filters__link--back" href="<?= e($catLink(null)) ?>"><?= icon('chevron-left', 16) ?><?= e(t('cat.all_categories')) ?></a></li>
+							<li><?= $catRow(cat_name($parentCat), $parentCat['slug'], !$childCat) ?></li>
 							<?php foreach (array_filter($parentCat['children'], fn($child) => $child['visible']) as $child): ?>
-							<li><a class="filters__link" href="<?= e($linkWith(['cat' => $child['slug']])) ?>"<?= $childCat && $childCat['slug'] === $child['slug'] ? ' aria-current="page"' : '' ?>><span>— <?= e(cat_name($child)) ?></span><span class="muted"><?= count_listings(array_merge($f, ['cat' => $child['slug']])) ?></span></a></li>
+							<li><?= $catRow('— ' . cat_name($child), $child['slug'], $childCat && $childCat['slug'] === $child['slug']) ?></li>
 							<?php endforeach; ?>
 							<?php else: ?>
 							<?php foreach (visible_categories() as $category): ?>
-							<li><a class="filters__link" href="<?= e($linkWith(['cat' => $category['slug']])) ?>"><span><?= e(cat_name($category)) ?></span><span class="muted"><?= count_listings(array_merge($f, ['cat' => $category['slug']])) ?></span></a></li>
+							<li><?= $catRow(cat_name($category), $category['slug'], false) ?></li>
 							<?php endforeach; ?>
 							<?php endif; ?>
 						</ul>
@@ -314,7 +335,7 @@ require INC_DIR . '/header.php';
 
 				<div class="filters__foot">
 					<button type="submit" class="btn btn--primary btn--block"><?= e(t('cat.apply')) ?></button>
-					<a class="btn btn--ghost btn--block" href="<?= e(url('category.php', ['cat' => $f['cat'], 'q' => $f['q']])) ?>"><?= e(t('cat.reset')) ?></a>
+					<a class="btn btn--ghost btn--block" href="<?= e(url('category.php', ['cat' => $f['cat'], 'q' => $f['q']])) ?>" data-city-set="all"><?= e(t('cat.reset')) ?></a>
 				</div>
 			</form>
 		</div>
@@ -355,7 +376,7 @@ require INC_DIR . '/header.php';
 			<?php if ($chips): ?>
 			<ul class="chips filter-chips" role="list" aria-label="<?= e(t('cat.active_filters')) ?>">
 				<?php foreach ($chips as $chip): ?>
-				<li><a class="chip chip--removable" href="<?= e($chip['href']) ?>" aria-label="<?= e(t('cat.remove_filter', ['name' => $chip['label']])) ?>"><?= e($chip['label']) ?><?= icon('x', 16) ?></a></li>
+				<li><a class="chip chip--removable" href="<?= e($chip['href']) ?>"<?= $chip['city'] ? ' data-city-set="all"' : '' ?> aria-label="<?= e(t('cat.remove_filter', ['name' => $chip['label']])) ?>"><?= e($chip['label']) ?><?= icon('x', 16) ?></a></li>
 				<?php endforeach; ?>
 			</ul>
 			<?php endif; ?>
@@ -372,7 +393,7 @@ require INC_DIR . '/header.php';
 				<?= icon('search', 40) ?>
 				<p class="empty__title"><?= e(t('cat.empty_title')) ?></p>
 				<p><?= e(t('cat.empty_text')) ?></p>
-				<a class="btn btn--outline" href="<?= e(url('category.php')) ?>"><?= e(t('cat.reset')) ?></a>
+				<a class="btn btn--outline" href="<?= e(url('category.php')) ?>" data-city-set="all"><?= e(t('cat.reset')) ?></a>
 			</div>
 			<?php endif; ?>
 

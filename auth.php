@@ -75,6 +75,8 @@ if ($action === 'register') {
 	} elseif (empty($_POST['terms'])) {
 		$errors['register'] = t('auth.err_terms');
 	} elseif (email_taken($old['email'])) {
+		// Counted like a registration: the answer must not check addresses without a limit (A28)
+		rate_hit('register_ip', client_ip());
 		$errors['register'] = t('auth.err_email_taken');
 	} else {
 		rate_hit('register_ip', client_ip());
@@ -95,6 +97,7 @@ $page['robots'] = 'noindex, follow';
 $page['search'] = false;
 // The account item ("Log in") of the header and the bottom bar
 $page['nav'] = 'profile';
+$page['phone_field'] = true;
 
 require INC_DIR . '/header.php';
 ?>
@@ -164,7 +167,7 @@ require INC_DIR . '/header.php';
 					</div>
 					<div class="field">
 						<label class="field__label" for="reg-phone"><?= e(t('auth.phone')) ?></label>
-						<input class="input" id="reg-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="<?= e(t('auth.phone_placeholder')) ?>" value="<?= e($action === 'register' ? $old['phone'] : '') ?>">
+						<?= phone_input('reg-phone', $action === 'register' ? $old['phone'] : '') ?>
 					</div>
 					<div class="field">
 						<label class="field__label" for="reg-password"><?= e(t('auth.password')) ?></label>

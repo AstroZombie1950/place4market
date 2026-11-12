@@ -9,7 +9,7 @@
 	========================================================================== */
 
 return [
-	'updated' => '2026-11-11',
+	'updated' => '2026-11-12',
 	'lead' => [
 		'en' => 'This policy explains what personal data Place4Market collects, why, how long we keep it, who else processes it and what rights you have under the Law on Personal Data Protection of the Republic of Serbia (ZZPL).',
 		'sr' => 'Ova politika objašnjava koje lične podatke Place4Market prikuplja, zašto, koliko dugo ih čuvamo, ko ih još obrađuje i koja prava imate prema Zakonu o zaštiti podataka o ličnosti Republike Srbije (ZZPL).',
@@ -83,6 +83,7 @@ return [
 					['en' => 'p4m_sid: keeps you logged in during a visit; deleted when you close the browser.', 'sr' => 'p4m_sid: održava vašu prijavu tokom posete; briše se kada zatvorite pregledač.'],
 					['en' => 'p4m_remember: only if you tick "Remember me" when logging in; 30 days.', 'sr' => 'p4m_remember: samo ako pri prijavi označite „Zapamti me“; 30 dana.'],
 					['en' => 'p4m_consent: your choice about analytics cookies; one year.', 'sr' => 'p4m_consent: vaš izbor o analitičkim kolačićima; godinu dana.'],
+					['en' => 'p4m_city: the place you chose for search (or all Serbia), so that it stays the same from page to page; one year.', 'sr' => 'p4m_city: mesto koje ste izabrali za pretragu (ili cela Srbija), da ostane isto od stranice do stranice; godinu dana.'],
 					['en' => '_ga and _ga_…: Google Analytics, only after you accept; up to two years.', 'sr' => '_ga i _ga_…: Google Analytics, samo kada prihvatite; do dve godine.'],
 				]],
 				['en' => 'In the browser\'s local storage we keep only whether you view listings as a grid or a list, and when you last opened a listing, so that one view is not counted twice. This stays on your device. The site language is kept in the page address, not in a cookie.', 'sr' => 'U lokalnom skladištu pregledača čuvamo samo da li oglase gledate kao mrežu ili listu i kada ste poslednji put otvorili oglas, da jedan pregled ne bismo brojali dvaput. To ostaje na vašem uređaju. Jezik sajta se pamti u adresi stranice, ne u kolačiću.'],

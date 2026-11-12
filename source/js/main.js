@@ -66,6 +66,9 @@
 	// 145000 → "145 000"
 	const formatNumber = (value) => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
+	// A price as typed → its digits, the decimal part dropped ("1.500,50" → "1500"): price_digits() in helpers.php
+	const priceDigits = (value) => String(value).trim().replace(/\D+$/, '').replace(/[.,]\d{1,2}$/, '').replace(/\D/g, '');
+
 	// An item of a horizontally scrolling strip comes into view: only the strip scrolls,
 	// never the page (scrollIntoView would also scroll the page to a strip below the fold).
 	// center: the item goes to the middle, its neighbours stay visible on both sides
@@ -360,25 +363,31 @@
 			drawer.classList.remove('is-open');
 			document.body.classList.remove('is-locked');
 			if (overlay) overlay.hidden = true;
+			// The button that opened it may have been replaced meanwhile (live results): its successor
+			if (opener && !opener.isConnected) opener = $(`[data-drawer-open="${drawer.id}"]`);
 			if (opener) {
 				opener.setAttribute('aria-expanded', 'false');
 				opener.focus();
 			}
 		};
 
-		$$('[data-drawer-open]').forEach((btn) => {
-			const drawer = document.getElementById(btn.dataset.drawerOpen);
+		// One listener for every opener: the results bar with the button is replaced by the live results (K3)
+		document.addEventListener('click', (e) => {
+			const btn = e.target instanceof Element ? e.target.closest('[data-drawer-open]') : null;
+			const drawer = btn && document.getElementById(btn.dataset.drawerOpen);
 			if (!drawer) return;
+			opener = btn;
+			drawer.classList.add('is-open');
+			document.body.classList.add('is-locked');
+			if (overlay) overlay.hidden = false;
+			btn.setAttribute('aria-expanded', 'true');
+			const first = $('button, a, input, select', drawer);
+			if (first) setTimeout(() => first.focus(), 50);
+		});
 
-			btn.addEventListener('click', () => {
-				opener = btn;
-				drawer.classList.add('is-open');
-				document.body.classList.add('is-locked');
-				if (overlay) overlay.hidden = false;
-				btn.setAttribute('aria-expanded', 'true');
-				const first = $('button, a, input, select', drawer);
-				if (first) setTimeout(() => first.focus(), 50);
-			});
+		new Set($$('[data-drawer-open]').map((btn) => btn.dataset.drawerOpen)).forEach((id) => {
+			const drawer = document.getElementById(id);
+			if (!drawer) return;
 
 			$$('[data-drawer-close]', drawer).forEach((x) => x.addEventListener('click', () => close(drawer)));
 			if (overlay) overlay.addEventListener('click', () => close(drawer));
@@ -495,8 +504,10 @@
 			update();
 		});
 
-		$$('select[data-autosubmit]').forEach((select) => {
-			select.addEventListener('change', () => select.form && select.form.requestSubmit());
+		// Delegated: the sort select is replaced by the live results (K3)
+		document.addEventListener('change', (e) => {
+			const select = e.target;
+			if (select instanceof HTMLSelectElement && select.hasAttribute('data-autosubmit') && select.form) select.form.requestSubmit();
 		});
 	};
 
@@ -629,8 +640,8 @@
 		Grid / list view: [data-view-toggle="results-id"] > button[data-view]
 		Remembers the choice in localStorage
 		---------------------------------------------------------------------- */
-	const initViewToggle = () => {
-		$$('[data-view-toggle]').forEach((group) => {
+	const initViewToggle = (root = document) => {
+		$$('[data-view-toggle]', root).forEach((group) => {
 			const results = document.getElementById(group.dataset.viewToggle);
 			if (!results) return;
 			const buttons = $$('[data-view]', group);
@@ -873,6 +884,266 @@
 	};
 
 	/* ----------------------------------------------------------------------
+		Place chosen for search (checklist K1, chosen_city() in site.php): a
+		place list in the header search or in the filters, and links with
+		data-city-set (the place chip's cross, "Reset filters": "all"), keep the
+		choice in the p4m_city cookie; pages without a place then open with it
+		---------------------------------------------------------------------- */
+	const rememberCity = (city) => {
+		document.cookie = `p4m_city=${encodeURIComponent(city || 'all')}; path=/; max-age=31536000; samesite=lax${location.protocol === 'https:' ? '; secure' : ''}`;
+	};
+
+	const initCityChoice = () => {
+		document.addEventListener('change', (event) => {
+			const select = event.target;
+			if (select instanceof HTMLSelectElement && select.name === 'city' && select.closest('.search, #filters')) rememberCity(select.value);
+		});
+		document.addEventListener('click', (event) => {
+			const link = event.target instanceof Element ? event.target.closest('[data-city-set]') : null;
+			if (link) rememberCity(link.dataset.citySet);
+		});
+	};
+
+	/* ----------------------------------------------------------------------
+		Live results (category.php, checklist K3): filters apply without
+		reloading the page. The page of the new address is fetched and its
+		parts are put in place: the results column, the body of the filters
+		(category list with numbers, district), heading, breadcrumbs, language
+		links, the place in the header search; the address changes
+		(history.pushState, "Back" works). The filters form itself and its
+		drawer stay. Addresses stay real: without JS the "Show results" button
+		and links work as before, robots see the same pages.
+		- laptop and desktop (≥1024): any change applies at once; a price after
+		  a pause in typing (0.8 s), Enter or leaving the field
+		- tablet and phone: the drawer stays open, its button shows the number
+		  (the X-P4M-Count answer of category.php) and applies
+		- links of the category list, chips, pagination, "Reset filters", the
+		  landing links and the sort select load the same way
+		- a failed request opens the address the usual way
+		---------------------------------------------------------------------- */
+	const initLiveResults = () => {
+		const form = $('#filters');
+		const main = $('.layout--filters > .layout__main');
+		if (!form || !main || !window.fetch || !window.DOMParser) return;
+
+		const wide = window.matchMedia('(min-width: 1024px)');
+		const applyBtn = $('.filters__foot button[type="submit"]', form);
+		const applyLabel = applyBtn ? applyBtn.textContent : '';
+		const LINKS = '#filters .filters__link, #filters .filters__foot a, .filter-chips a, .layout__main .pagination a, .layout__main .empty a, .layout__main .next-links a';
+		const live = document.createElement('p');
+		live.className = 'visually-hidden';
+		live.setAttribute('aria-live', 'polite');
+		document.body.append(live);
+		let controller = null;
+		let countController = null;
+		let lastUrl = location.href;
+		let timer = 0;
+
+		// The address the form would open (empty fields left out: the server drops them with a 301 anyway)
+		const formUrl = () => {
+			const url = new URL(form.getAttribute('action'), location.href);
+			new FormData(form).forEach((value, name) => {
+				if (value !== '') url.searchParams.append(name, value);
+			});
+			return url.href;
+		};
+
+		// The focused field of the filters, to find it again in the new body
+		const focusKey = () => {
+			const active = document.activeElement;
+			if (!active || !form.contains(active)) return null;
+			const field = (active.closest('.cselect') && $('select', active.closest('.cselect'))) || active;
+			const typed = field instanceof HTMLInputElement && field.type === 'text';
+			return {
+				selector: field.id ? `#${CSS.escape(field.id)}` : `[name="${CSS.escape(field.name || '')}"][value="${CSS.escape(field.value)}"]`,
+				typed, value: field.value, start: typed ? field.selectionStart : null, end: typed ? field.selectionEnd : null,
+			};
+		};
+
+		const swap = (doc) => {
+			const nextForm = $('#filters', doc);
+			const nextMain = $('.layout--filters > .layout__main', doc);
+			if (!nextForm || !nextMain) return false;
+			const keep = focusKey();
+
+			document.title = doc.title;
+			['.breadcrumbs', '.page-head'].forEach((selector) => {
+				const now = $(selector);
+				const next = $(selector, doc);
+				if (now && next) now.replaceWith(next);
+			});
+			const langs = $$('.lang-switch', doc);
+			$$('.lang-switch').forEach((nav, n) => { if (langs[n]) nav.replaceWith(langs[n]); });
+			// The search in the header shows the query and the place of the new page
+			const search = $('.search__select');
+			const nextSearch = $('.search__select', doc);
+			if (search && nextSearch) search.value = nextSearch.value;
+			const query = $('.search__input');
+			const nextQuery = $('.search__input', doc);
+			if (query && nextQuery) query.value = nextQuery.value;
+
+			form.setAttribute('action', nextForm.getAttribute('action'));
+			$$(':scope > input[type="hidden"]', form).forEach((input) => input.remove());
+			form.prepend(...$$(':scope > input[type="hidden"]', nextForm));
+			$('.filters__body', form).replaceWith($('.filters__body', nextForm));
+			main.replaceChildren(...nextMain.childNodes);
+
+			if (window.P4MSelect) {
+				window.P4MSelect.init(form);
+				window.P4MSelect.init(main);
+			}
+			initViewToggle(main);
+
+			// Back to the field that was in use; a price typed on meanwhile stays as typed
+			const field = keep && $(keep.selector, form);
+			if (field) {
+				if (keep.typed) {
+					field.value = keep.value;
+					field.focus();
+					field.setSelectionRange(keep.start, keep.end);
+				} else {
+					((field.dataset.cselect && $('.cselect__button', field.parentNode)) || field).focus();
+				}
+			}
+			return true;
+		};
+
+		const load = async (url, { push = true, scroll = false } = {}) => {
+			if (controller) controller.abort();
+			const mine = new AbortController();
+			controller = mine;
+			lastUrl = url;
+			main.classList.add('is-loading');
+			main.setAttribute('aria-busy', 'true');
+
+			try {
+				const res = await fetch(url, { signal: mine.signal, credentials: 'same-origin', headers: { Accept: 'text/html' } });
+				if (!res.ok) throw new Error(`HTTP ${res.status}`);
+				const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+				if (!swap(doc)) throw new Error('not a results page');
+
+				// The final address (the server may have tidied it: a place in the path, a filter dropped)
+				lastUrl = res.url || url;
+				if (push && lastUrl !== location.href) history.pushState({ p4mResults: true }, '', lastUrl);
+				if (applyBtn) applyBtn.textContent = applyLabel;
+				const count = $('#results-count');
+				live.textContent = count ? count.textContent : '';
+				const top = main.getBoundingClientRect().top;
+				if (scroll || top < 0) main.scrollIntoView({ block: 'start', behavior: 'smooth' });
+			} catch (err) {
+				if (err.name === 'AbortError') return;
+				window.location.href = url;
+			} finally {
+				if (controller === mine) {
+					main.classList.remove('is-loading');
+					main.removeAttribute('aria-busy');
+				}
+			}
+		};
+
+		// Tablets and phones: the number on the drawer's button
+		const count = async () => {
+			if (!applyBtn) return;
+			if (countController) countController.abort();
+			const mine = new AbortController();
+			countController = mine;
+			try {
+				const res = await fetch(formUrl(), { signal: mine.signal, credentials: 'same-origin', headers: { 'X-P4M-Count': '1', Accept: 'application/json' } });
+				const data = await res.json();
+				if (data.label) applyBtn.textContent = data.label;
+			} catch {
+				// The button keeps its text; it still applies the filters
+			}
+		};
+
+		const closeDrawer = () => {
+			if (form.classList.contains('is-open')) {
+				const x = $('[data-drawer-close]', form);
+				if (x) x.click();
+			}
+		};
+
+		const changed = () => {
+			window.clearTimeout(timer);
+			if (!wide.matches) {
+				count();
+				return;
+			}
+			const url = formUrl();
+			if (url !== lastUrl) load(url);
+		};
+
+		form.addEventListener('change', (e) => {
+			// The place first goes to the cookie (K1): the request must already carry it
+			if (e.target instanceof HTMLSelectElement && e.target.name === 'city') rememberCity(e.target.value);
+			changed();
+		});
+		form.addEventListener('input', (e) => {
+			if (!(e.target instanceof HTMLInputElement) || e.target.type !== 'text') return;
+			window.clearTimeout(timer);
+			timer = window.setTimeout(changed, 800);
+		});
+		form.addEventListener('submit', (e) => {
+			e.preventDefault();
+			window.clearTimeout(timer);
+			closeDrawer();
+			load(formUrl(), { scroll: !wide.matches });
+		});
+
+		// The sort select (data-autosubmit) and the links that open other results
+		document.addEventListener('submit', (e) => {
+			const sort = e.target;
+			if (!(sort instanceof HTMLFormElement) || !main.contains(sort) || sort.method !== 'get') return;
+			e.preventDefault();
+			const url = new URL(sort.getAttribute('action'), location.href);
+			new FormData(sort).forEach((value, name) => { if (value !== '') url.searchParams.append(name, value); });
+			load(url.href);
+		});
+		document.addEventListener('click', (e) => {
+			if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+			const link = e.target instanceof Element ? e.target.closest('a[href]') : null;
+			if (!link || !link.matches(LINKS) || link.target) return;
+			const url = new URL(link.href, location.href);
+			if (url.origin !== location.origin) return;
+			e.preventDefault();
+			if (link.getAttribute('aria-disabled') === 'true') return;
+			closeDrawer();
+			load(url.href, { scroll: true });
+		});
+
+		// "Back" / "Forward" between the results opened here
+		history.replaceState({ ...(history.state || {}), p4mResults: true }, '');
+		window.addEventListener('popstate', (e) => {
+			if (e.state && e.state.p4mResults) load(location.href, { push: false });
+		});
+	};
+
+	/* ----------------------------------------------------------------------
+		Phone in the profile (checklist K5): the pencil ([data-phone-edit]) opens
+		the form ([data-phone-form]) in place of the line ([data-phone-view]),
+		"Cancel" ([data-phone-cancel]) closes it. Without JS: ?phone=edit
+		---------------------------------------------------------------------- */
+	const initPhoneEdit = () => {
+		const form = $('[data-phone-form]');
+		const view = $('[data-phone-view]');
+		if (!form || !view) return;
+
+		const open = (show) => {
+			form.hidden = !show;
+			view.hidden = show;
+			(show ? $('input[data-phone]', form) : $('[data-phone-edit]', view))?.focus();
+		};
+		$$('[data-phone-edit]').forEach((link) => link.addEventListener('click', (event) => {
+			event.preventDefault();
+			open(true);
+		}));
+		$('[data-phone-cancel]', form)?.addEventListener('click', (event) => {
+			event.preventDefault();
+			open(false);
+		});
+	};
+
+	/* ----------------------------------------------------------------------
 		Notifications in the browser (profile → Notifications → "in the browser"):
 		- i18n.notifyUrl (notify.php) is asked every 30 s while the site is open in
 		  a tab; each event comes once: a toast with a link and a short sound, or a
@@ -1073,7 +1344,7 @@
 			const price = field('price');
 			price.disabled = agreement;
 			const currency = field('currency').value === 'EUR' ? '€' : 'RSD';
-			const amount = price.value.replace(/\D/g, '');
+			const amount = priceDigits(price.value);
 
 			if (agreement || !amount) {
 				p('price').innerHTML = '';
@@ -2159,11 +2430,13 @@
 	window.P4M = { toast };
 
 	initConsent();
+	initCityChoice();
 	initFavorites();
 	initSavedSearches();
 	initTabs();
 	initPills();
 	initDrawers();
+	initLiveResults();
 	initDialogs();
 	initConfirm();
 	initForms();
@@ -2172,6 +2445,7 @@
 	initDetails();
 	initExpand();
 	initAvatar();
+	initPhoneEdit();
 	initNotify();
 	initToTop();
 	initGallery();

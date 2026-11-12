@@ -39,6 +39,12 @@ if ($userId !== null) {
 	redirect(current_user() ? url('profile.php') : url('auth.php'));
 }
 
+// The link was opened before (mail scanners open links in letters) and the address is confirmed
+if (verify_link_done($hash)) {
+	flash('success', t('auth.verified'));
+	redirect(current_user() ? url('profile.php') : url('auth.php'));
+}
+
 $userId = use_auth_token('change_email', $hash);
 
 if ($userId !== null) {

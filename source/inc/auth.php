@@ -237,7 +237,10 @@ const RATE_LIMITS = [
 	'message' => [100, 3600],
 	'conversation' => [30, 86400],
 	'email_change' => [5, 3600],
-	'contact_ip' => [5, 3600],
+	// Wrong current password in the profile (password, e-mail, deleting the account), per account
+	'password_recheck' => [5, 3600],
+	// Contact form: 3 an hour per IP (user's decision 12.11, checklist 5.3.5)
+	'contact_ip' => [3, 3600],
 	'phone_ip' => [30, 3600],
 	'view' => [1, 86400],
 ];
@@ -284,16 +287,18 @@ function account_data_error(array $f): string
 
 /* ---------- Phone numbers ---------- */
 
-// A Serbian number as typed ("064 123-45-67", "+381 64 1234567", "00381…", "381…") → its
-// stored form +381XXXXXXXXX; null when it is not one. After the country code: 8–9 digits,
-// mobile networks start with 6, landlines with 1–3
+// A Serbian number as typed ("064 123-45-67", "+381 64 1234567", "00381…", "381…", or
+// "64 123 4567" from the field with "+381" before it: phone_input()) → its stored form
+// +381XXXXXXXXX; null when it is not one. After the country code: 7–9 digits, mobile
+// networks start with 6, landlines with 1–3 (so "381…" of 10+ digits is the country code)
 function phone_normalize(string $raw): ?string
 {
 	$n = preg_replace('/[\s().\/\-]/u', '', trim($raw));
 	$n = match (true) {
 		str_starts_with($n, '00381') => '+' . substr($n, 2),
-		str_starts_with($n, '381') => '+' . $n,
+		str_starts_with($n, '381') && strlen($n) >= 10 => '+' . $n,
 		str_starts_with($n, '0') => '+381' . substr($n, 1),
+		(bool) preg_match('/^[1-36]\d{6,8}$/', $n) => '+381' . $n,
 		default => $n,
 	};
 
@@ -330,6 +335,23 @@ function password_check(string $password, ?string $hash): bool
 	$dummy ??= password_hash('timing-equaliser', PASSWORD_DEFAULT);
 
 	return password_verify($password, $hash ?? $dummy) && $hash !== null;
+}
+
+// The account's own password asked again in the profile (change of password or e-mail, deleting
+// the account): 'ok' | 'wrong' | 'limited'. Wrong answers count per account for all three forms,
+// so a stolen session cannot guess the password by trying (audit A26)
+function password_recheck(int $userId, string $password): string
+{
+	if (rate_limited('password_recheck', (string) $userId)) {
+		log_event('warning', 'Password recheck rate limit', ['user_id' => $userId], 'audit');
+		return 'limited';
+	}
+	if (password_check($password, user_password_hash($userId))) {
+		return 'ok';
+	}
+	rate_hit('password_recheck', (string) $userId);
+
+	return 'wrong';
 }
 
 /* ---------- One-time email links ---------- */

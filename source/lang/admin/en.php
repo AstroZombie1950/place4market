@@ -363,6 +363,7 @@ return [
 	/* ---------- Moderation messages (moderate.php) ---------- */
 	'mod.approved' => ['one' => '{n} listing approved, the seller notified', 'other' => '{n} listings approved, sellers notified'],
 	'mod.approve_none' => 'Nothing to approve: the listings are not waiting for moderation.',
+	'mod.video_wait' => 'The video of {ids} is still being processed — approve it in a minute, after watching it.',
 	'mod.choose_reason' => 'Choose a reason.',
 	'mod.rejected' => ['one' => '{n} listing rejected', 'other' => '{n} listings rejected'],
 	'mod.reject_none' => 'Nothing to reject.',
@@ -485,6 +486,7 @@ return [
 
 	/* ---------- Account actions (user-actions.php) ---------- */
 	'ua.admins_only' => 'Only administrators can change accounts, roles and delete users.',
+	'ua.staff_admins_only' => 'Only administrators can do this with a staff account.',
 	'ua.no_account' => 'This account does not exist or was deleted.',
 	'ua.err_name' => 'The name takes 2 to 100 characters.',
 	'ua.err_email' => 'Enter a valid email.',

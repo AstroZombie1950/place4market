@@ -478,6 +478,37 @@ function city_select_options(string $selected = '', bool $withAll = true): strin
 		. '<optgroup label="' . e(t('cat.other_places')) . '">' . implode('', array_map($option, $rest)) . '</optgroup>';
 }
 
+/* ---------- The place chosen for search (checklist K1) ---------- */
+
+// The place the visitor chose in a place list (the search in the header, the place filter:
+// main.js writes it on change; a place chip's cross and "Reset filters" write "all"; a saved
+// search opened writes its own here): its Latin name, or "all" for all Serbia. One year.
+// Not httponly: the page script writes it. Listed in the privacy policy (content/privacy.php)
+const CITY_COOKIE = 'p4m_city';
+
+// The chosen place: 'Beograd', '' (all Serbia chosen) or null (nothing chosen yet)
+function chosen_city(): ?string
+{
+	$value = (string) ($_COOKIE[CITY_COOKIE] ?? '');
+
+	return match (true) {
+		$value === 'all' => '',
+		$value !== '' && in_array($value, array_column(active_cities(), 'latn'), true) => $value,
+		default => null,
+	};
+}
+
+// The place search starts from: the chosen one, else the profile's, else all Serbia ('')
+function preferred_city(): string
+{
+	return chosen_city() ?? (string) (current_user()['city'] ?? '');
+}
+
+function remember_city(string $city): void
+{
+	setcookie(CITY_COOKIE, $city !== '' ? $city : 'all', ['expires' => time() + 365 * 86400, 'path' => '/', 'secure' => is_https(), 'samesite' => 'Lax']);
+}
+
 // Place typed into the form (Latin or Cyrillic, any case, with or without č ć š ž đ) → its
 // Latin name, or null when it is not one of the active places
 function city_by_input(string $text): ?string
@@ -632,14 +663,48 @@ function search_filters(array $src): array
 		'seller' => in_array($src['seller'] ?? '', SELLER_TYPES, true) ? $src['seller'] : '',
 		'damaged' => !empty($src['damaged']),
 		'financing' => !empty($src['financing']),
-		'price_from' => substr(preg_replace('/\D/', '', (string) ($src['price_from'] ?? '')), 0, 12),
-		'price_to' => substr(preg_replace('/\D/', '', (string) ($src['price_to'] ?? '')), 0, 12),
+		'price_from' => substr(price_digits((string) ($src['price_from'] ?? '')), 0, 12),
+		'price_to' => substr(price_digits((string) ($src['price_to'] ?? '')), 0, 12),
 		'currency' => ($src['currency'] ?? 'RSD') === 'EUR' ? 'EUR' : 'RSD',
 		'condition' => in_array($src['condition'] ?? '', ['new', 'used'], true) ? $src['condition'] : '',
 		'negotiable' => !empty($src['negotiable']),
 		'photos' => !empty($src['photos']),
 		'sort' => in_array($src['sort'] ?? '', ['new', 'cheap', 'expensive'], true) ? $src['sort'] : 'new',
 	];
+}
+
+// Dictionaries of a results page by its filters: [deals, kinds, brands of the subcategory (kinds
+// of a section: SECTION_TYPES), districts of the city (real estate), car flags (damaged, financing)]
+function filter_dictionaries(array $f): array
+{
+	[$parent, $child] = find_category($f['cat'] ?? '');
+
+	return [
+		$child ? category_deals($child['slug']) : [],
+		$child ? category_types($child['slug']) : ($parent ? section_types($parent['slug'], array_column($parent['children'], 'slug')) : []),
+		$child ? category_brands($child['slug']) : [],
+		$parent && in_array($parent['slug'], DISTRICT_SECTIONS, true) ? districts()[$f['city'] ?? ''] ?? [] : [],
+		array_values(array_intersect(['damaged', 'financing'], array_keys(category_attr_fields($child['slug'] ?? '')))),
+	];
+}
+
+// The filters with what does not fit their category dropped: a deal, kind or brand of another
+// category, a district outside real estate, car flags elsewhere. category.php answers an address
+// with such a value by a 301 without it; links to other categories (the list on the left) are
+// built through it, so they lead straight to the page and count what it shows (audit A31)
+function fit_filters(array $f): array
+{
+	[$deals, $types, $brands, $districts, $flags] = filter_dictionaries($f);
+
+	return array_merge($f, [
+		'deal' => in_array($f['deal'] ?? '', $deals, true) ? $f['deal'] : '',
+		'type' => isset($types[$f['type'] ?? '']) ? $f['type'] : '',
+		'brand' => isset($brands[$f['brand'] ?? '']) || ($brands && ($f['brand'] ?? '') === 'other') ? $f['brand'] : '',
+		'city' => city_by_input($f['city'] ?? '') ?? '',
+		'district' => in_array($f['district'] ?? '', array_column($districts, 'latn'), true) ? $f['district'] : '',
+		'damaged' => !empty($f['damaged']) && in_array('damaged', $flags, true),
+		'financing' => !empty($f['financing']) && in_array('financing', $flags, true),
+	]);
 }
 
 // Query string params of a search: defaults and empty values left out (no page)

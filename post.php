@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		'district' => (string) ($_POST['district'] ?? ''),
 		'seller_type' => (string) ($_POST['seller_type'] ?? ''),
 		'attrs' => array_map('strval', array_filter((array) ($_POST['attrs'] ?? []), 'is_scalar')),
-		'price' => preg_replace('/\D/', '', (string) ($_POST['price'] ?? '')),
+		'price' => price_digits((string) ($_POST['price'] ?? '')),
 		'currency' => ($_POST['currency'] ?? '') === 'EUR' ? 'EUR' : 'RSD',
 		'negotiable' => !empty($_POST['negotiable']),
 		'agreement' => !empty($_POST['agreement']),

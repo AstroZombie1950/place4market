@@ -67,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			'description' => trim(str_replace("\r\n", "\n", (string) ($_POST['description'] ?? ''))),
 			'category' => (string) ($_POST['category'] ?? ''),
 			'city' => (string) ($_POST['city'] ?? ''),
-			'price' => preg_replace('/\D/', '', (string) ($_POST['price'] ?? '')),
+			'price' => price_digits((string) ($_POST['price'] ?? '')),
 			'currency' => ($_POST['currency'] ?? '') === 'EUR' ? 'EUR' : 'RSD',
 			'negotiable' => !empty($_POST['negotiable']),
 			'condition' => (string) ($_POST['condition'] ?? ''),

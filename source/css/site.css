@@ -231,6 +231,16 @@ button {
 	min-width: 0;
 }
 
+/* Results being replaced by the live filters (main.js, initLiveResults) */
+.layout--filters > .layout__main {
+	scroll-margin-top: var(--space-4);
+	transition: opacity var(--transition);
+}
+
+.layout--filters > .layout__main.is-loading {
+	opacity: 0.55;
+}
+
 /* Breadcrumbs */
 .breadcrumbs ol {
 	display: flex;
@@ -758,6 +768,25 @@ button {
 	right: 2px;
 	top: 50%;
 	transform: translateY(-50%);
+}
+
+/* Phone field (phone_input(), phone.js): "+381" before the national number */
+.input-phone {
+	position: relative;
+}
+
+.input-phone__code {
+	position: absolute;
+	left: var(--space-3);
+	top: 50%;
+	transform: translateY(-50%);
+	color: var(--color-text-muted);
+	font-size: var(--fs-md);
+	pointer-events: none;
+}
+
+.input-phone > .input {
+	padding-left: calc(var(--space-3) + 3.4em);
 }
 
 [data-password-toggle][aria-pressed="true"] .icon--eye,
@@ -2104,6 +2133,13 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 .filters__link--back {
 	justify-content: flex-start;
 	color: var(--color-text-muted);
+}
+
+/* Nothing there with these filters: text, not a link (no empty results to open) */
+.filters__link--empty,
+.filters__link--empty:hover {
+	color: var(--color-text-muted);
+	text-decoration: none;
 }
 
 .filters__fieldset {
@@ -4042,6 +4078,32 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 /* Profile: where notifications go */
 .notify-channel {
 	margin-top: var(--space-5);
+}
+
+/* Profile: the phone line (number, status, pencil, "Confirm") and its form (checklist K5) */
+.phone-line {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-2) var(--space-3);
+}
+
+.phone-line__number {
+	font-size: var(--fs-lg);
+	font-weight: var(--fw-semibold);
+	white-space: nowrap;
+}
+
+.phone-line__confirm {
+	margin-left: auto;
+}
+
+.phone-line + .muted {
+	margin-top: var(--space-2);
+}
+
+.phone-edit {
+	max-width: 420px;
 }
 
 .toast--danger {

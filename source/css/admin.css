@@ -917,6 +917,25 @@ button {
 	transform: translateY(-50%);
 }
 
+/* Phone field (phone_input(), phone.js): "+381" before the national number */
+.input-phone {
+	position: relative;
+}
+
+.input-phone__code {
+	position: absolute;
+	left: var(--space-3);
+	top: 50%;
+	transform: translateY(-50%);
+	color: var(--color-text-muted);
+	font-size: var(--fs-base);
+	pointer-events: none;
+}
+
+.input-phone > .input {
+	padding-left: calc(var(--space-3) + 3.4em);
+}
+
 [data-password-toggle][aria-pressed="true"] .icon--eye,
 [data-password-toggle]:not([aria-pressed="true"]) .icon--eye-off {
 	display: none;

@@ -122,7 +122,7 @@ require ADMIN_INC . '/header.php';
 						</div>
 						<div class="field">
 							<label class="field__label" for="u-phone"><?= e(at('users.col_phone')) ?></label>
-							<input class="input" id="u-phone" name="phone" type="tel" value="<?= e($user['phone'] ?? '') ?>">
+							<?= phone_input('u-phone', $user['phone']) ?>
 						</div>
 						<div class="field">
 							<label class="field__label" for="u-city"><?= e(at('common.city')) ?></label>
@@ -172,6 +172,7 @@ require ADMIN_INC . '/header.php';
 			<?php endif; ?>
 		</form>
 
+		<?php if (is_admin() || $isSelf || $user['role'] === 'user'): // staff accounts: admins only (A27) ?>
 		<div class="form-section form-section--split">
 			<h2 class="form-section__title"><?= e(at('user.security')) ?></h2>
 			<form class="row" method="post" action="user-actions.php">
@@ -187,6 +188,7 @@ require ADMIN_INC . '/header.php';
 				<?php endif; ?>
 			</form>
 		</div>
+		<?php endif; ?>
 		<?php endif; ?>
 
 		<form class="form-section" method="post" action="user-actions.php">

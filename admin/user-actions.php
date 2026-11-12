@@ -48,6 +48,13 @@ if ($action !== 'delete' && (!$user || $user['status'] === 'deleted')) {
 	redirect($back);
 }
 
+// A moderator does not act on staff accounts: logging an admin out, their photo, a reset link (A27)
+if (in_array($action, ['reset_link', 'end_sessions', 'avatar_remove'], true) && $user['role'] !== 'user'
+	&& !is_admin() && $user['id'] !== $currentAdmin['id']) {
+	flash('danger', at('ua.staff_admins_only'));
+	redirect($back);
+}
+
 switch ($action) {
 	case 'save':
 		$f = [

@@ -25,6 +25,7 @@ $otherLang = admin_lang() === 'ru' ? 'en' : 'ru';
 	<link rel="stylesheet" href="<?= asset('css/admin.css') ?>">
 	<script src="<?= asset('js/select.js') ?>" defer></script>
 	<script src="<?= asset('js/admin.js') ?>" defer></script>
+	<script src="<?= asset('js/phone.js') ?>" defer></script>
 </head>
 <body class="admin" data-select-search="<?= e(at('common.search')) ?>" data-select-empty="<?= e(at('common.nothing_found')) ?>" data-select-close="<?= e(at('common.close')) ?>">
 <a class="skip-link" href="#content"><?= e(at('head.skip')) ?></a>

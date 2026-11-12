@@ -78,14 +78,24 @@ function reject_one(int $id, string $reason, string $comment, bool $notify, arra
 switch ($action) {
 	case 'approve':
 		$done = 0;
+		$waiting = [];
 		foreach ($ids as $id) {
+			// A video still being processed has not been seen: approved, it would appear later unchecked (A29)
+			if (count_pending_videos($id) > 0) {
+				$waiting[] = '#' . $id;
+				continue;
+			}
 			if (approve_listing($id)) {
 				$done++;
 				log_action('listing.approve', ['listing_id' => $id]);
 				notify_seller(find_listing($id), 'approved');
 			}
 		}
-		flash($done ? 'success' : 'info', $done ? atp('mod.approved', $done) : at('mod.approve_none'));
+		$text = $done ? atp('mod.approved', $done) : ($waiting ? '' : at('mod.approve_none'));
+		if ($waiting) {
+			$text = trim($text . ' ' . at('mod.video_wait', ['ids' => implode(', ', $waiting)]));
+		}
+		flash($done && !$waiting ? 'success' : ($waiting ? 'warning' : 'info'), $text);
 		break;
 
 	case 'reject':

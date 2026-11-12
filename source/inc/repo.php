@@ -1561,12 +1561,17 @@ function mark_email_verified(int $id): void
 	db_exec('UPDATE users SET email_verified_at = COALESCE(email_verified_at, UTC_TIMESTAMP()) WHERE id = ?', [$id]);
 }
 
-// Personal data from the profile (the email changes only through a confirmed link)
-// A changed phone is not confirmed any more
-function update_profile(int $id, string $name, ?string $phone, string $city, string $lang): void
+// Personal data from the profile (the email changes only through a confirmed link, the phone
+// in its own block: set_user_phone())
+function update_profile(int $id, string $name, string $city, string $lang): void
 {
-	db_exec('UPDATE users SET phone_verified_at = IF(phone <=> ?, phone_verified_at, NULL) WHERE id = ?', [$phone, $id]);
-	db_exec('UPDATE users SET name = ?, phone = ?, city_id = (SELECT id FROM cities WHERE latn = ?), lang = ? WHERE id = ?', [$name, $phone, $city, $lang, $id]);
+	db_exec('UPDATE users SET name = ?, city_id = (SELECT id FROM cities WHERE latn = ?), lang = ? WHERE id = ?', [$name, $city, $lang, $id]);
+}
+
+// The profile's phone (null removes it); a changed number is not confirmed any more
+function set_user_phone(int $id, ?string $phone): void
+{
+	db_exec('UPDATE users SET phone_verified_at = IF(phone <=> ?, phone_verified_at, NULL), phone = ? WHERE id = ?', [$phone, $phone, $id]);
 }
 
 // Profile photo: the stored path of its folder, null removes it. Returns the previous
@@ -1802,6 +1807,14 @@ function use_auth_token(string $type, string $tokenHash): ?int
 	}
 
 	return $userId;
+}
+
+// A verify-email link opened before (a mail scanner, a second click) whose account is confirmed
+// now: verify.php says "confirmed" instead of "invalid link" (audit A30)
+function verify_link_done(string $tokenHash): bool
+{
+	return (bool) db_value("SELECT 1 FROM auth_tokens t JOIN users u ON u.id = t.user_id AND u.status = 'active' AND u.email_verified_at IS NOT NULL
+		WHERE t.type = 'verify_email' AND t.token_hash = ? AND t.used_at IS NOT NULL", [$tokenHash]);
 }
 
 // Invalidate all open tokens of a type (a new reset link cancels the old ones)

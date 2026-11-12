@@ -418,7 +418,7 @@ function sr_cyr(string $text): string
 		'cr-v' => null, 'hr-v' => null, 'c-hr' => null, 'c-max' => null, 's-max' => null, 's-cross' => null, 'x-trail' => null,
 		'g-shock' => null,
 		// Cookie names, addresses and the host of the legal texts (privacy.php, terms.php)
-		'p4m_sid' => null, 'p4m_remember' => null, 'p4m_consent' => null, '_ga' => null,
+		'p4m_sid' => null, 'p4m_remember' => null, 'p4m_consent' => null, 'p4m_city' => null, '_ga' => null,
 		'support@place4market.com' => null, 'www.poverenik.rs' => null, 'adriahost' => null,
 	];
 	static $pattern = null;

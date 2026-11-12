@@ -71,14 +71,19 @@ function security_headers(bool $analytics = false): void
 	}
 }
 
+// Form fields that are lists (attrs[], notify[], photo_ids[], video_ids[], ids[]); any other
+// field sent as a list is dropped (audit A25: language[]=x in the profile gave a 500)
+const POST_LIST_FIELDS = ['attrs', 'notify', 'photo_ids', 'video_ids', 'ids'];
+
 // Query parameters are strings only: ?deal[]=x gave an array where the code expects a string
 // (a TypeError and a 500, or "Array to string conversion" in the log). No page takes arrays
-// in the query; forms that send them (attrs[], notify[], ids[]) are POST
+// in the query; POST fields are strings too, except POST_LIST_FIELDS
 // Text is valid UTF-8: broken bytes (only a hand-made request sends them) made the database
 // refuse the row (error 1366, a 500); mb_scrub() replaces them with "?"
 function request_clean(): void
 {
 	$_GET = array_map('mb_scrub', array_filter($_GET, 'is_string'));
+	$_POST = array_filter($_POST, fn($value, $key) => is_string($value) || (is_array($value) && in_array($key, POST_LIST_FIELDS, true)), ARRAY_FILTER_USE_BOTH);
 	array_walk_recursive($_POST, function (&$value): void {
 		$value = is_string($value) ? mb_scrub($value) : $value;
 	});
@@ -98,6 +103,31 @@ function text_cut(string $text, int $max): string
 
 	// (preg, not rtrim(): rtrim() works on bytes and would cut a Cyrillic letter in half)
 	return preg_replace('/[\s,.;:–—-]+$/u', '', $space !== false && $space > $max * 0.6 ? mb_substr($cut, 0, $space) : $cut) . '…';
+}
+
+// A price as typed → its digits, the decimal part dropped (prices are whole numbers):
+// "1.500,50 €" → "1500", "1 500" → "1500", "2,5" → "2". Thousands may be split by dots,
+// commas or spaces; a separator with 1–2 digits after it at the end is the decimal one (A33).
+// The same rule is in main.js (priceDigits) for the card preview
+function price_digits(string $raw): string
+{
+	$raw = preg_replace('/[^\d]+$/u', '', trim($raw));
+
+	return preg_replace('/\D/', '', preg_replace('/[.,]\d{1,2}$/', '', $raw));
+}
+
+// Phone number field (site and admin, checklist K4): "+381" stands before it, the field takes
+// the national number, put in groups as it is typed by phone.js ("64 123 4567"; only digits,
+// a leading 0 or "+381" dropped). The server reads either form (phone_normalize() in auth.php).
+// $phone: the stored "+381…", or as typed when it came back with an error. $attrs: extra
+// attributes as HTML ('required aria-describedby="…"')
+function phone_input(string $id, ?string $phone, string $attrs = ''): string
+{
+	$value = preg_match('/^\+381(\d{2})(\d{3})(\d{2,4})$/', (string) $phone, $m) ? $m[1] . ' ' . $m[2] . ' ' . $m[3] : (string) $phone;
+
+	return '<div class="input-phone"><span class="input-phone__code" aria-hidden="true">+381</span>'
+		. '<input class="input" id="' . e($id) . '" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20"'
+		. ' placeholder="64 123 4567" value="' . e($value) . '" data-phone' . ($attrs !== '' ? ' ' . $attrs : '') . '></div>';
 }
 
 // Escape any value for HTML output

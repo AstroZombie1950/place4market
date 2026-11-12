@@ -19,6 +19,10 @@ $back = url('favorites.php') . '#searches';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	$params = open_saved_search((int) ($_GET['open'] ?? 0), $me['id']);
+	// Its place (or all Serbia) becomes the chosen one: otherwise the results would move to that (K1)
+	if ($params !== null) {
+		remember_city((string) ($params['city'] ?? ''));
+	}
 	redirect($params !== null ? url('category.php', $params) : $back);
 }
 

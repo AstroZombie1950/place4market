@@ -61,8 +61,8 @@ if (($_POST['action'] ?? '') === 'change_password') {
 
 	if (!csrf_valid()) {
 		$passwordError = t('auth.err_csrf');
-	} elseif (!password_check((string) ($_POST['current_password'] ?? ''), user_password_hash($me['id']))) {
-		$passwordError = t('auth.err_current_password');
+	} elseif (($recheck = password_recheck($me['id'], (string) ($_POST['current_password'] ?? ''))) !== 'ok') {
+		$passwordError = t($recheck === 'limited' ? 'auth.err_too_many' : 'auth.err_current_password');
 		log_action('auth.password_change_failed');
 	} elseif (!password_ok($new)) {
 		$passwordError = t('auth.err_password');
@@ -77,18 +77,16 @@ if (($_POST['action'] ?? '') === 'change_password') {
 	}
 }
 
-// Personal data: name, phone, place, language (the e-mail has its own block below).
-// The chosen language becomes the site's and the emails' one; a new phone is not confirmed any more
+// Personal data: name, place, language (the e-mail and the phone have their own blocks below).
+// The chosen language becomes the site's and the emails' one
 $profileError = '';
-$profile = ['name' => $me['name'], 'email' => $me['email'], 'phone' => phone_format($me['phone']), 'city' => $me['city'], 'lang' => $me['lang'] ?? lang()];
+$profile = ['name' => $me['name'], 'email' => $me['email'], 'phone' => '', 'city' => $me['city'], 'lang' => $me['lang'] ?? lang()];
 
 if (($_POST['action'] ?? '') === 'save_profile') {
-	$phone = trim((string) ($_POST['phone'] ?? ''));
 	$profile = [
 		'name' => trim(preg_replace('/\s+/u', ' ', (string) ($_POST['name'] ?? ''))),
 		'email' => $me['email'],
-		// Serbian numbers only, stored as +381XXXXXXXXX; not one → shown back as typed with the error
-		'phone' => $phone !== '' ? (phone_normalize($phone) ?? $phone) : '',
+		'phone' => '',
 		'city' => (string) ($_POST['city'] ?? ''),
 		'lang' => isset(languages()[$_POST['language'] ?? '']) ? $_POST['language'] : lang(),
 	];
@@ -100,28 +98,49 @@ if (($_POST['action'] ?? '') === 'save_profile') {
 	};
 
 	if ($profileError === '') {
-		update_profile($me['id'], $profile['name'], $profile['phone'] ?: null, $profile['city'], $profile['lang']);
+		update_profile($me['id'], $profile['name'], $profile['city'], $profile['lang']);
 		$changed = array_keys(array_filter([
-			'name' => $profile['name'] !== $me['name'], 'phone' => $profile['phone'] !== (string) $me['phone'],
-			'city' => $profile['city'] !== $me['city'], 'lang' => $profile['lang'] !== $me['lang'],
+			'name' => $profile['name'] !== $me['name'], 'city' => $profile['city'] !== $me['city'], 'lang' => $profile['lang'] !== $me['lang'],
 		]));
 		if ($changed) {
 			log_action('account.update', ['fields' => $changed]);
-		}
-		if (in_array('phone', $changed, true)) {
-			delete_verify_code($me['id'], 'phone');
 		}
 
 		// The message and the page in the chosen language
 		in_lang($profile['lang'], fn() => flash('success', t('p.saved')));
 		redirect(lang_link($profile['lang'], 'profile.php') . '#settings');
 	}
-	$profile['phone'] = $profile['phone'] !== '' ? phone_format($profile['phone']) : '';
+}
+
+// Phone (checklist K5): its own block, the number with its status. The pencil opens the form
+// (in place by main.js, or ?phone=edit without JS); a new number is not confirmed (any more),
+// an empty field removes it. A wrong one comes back as typed with the error
+$phoneError = '';
+$phoneEdit = ($_GET['phone'] ?? '') === 'edit';
+$phoneTyped = null;
+if (($_POST['action'] ?? '') === 'phone_save') {
+	$phoneTyped = trim((string) ($_POST['phone'] ?? ''));
+	$phone = $phoneTyped !== '' ? phone_normalize($phoneTyped) : null;
+	$phoneError = match (true) {
+		!csrf_valid() => t('auth.err_csrf'),
+		$phoneTyped !== '' && $phone === null => t('auth.err_phone'),
+		default => '',
+	};
+
+	if ($phoneError === '') {
+		if ($phone !== $me['phone']) {
+			set_user_phone($me['id'], $phone);
+			delete_verify_code($me['id'], 'phone');
+			log_action('account.update', ['fields' => ['phone']]);
+		}
+		flash('success', t('p.saved'));
+		redirect(url('profile.php') . '#settings');
+	}
+	$phoneEdit = true;
 }
 
 // Confirming the phone (C3): a code by SMS to the profile's mobile number, then the code typed.
 // One number is confirmed on one account only
-$phoneError = '';
 if (in_array($_POST['action'] ?? '', ['phone_send', 'phone_confirm'], true)) {
 	$phoneError = match (true) {
 		!csrf_valid() => t('auth.err_csrf'),
@@ -154,20 +173,19 @@ $emailError = '';
 $newEmail = mb_strtolower(trim((string) ($_POST['new_email'] ?? '')));
 if (($_POST['action'] ?? '') === 'email_send') {
 	$channel = ($_POST['via'] ?? '') === 'sms' && $me['verified'] && sms_available() ? 'sms' : 'email';
-	// A wrong password counts against the limit too (a stolen session must not guess it here)
+	// A wrong password counts against password_recheck (a stolen session must not guess it here)
 	$limited = rate_limited('email_change', (string) $me['id']);
-	$passwordOk = !$limited && password_check((string) ($_POST['password'] ?? ''), user_password_hash($me['id']));
 	$emailError = match (true) {
 		!csrf_valid() => t('auth.err_csrf'),
 		$limited => t('auth.err_too_many'),
 		!filter_var($newEmail, FILTER_VALIDATE_EMAIL) || mb_strlen($newEmail) > 190 => t('auth.err_email'),
 		$newEmail === $me['email'] => t('p.email_same'),
-		!$passwordOk => t('auth.err_current_password'),
+		($recheck = password_recheck($me['id'], (string) ($_POST['password'] ?? ''))) === 'limited' => t('auth.err_too_many'),
+		$recheck === 'wrong' => t('auth.err_current_password'),
 		email_taken($newEmail) => t('auth.err_email_taken'),
 		default => '',
 	};
-	if ($emailError === t('auth.err_current_password')) {
-		rate_hit('email_change', (string) $me['id']);
+	if (($recheck ?? 'ok') === 'wrong') {
 		log_action('account.email_change_failed', ['user_id' => $me['id'], 'reason' => 'password']);
 	}
 	if ($emailError === '' && ($emailError = code_send($me, 'email_change', $channel, $newEmail)) === '') {
@@ -256,8 +274,8 @@ if (($_POST['action'] ?? '') === 'delete_account') {
 	} elseif (is_staff()) {
 		// A moderator or admin first loses the role (otherwise the last admin could lock everyone out)
 		$deleteError = t('p.delete_staff');
-	} elseif (!password_check((string) ($_POST['password'] ?? ''), user_password_hash($me['id']))) {
-		$deleteError = t('auth.err_current_password');
+	} elseif (($recheck = password_recheck($me['id'], (string) ($_POST['password'] ?? ''))) !== 'ok') {
+		$deleteError = t($recheck === 'limited' ? 'auth.err_too_many' : 'auth.err_current_password');
 		log_action('account.delete_failed');
 	} else {
 		db()->beginTransaction();
@@ -299,6 +317,7 @@ $page['title'] = t('p.title');
 $page['robots'] = 'noindex, follow';
 $page['nav'] = 'profile';
 $page['search'] = false;
+$page['phone_field'] = true;
 
 require INC_DIR . '/header.php';
 ?>
@@ -446,11 +465,6 @@ require INC_DIR . '/header.php';
 							<input class="input" id="s-name" name="name" type="text" autocomplete="name" maxlength="100" value="<?= e($profile['name']) ?>" required>
 						</div>
 						<div class="field">
-							<label class="field__label" for="s-phone"><?= e(t('auth.phone')) ?></label>
-							<input class="input" id="s-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="<?= e(t('auth.phone_placeholder')) ?>" value="<?= e($profile['phone']) ?>" aria-describedby="s-phone-hint">
-							<span class="field__hint" id="s-phone-hint"><?= e(t($me['verified'] ? 'p.phone_verified_hint' : 'p.phone_hint')) ?></span>
-						</div>
-						<div class="field">
 							<label class="field__label" for="s-city"><?= e(t('auth.city')) ?></label>
 							<select class="select" id="s-city" name="city"><?= city_select_options($profile['city']) ?></select>
 						</div>
@@ -469,19 +483,40 @@ require INC_DIR . '/header.php';
 				</div>
 			</form>
 
-			<?php if ($me['phone'] !== null && !$me['verified']): ?>
-			<!-- Confirming the phone by SMS (codes.php): send a code, then type it -->
+			<!-- Phone (checklist K5): the number with its status, "Confirm" (a code by SMS, codes.php;
+			     not active until SMS is set up) and the pencil; the form opens in place of the line
+			     (main.js, [data-phone-edit]) or with ?phone=edit -->
 			<section class="panel" aria-labelledby="phone-title">
 				<div class="panel__body">
 					<h2 class="panel__title" id="phone-title"><?= e(t('p.phone_title')) ?></h2>
 					<?php if ($phoneError !== ''): ?>
 					<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($phoneError) ?></p>
 					<?php endif; ?>
-					<?php if (!phone_is_mobile($me['phone'])): ?>
-					<p class="muted"><?= e(t('p.phone_not_mobile')) ?></p>
-					<?php elseif (!sms_available()): ?>
-					<p class="muted"><?= e(t('p.phone_sms_soon')) ?></p>
-					<?php elseif ($phoneCode): ?>
+					<div class="phone-line" data-phone-view<?= $phoneEdit ? ' hidden' : '' ?>>
+						<?php if ($me['phone'] !== null): ?>
+						<span class="phone-line__number"><?= e(phone_format($me['phone'])) ?></span>
+						<?php if ($me['verified']): ?>
+						<span class="badge badge--verified"><?= icon('check', 14) ?><?= e(t('p.phone_ok')) ?></span>
+						<?php else: ?>
+						<span class="badge badge--pending"><?= e(t('p.phone_unconfirmed')) ?></span>
+						<?php endif; ?>
+						<a class="btn btn--ghost btn--icon" href="<?= e(url('profile.php', ['phone' => 'edit'])) ?>#settings" data-phone-edit aria-label="<?= e(t('p.phone_change')) ?>" title="<?= e(t('p.phone_change')) ?>"><?= icon('edit', 18) ?></a>
+						<?php if (!$me['verified'] && phone_is_mobile($me['phone']) && !$phoneCode): ?>
+						<form class="phone-line__confirm" method="post" action="<?= e(url('profile.php')) ?>#settings">
+							<?= csrf_field() ?>
+							<button type="submit" class="btn btn--primary" name="action" value="phone_send"<?= sms_available() ? '' : ' disabled' ?>><?= e(t('code.confirm')) ?></button>
+						</form>
+						<?php endif; ?>
+						<?php else: ?>
+						<span class="muted"><?= e(t('p.phone_none')) ?></span>
+						<a class="btn btn--outline" href="<?= e(url('profile.php', ['phone' => 'edit'])) ?>#settings" data-phone-edit><?= e(t('p.phone_add')) ?></a>
+						<?php endif; ?>
+					</div>
+					<?php if ($me['phone'] !== null && !$me['verified']): ?>
+					<p class="muted"><?= e(t(phone_is_mobile($me['phone']) ? 'p.phone_hint' : 'p.phone_not_mobile')) ?></p>
+					<?php endif; ?>
+					<?php if ($phoneCode): ?>
+					<!-- The code sent by SMS: typed here -->
 					<form method="post" action="<?= e(url('profile.php')) ?>#settings">
 						<?= csrf_field() ?>
 						<p class="muted"><?= e(t('code.sent', ['to' => phone_format($phoneCode['sent_to']), 'minutes' => CODE_MINUTES])) ?></p>
@@ -496,16 +531,22 @@ require INC_DIR . '/header.php';
 							<button type="submit" class="btn btn--outline" name="action" value="phone_send" formnovalidate><?= e(t('code.resend')) ?></button>
 						</div>
 					</form>
-					<?php else: ?>
-					<form class="row row--between" method="post" action="<?= e(url('profile.php')) ?>#settings">
-						<?= csrf_field() ?>
-						<p class="muted"><?= e(t('p.phone_text', ['phone' => phone_format($me['phone'])])) ?></p>
-						<button type="submit" class="btn btn--primary" name="action" value="phone_send"><?= icon('phone', 18) ?><?= e(t('p.phone_send')) ?></button>
-					</form>
 					<?php endif; ?>
+					<form class="phone-edit" method="post" action="<?= e(url('profile.php')) ?>#settings" data-phone-form<?= $phoneEdit ? '' : ' hidden' ?>>
+						<?= csrf_field() ?>
+						<input type="hidden" name="action" value="phone_save">
+						<div class="field">
+							<label class="field__label" for="s-phone"><?= e(t('auth.phone')) ?></label>
+							<?= phone_input('s-phone', $phoneTyped ?? $me['phone'], 'aria-describedby="s-phone-hint"' . ($phoneError !== '' ? ' aria-invalid="true"' : '')) ?>
+							<span class="field__hint" id="s-phone-hint"><?= e(t('p.phone_edit_hint')) ?></span>
+						</div>
+						<div class="form-actions">
+							<button type="submit" class="btn btn--primary"><?= e(t('p.save')) ?></button>
+							<a class="btn btn--outline" href="<?= e(url('profile.php')) ?>#settings" data-phone-cancel><?= e(t('common.cancel')) ?></a>
+						</div>
+					</form>
 				</div>
 			</section>
-			<?php endif; ?>
 
 			<!-- E-mail: changed with the password and a code, then the link sent to the new address -->
 			<section class="panel" aria-labelledby="email-title">
