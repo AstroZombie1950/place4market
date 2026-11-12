@@ -34,7 +34,7 @@ require ADMIN_INC . '/header.php';
 	</div>
 	<div class="page-head__actions">
 		<a class="btn btn--secondary" href="reports.php"><?= icon('flag', 18) ?><?= e(at('nav.reports')) ?></a>
-		<a class="btn btn--primary" href="listings.php?status=pending"><?= icon('check', 18) ?><?= e(at('dash.moderate')) ?></a>
+		<a class="btn btn--primary" href="listings.php?status=pending"><?= icon('tag', 18) ?><?= e(at('dash.moderate')) ?></a>
 	</div>
 </div>
 

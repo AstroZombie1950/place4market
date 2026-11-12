@@ -18,7 +18,8 @@ require INC_DIR . '/header.php';
 ?>
 
 <div class="container page">
-	<div class="page-head">
+	<!-- On phones the title is for screen readers only: the bottom navigation shows where we are -->
+	<div class="page-head page-head--nav">
 		<h1 class="page-title"><?= e(t('fav.title')) ?></h1>
 	</div>
 

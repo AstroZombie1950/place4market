@@ -383,13 +383,10 @@ require INC_DIR . '/header.php';
 			<?php endforeach; ?>
 
 			<?php if ($seoText !== null): ?>
-			<!-- About this page (stage C): visible, compact, the rest under "More" -->
+			<!-- About this page (stage C): the whole text is visible -->
 			<section class="seo-text" aria-labelledby="seo-text-title">
 				<h2 class="seo-text__title" id="seo-text-title"><?= e(t('cat.about', ['name' => $title])) ?></h2>
-				<details class="seo-text__more">
-					<summary class="seo-text__toggle"><?= e(t('cat.more')) ?></summary>
-					<div class="seo-text__body"><?= seo_text_html($seoText, $facets) ?></div>
-				</details>
+				<div class="seo-text__body"><?= seo_text_html($seoText, $facets) ?></div>
 			</section>
 			<?php endif; ?>
 		</section>

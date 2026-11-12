@@ -195,7 +195,8 @@ require INC_DIR . '/header.php';
 ?>
 
 <div class="container page page--chat">
-	<div class="page-head">
+	<!-- On phones the title is for screen readers only: the bottom navigation shows where we are -->
+	<div class="page-head page-head--nav">
 		<h1 class="page-title"><?= e(t('m.title')) ?></h1>
 	</div>
 
@@ -302,7 +303,7 @@ require INC_DIR . '/header.php';
 			<?php endif; ?>
 
 			<!-- Composer: a new conversation is sent with the listing id -->
-			<form class="composer" method="post" action="<?= e(url('messages.php')) ?>" data-composer>
+			<form class="composer" method="post" action="<?= e(url('messages.php')) ?>" data-composer data-no-validation>
 				<?= csrf_field() ?>
 				<input type="hidden" name="action" value="send">
 				<?php if ($conv['id']): ?>
@@ -311,7 +312,7 @@ require INC_DIR . '/header.php';
 				<input type="hidden" name="listing" value="<?= (int) $conv['listing_id'] ?>">
 				<?php endif; ?>
 				<label class="visually-hidden" for="msg-<?= (int) $conv['id'] ?>"><?= e(t('m.message_input')) ?></label>
-				<textarea class="textarea composer__input" id="msg-<?= (int) $conv['id'] ?>" name="text" rows="1" maxlength="<?= MESSAGE_MAX ?>" required placeholder="<?= e(t('m.placeholder')) ?>"></textarea>
+				<textarea class="textarea composer__input" id="msg-<?= (int) $conv['id'] ?>" name="text" rows="1" data-max-rows="5" maxlength="<?= MESSAGE_MAX ?>" required placeholder="<?= e(t('m.placeholder')) ?>"></textarea>
 				<button type="submit" class="btn btn--primary" aria-label="<?= e(t('m.send')) ?>"><?= icon('send', 18) ?></button>
 			</form>
 		</section>

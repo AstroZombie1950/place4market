@@ -53,6 +53,9 @@ $footerCols = [
 	</div>
 </footer>
 
+<!-- Back to top (main.js) -->
+<button type="button" class="to-top" data-to-top aria-label="<?= e(t('common.to_top')) ?>"><?= icon('arrow-up', 20) ?></button>
+
 <!-- Bottom navigation (phones) -->
 <nav class="bottom-nav" aria-label="<?= e(t('nav.main')) ?>">
 	<a class="bottom-nav__link" href="<?= e(url('index.php')) ?>"<?= nav_current('home', $page['nav']) ?>>
@@ -120,6 +123,13 @@ $footerCols = [
 	'hidePassword' => t('auth.hide_password'),
 	'today' => t('time.today'),
 	'you' => t('m.you'),
+	'errRequired' => t('form.err_required'),
+	'errChoose' => t('form.err_choose'),
+	'errCheck' => t('form.err_check'),
+	'errEmail' => t('form.err_email'),
+	'errShort' => t('form.err_short'),
+	'errInvalid' => t('form.err_invalid'),
+	'errMatch' => t('auth.err_password_repeat'),
 ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
 </body>
 </html>

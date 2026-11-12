@@ -97,6 +97,29 @@
 		}, 3200);
 	};
 
+	// A multi-line field grows with its text from its CSS min-height up to
+	// data-max-rows lines (10, on phones 8), then scrolls inside; it is not resized by hand.
+	// After changing the value from code: field.dispatchEvent(new Event('input'))
+	const autosize = (field) => {
+		const fit = () => {
+			// Not on the screen (a closed dialog or tab): the height of its rows, fitted on focus
+			if (!field.offsetParent) { field.style.height = ''; return; }
+			const cs = getComputedStyle(field);
+			const line = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.5;
+			const borders = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+			const rows = Number(field.dataset.maxRows) || (window.matchMedia('(max-width: 767px)').matches ? 8 : 10);
+			const max = Math.round(line * rows + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + borders);
+			field.style.height = 'auto';
+			const full = field.scrollHeight + borders;
+			field.style.height = `${Math.min(full, max)}px`;
+			field.style.overflowY = full > max ? 'auto' : 'hidden';
+		};
+		field.addEventListener('input', fit);
+		// Hidden at load (a closed dialog or tab) measures as 0: fit again when it is used
+		field.addEventListener('focus', fit);
+		fit();
+	};
+
 	// Fade out and remove an element
 	const removeWithFade = (el, after) => {
 		if (!el) return;
@@ -296,8 +319,16 @@
 				if (empty) empty.hidden = visible > 0;
 			};
 
-			buttons.forEach((button) => button.addEventListener('click', () => apply(button)));
-			apply(buttons.find((b) => b.getAttribute('aria-pressed') === 'true') || buttons[0]);
+			// Phones show the same choice as a list: [data-pills-select]
+			const select = $('[data-pills-select]', group);
+			const choose = (button) => {
+				apply(button);
+				if (select) select.value = button.dataset.value;
+			};
+			if (select) select.addEventListener('change', () => apply(buttons.find((b) => b.dataset.value === select.value) || buttons[0]));
+
+			buttons.forEach((button) => button.addEventListener('click', () => choose(button)));
+			choose(buttons.find((b) => b.getAttribute('aria-pressed') === 'true') || buttons[0]);
 		});
 	};
 
@@ -421,8 +452,11 @@
 		- [data-password-toggle] aria-controls="input-id"
 		- [data-counter="output-id"] + maxlength: "12 / 80"
 		- select[data-autosubmit] submits its form on change
+		- every textarea grows with its text (autosize)
 		---------------------------------------------------------------------- */
 	const initForms = () => {
+		$$('textarea').forEach(autosize);
+
 		$$('[data-password-toggle]').forEach((btn) => {
 			btn.addEventListener('click', () => {
 				const input = document.getElementById(btn.getAttribute('aria-controls'));
@@ -444,6 +478,131 @@
 
 		$$('select[data-autosubmit]').forEach((select) => {
 			select.addEventListener('change', () => select.form && select.form.requestSubmit());
+		});
+	};
+
+	/* ----------------------------------------------------------------------
+		Form errors in our own words, under the field, instead of the browser's
+		bubbles. The rules stay in the markup (required, minlength, type="email").
+		- on submit every field is checked, the first wrong one gets the focus
+		- a field with an error is checked again as it is edited; a field that
+		  was edited — when it is left (form[data-live-validation]: any field)
+		- the text goes to [data-error] of the .field (made when missing; for a
+		  lone checkbox — after its label)
+		- a button with formnovalidate (draft) and form[data-no-validation] skip it
+		---------------------------------------------------------------------- */
+	const initValidation = () => {
+		let uid = 0;
+		$$('form:not([data-no-validation])').forEach((form) => { form.noValidate = true; });
+
+		const message = (field) => {
+			const v = field.validity;
+			if (v.valueMissing) {
+				if (field.type === 'checkbox') return i18n.errCheck;
+				return field.type === 'radio' || field.tagName === 'SELECT' ? i18n.errChoose : i18n.errRequired;
+			}
+			if (v.typeMismatch && field.type === 'email') return i18n.errEmail;
+			if (v.tooShort) return String(i18n.errShort).replace('{n}', field.minLength);
+			if (v.customError) return field.validationMessage;
+			return i18n.errInvalid;
+		};
+
+		// What the visitor sees and focuses: the button of a styled select (select.js)
+		const control = (field) => (field.dataset.cselect && $('.cselect__button', field.parentNode)) || field;
+
+		const slot = (field) => {
+			const box = field.closest('.field, .check, .switch');
+			if (!box) return null;
+			const inField = box.matches('.field');
+			let out = inField ? $('[data-error]', box) : box.nextElementSibling;
+			if (!out || !out.matches('[data-error]')) {
+				out = document.createElement('span');
+				out.className = 'field__error';
+				out.setAttribute('data-error', '');
+				out.hidden = true;
+				if (inField) box.appendChild(out);
+				else box.after(out);
+			}
+			if (!out.id) out.id = `field-error-${++uid}`;
+			return out;
+		};
+
+		const clear = (field) => {
+			const el = control(field);
+			if (el.getAttribute('aria-invalid') !== 'true') return;
+			el.removeAttribute('aria-invalid');
+			const out = slot(field);
+			if (!out) return;
+			el.setAttribute('aria-describedby', (el.getAttribute('aria-describedby') || '').split(' ').filter((id) => id && id !== out.id).join(' '));
+			if (!el.getAttribute('aria-describedby')) el.removeAttribute('aria-describedby');
+			// A slot shared by several fields (radio group) is emptied when none of them is wrong
+			if (!$$('[aria-invalid="true"]', out.closest('.field') || out.parentNode).length) {
+				out.hidden = true;
+				out.textContent = '';
+			}
+		};
+
+		// [data-match="input-id"] (repeat the password): must be the same as that field
+		const match = (field) => {
+			const other = field.dataset.match && document.getElementById(field.dataset.match);
+			if (other) field.setCustomValidity(field.value !== '' && field.value !== other.value ? i18n.errMatch : '');
+		};
+
+		const check = (field) => {
+			match(field);
+			if (!field.willValidate || field.validity.valid) {
+				clear(field);
+				return true;
+			}
+			const el = control(field);
+			const out = slot(field);
+			el.setAttribute('aria-invalid', 'true');
+			if (out) {
+				out.textContent = message(field);
+				out.hidden = false;
+				const ids = (el.getAttribute('aria-describedby') || '').split(' ').filter(Boolean);
+				if (!ids.includes(out.id)) el.setAttribute('aria-describedby', ids.concat(out.id).join(' '));
+			}
+			return false;
+		};
+
+		const isField = (el) => el && el.form && !el.form.hasAttribute('data-no-validation') && 'validity' in el && el.tagName !== 'BUTTON';
+		// A click on the button of a styled select is about its <select>
+		const fieldOf = (el) => (el && el.classList && el.classList.contains('cselect__button') ? $('select', el.parentNode) : el);
+
+		// Capture: before the form's own submit handlers, which must not run for a wrong form
+		document.addEventListener('submit', (e) => {
+			const form = e.target;
+			if (form.hasAttribute('data-no-validation') || (e.submitter && e.submitter.formNoValidate)) return;
+
+			const wrong = Array.from(form.elements).filter((field) => isField(field) && !check(field));
+			if (!wrong.length) return;
+			e.preventDefault();
+			e.stopImmediatePropagation();
+
+			const first = control(wrong[0]);
+			// A wrong field that is not on the screen cannot be shown: say it in a toast
+			if (!first.offsetParent || !slot(wrong[0])) toast(message(wrong[0]), 'danger');
+			else first.focus();
+		}, true);
+
+		const recheck = (e) => {
+			const field = e.target;
+			if (!isField(field)) return;
+			field.dataset.edited = '1';
+			// A radio group is wrong or right as a whole
+			const group = field.type === 'radio' ? $$(`input[type="radio"][name="${field.name}"]`, field.form) : [field];
+			group.forEach((item) => { if (control(item).getAttribute('aria-invalid') === 'true') check(item); });
+		};
+		document.addEventListener('input', recheck);
+		document.addEventListener('change', recheck);
+
+		document.addEventListener('focusout', (e) => {
+			const field = fieldOf(e.target);
+			if (!isField(field)) return;
+			// Still inside the same styled select (its list is open)
+			if (e.relatedTarget && field.dataset.cselect && field.parentNode.contains(e.relatedTarget)) return;
+			if (field.dataset.edited || field.form.hasAttribute('data-live-validation')) check(field);
 		});
 	};
 
@@ -729,14 +888,27 @@
 				p('price').innerHTML = `<span class="price__num">${formatNumber(amount)}</span>&nbsp;<span class="price__cur">${currency}</span>`;
 			}
 
-			p('city').textContent = field('city').value.trim();
+			// The place is a select: its value is the Latin name, the preview shows the name as listed
+			const city = field('city');
+			p('city').textContent = city.value && city.selectedOptions[0] ? city.selectedOptions[0].text : '';
 			p('tag').hidden = !field('negotiable').checked || agreement;
 		};
 		$$('[data-bind]', form).forEach((input) => {
 			input.addEventListener('input', updatePreview);
 			input.addEventListener('change', updatePreview);
 		});
+		// A price is needed unless "by agreement" is ticked (the field is then disabled and not checked)
+		if (field('price')) field('price').required = true;
 		updatePreview();
+
+		// "Publish" works once everything required is filled in (category, subcategory, kind, title,
+		// description, price or "by agreement", place, terms); what is missing shows under the fields
+		// as they are left. "Save draft" (formnovalidate) is always available
+		const publish = $('[type="submit"]:not([formnovalidate])', form);
+		const updatePublish = () => { if (publish) publish.disabled = !form.checkValidity(); };
+		form.addEventListener('input', updatePublish);
+		form.addEventListener('change', updatePublish);
+		updatePublish();
 
 		// Photos. Prepared in the browser before upload (CLAUDE.md, section 2): EXIF
 		// rotation applied, long side up to 2560 px, JPEG 0.9, which also drops EXIF
@@ -1015,6 +1187,17 @@
 			}
 		};
 
+		// Phones: an open conversation is the whole screen (site.css). With the keyboard open the
+		// visible part is lower than the screen: the thread takes its height, the field stays in view
+		if (window.visualViewport) {
+			const fitThread = () => {
+				chat.style.setProperty('--chat-h', `${Math.round(window.visualViewport.height)}px`);
+				if (!desktop.matches && chat.classList.contains('is-thread-open')) window.scrollTo(0, 0);
+			};
+			window.visualViewport.addEventListener('resize', fitThread);
+			fitThread();
+		}
+
 		// New messages of the open thread: every POLL_SECONDS while the tab is visible
 		const POLL_SECONDS = 10;
 		let polling = false;
@@ -1133,6 +1316,7 @@
 
 				appendMessage(thread, data.message);
 				field.value = '';
+				field.dispatchEvent(new Event('input'));
 				scrollDown(thread);
 			};
 
@@ -1153,6 +1337,7 @@
 		$$('[data-quick]', chat).forEach((btn) => btn.addEventListener('click', () => {
 			const field = $('textarea', btn.closest('[data-thread]'));
 			field.value = btn.textContent.trim();
+			field.dispatchEvent(new Event('input'));
 			field.focus();
 		}));
 
@@ -1179,15 +1364,92 @@
 	};
 
 	/* ----------------------------------------------------------------------
-		Scrolling menus: [data-strip] is a row that scrolls sideways (the info
-		pages menu on tablets and phones); its [aria-current="page"] item is
-		put in the middle on load
+		Folding blocks: every <details> opens and closes with a short height
+		animation (questions on Help, "More places"). While it closes it has
+		.is-closing, so a chevron can turn back at once
 		---------------------------------------------------------------------- */
-	const initStrips = () => {
-		$$('[data-strip]').forEach((strip) => {
-			const current = $('[aria-current="page"]', strip);
-			if (current && strip.scrollWidth > strip.clientWidth) revealInStrip(current, strip, true);
+	const initDetails = () => {
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+		$$('details').forEach((details) => {
+			const summary = $('summary', details);
+			if (!summary || !details.animate) return;
+			let anim = null;
+
+			summary.addEventListener('click', (e) => {
+				e.preventDefault();
+				const opening = !details.open || details.classList.contains('is-closing');
+				const from = details.offsetHeight;
+				if (anim) anim.cancel();
+
+				// The final height: measured in the target state, before anything is painted
+				details.classList.toggle('is-closing', !opening);
+				details.open = opening;
+				const to = details.offsetHeight;
+				details.open = true;
+
+				details.style.overflow = 'hidden';
+				const run = details.animate({ height: [`${from}px`, `${to}px`] }, { duration: 220, easing: 'ease' });
+				anim = run;
+				run.onfinish = () => {
+					if (!opening) details.open = false;
+					details.classList.remove('is-closing');
+					details.style.overflow = '';
+					anim = null;
+				};
+			});
 		});
+	};
+
+	/* ----------------------------------------------------------------------
+		"Show the rest": button[data-expand="id"] adds .is-expanded to the block
+		(its CSS shows the hidden part), with the same height animation
+		---------------------------------------------------------------------- */
+	const initExpand = () => {
+		const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+		$$('[data-expand]').forEach((btn) => {
+			const target = document.getElementById(btn.dataset.expand);
+			if (!target) return;
+
+			btn.addEventListener('click', () => {
+				const from = target.offsetHeight;
+				const on = !target.classList.contains('is-expanded');
+				target.classList.toggle('is-expanded', on);
+				btn.setAttribute('aria-expanded', String(on));
+				const to = target.offsetHeight;
+				if (still || !target.animate || from === to) return;
+
+				// Closing: the part stays visible until the height has gone down
+				if (!on) target.classList.add('is-expanded');
+				target.style.overflow = 'hidden';
+				target.animate({ height: [`${from}px`, `${to}px`] }, { duration: 220, easing: 'ease' }).onfinish = () => {
+					if (!on) target.classList.remove('is-expanded');
+					target.style.overflow = '';
+				};
+			});
+		});
+	};
+
+	/* ----------------------------------------------------------------------
+		"Back to top": [data-to-top] (footer.php) appears after a screen and a
+		half of scrolling
+		---------------------------------------------------------------------- */
+	const initToTop = () => {
+		const btn = $('[data-to-top]');
+		if (!btn) return;
+		let shown = false;
+
+		const update = () => {
+			const show = window.scrollY > window.innerHeight * 1.5;
+			if (show === shown) return;
+			shown = show;
+			btn.classList.toggle('is-visible', show);
+		};
+		window.addEventListener('scroll', update, { passive: true });
+		update();
+
+		btn.addEventListener('click', () => window.scrollTo({ top: 0 }));
 	};
 
 	/* ----------------------------------------------------------------------
@@ -1298,8 +1560,11 @@
 	initDialogs();
 	initConfirm();
 	initForms();
+	initValidation();
 	initViewToggle();
-	initStrips();
+	initDetails();
+	initExpand();
+	initToTop();
 	initGallery();
 	initVideos();
 	initContacts();

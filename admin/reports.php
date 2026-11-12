@@ -95,7 +95,9 @@ require ADMIN_INC . '/header.php';
 						'r_reason' => $reasonLabel,
 						'r_listing' => admin_title($listing),
 						'r_seller' => user_name($listing['user_id'] ?? 0),
+						'r_seller_url' => !empty($listing['user_id']) ? 'user.php?id=' . (int) $listing['user_id'] : '',
 						'r_reporter' => user_name($report['reporter_id']),
+						'r_reporter_url' => $report['reporter_id'] ? 'user.php?id=' . (int) $report['reporter_id'] : '',
 						'r_date' => format_date($report['created'], true),
 						'r_comment' => $report['comment'] !== '' ? $report['comment'] : at('rep.no_comment'),
 					];
@@ -157,8 +159,8 @@ require ADMIN_INC . '/header.php';
 			<dl class="dl dl--left">
 				<dt><?= e(at('rep.reason')) ?></dt><dd data-fill="r_reason"></dd>
 				<dt><?= e(at('list.col_listing')) ?></dt><dd data-fill="r_listing"></dd>
-				<dt><?= e(at('edit.tab_seller')) ?></dt><dd data-fill="r_seller"></dd>
-				<dt><?= e(at('rep.reported_by')) ?></dt><dd data-fill="r_reporter"></dd>
+				<dt><?= e(at('edit.tab_seller')) ?></dt><dd><a data-fill="r_seller" data-fill-href="r_seller_url"></a></dd>
+				<dt><?= e(at('rep.reported_by')) ?></dt><dd><a data-fill="r_reporter" data-fill-href="r_reporter_url"></a></dd>
 				<dt><?= e(at('rep.col_date')) ?></dt><dd data-fill="r_date"></dd>
 			</dl>
 
@@ -176,12 +178,12 @@ require ADMIN_INC . '/header.php';
 
 			<div class="field">
 				<label class="field__label" for="report-message"><?= e(at('dlg.message')) ?></label>
-				<textarea class="textarea" id="report-message" name="message" rows="3" maxlength="1000" placeholder="<?= e(at('rep.message_ph')) ?>"></textarea>
+				<textarea class="textarea" id="report-message" name="message" rows="3" maxlength="1000"></textarea>
 			</div>
 
 			<div class="field">
 				<label class="field__label" for="report-note"><?= e(at('rep.note')) ?></label>
-				<textarea class="textarea" id="report-note" name="note" rows="3" placeholder="<?= e(at('rep.note_ph')) ?>"></textarea>
+				<textarea class="textarea" id="report-note" name="note" rows="3"></textarea>
 			</div>
 		</div>
 		<div class="modal__foot">

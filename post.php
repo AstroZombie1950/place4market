@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				'price' => !$v['agreement'] && $price >= 1 && $price <= 2_000_000_000 ? $price : null,
 				'condition' => $hasCondition && in_array($v['condition'], ['new', 'like_new', 'used'], true) ? $v['condition'] : null,
 				'attrs' => $attrs, 'facets' => $facets,
-				'city' => in_array($v['city'], array_column(active_cities(), 'latn'), true) ? $v['city'] : $me['city'],
+				'city' => in_array($v['city'], array_column(active_cities(), 'latn'), true) ? $v['city'] : ($me['city'] ?: active_cities()[0]['latn']),
 				'phone' => preg_match('/^\+?[0-9 ()\-]{6,20}$/', $v['phone']) ? $v['phone'] : null,
 				'photos' => array_slice($v['photos'], 0, setting('max_photos')),
 			]);
@@ -241,7 +241,7 @@ require INC_DIR . '/header.php';
 	</div>
 
 	<div class="post">
-		<form class="post__form" id="post-form" method="post" action="<?= e(url('post.php', ['id' => $editId])) ?>" data-post-form data-upload-url="<?= e(url('photo-upload.php')) ?>">
+		<form class="post__form" id="post-form" method="post" action="<?= e(url('post.php', ['id' => $editId])) ?>" data-post-form data-live-validation data-upload-url="<?= e(url('photo-upload.php')) ?>">
 			<?= csrf_field() ?>
 			<?php if ($error !== ''): ?>
 			<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($error) ?></p>
@@ -312,18 +312,18 @@ require INC_DIR . '/header.php';
 				<div class="form-grid">
 					<div class="field field--full">
 						<label class="field__label" for="p-title"><?= e(t('post.f_title')) ?></label>
-						<input class="input" id="p-title" name="title" type="text" maxlength="80" required data-bind="title" data-counter="p-title-count" aria-describedby="p-title-hint" value="<?= e($v['title']) ?>">
+						<input class="input" id="p-title" name="title" type="text" minlength="3" maxlength="80" required data-bind="title" data-counter="p-title-count" value="<?= e($v['title']) ?>">
 						<div class="row row--between">
-							<span class="field__hint" id="p-title-hint"><?= e(t('post.f_title_hint')) ?></span>
+							<span class="field__error" data-error hidden></span>
 							<span class="field__counter" id="p-title-count" aria-live="polite"></span>
 						</div>
 					</div>
 
 					<div class="field field--full">
 						<label class="field__label" for="p-description"><?= e(t('post.f_description')) ?></label>
-						<textarea class="textarea" id="p-description" name="description" rows="6" maxlength="3000" required data-counter="p-description-count" aria-describedby="p-description-hint"><?= e($v['description']) ?></textarea>
+						<textarea class="textarea" id="p-description" name="description" rows="6" data-max-rows="8" minlength="10" maxlength="3000" required data-counter="p-description-count"><?= e($v['description']) ?></textarea>
 						<div class="row row--between">
-							<span class="field__hint" id="p-description-hint"><?= e(t('post.f_description_hint')) ?></span>
+							<span class="field__error" data-error hidden></span>
 							<span class="field__counter" id="p-description-count" aria-live="polite"></span>
 						</div>
 					</div>
@@ -415,9 +415,11 @@ require INC_DIR . '/header.php';
 				<div class="form-grid">
 					<div class="field">
 						<label class="field__label" for="p-city"><?= e(t('post.f_city')) ?></label>
-						<input class="input" id="p-city" name="city" type="text" list="p-city-list" required autocomplete="off" data-bind="city" data-city-input aria-describedby="p-city-hint" value="<?= e(city_by_input($v['city']) !== null ? city_name($v['city']) : $v['city']) ?>">
-						<datalist id="p-city-list"><?= city_datalist_options() ?></datalist>
-						<span class="field__hint" id="p-city-hint"><?= e(t('post.f_city_hint')) ?></span>
+						<!-- The value is the Latin name of the place; the list has a search field (select.js) -->
+						<select class="select" id="p-city" name="city" required data-bind="city" data-city-input>
+							<option value=""><?= e(t('post.city_choose')) ?></option>
+							<?= city_select_options(city_by_input($v['city']) ?? '', false) ?>
+						</select>
 					</div>
 					<?php foreach (districts() as $city => $list): if (!$districtSubs) break; $on = $shown($districtSubs) && $v['city'] === $city; ?>
 					<fieldset class="field filters__fieldset" data-for="<?= $for($districtSubs) ?>" data-city="<?= e(url_slug($city)) ?>"<?= $on ? '' : ' disabled hidden' ?>>

@@ -210,7 +210,7 @@ if (isset($_GET['edit'])) {
 					</div>
 					<div class="field">
 						<label class="field__label" for="l-text-<?= $lang ?>"><?= e(at('seo.text')) ?></label>
-						<textarea class="textarea" id="l-text-<?= $lang ?>" name="text_<?= $lang ?>" rows="8" maxlength="<?= SEO_TEXT_MAX ?>" lang="<?= $htmlLang ?>" placeholder="<?= e(at('seo.text_empty')) ?>"><?= e($landing['text'][$lang] ?? '') ?></textarea>
+						<textarea class="textarea" id="l-text-<?= $lang ?>" name="text_<?= $lang ?>" rows="8" data-max-rows="16" maxlength="<?= SEO_TEXT_MAX ?>" lang="<?= $htmlLang ?>" placeholder="<?= e(at('seo.text_empty')) ?>"><?= e($landing['text'][$lang] ?? '') ?></textarea>
 						<span class="field__hint"><?= e(at('land.text_hint')) ?> <?= e(at($lang === 'sr' ? 'seo.cyrillic_hint' : 'seo.links_hint')) ?></span>
 					</div>
 				</div>

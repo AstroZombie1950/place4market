@@ -66,6 +66,7 @@
 	/* ----------------------------------------------------------------------
 		Fill fields from a JSON payload
 		- elements with [data-fill="key"] get text (or value for inputs)
+		- links with [data-fill-href="key"] get the address (none: plain text)
 		- form fields with name="key" get value / checked
 		---------------------------------------------------------------------- */
 	const fillFields = (container, data) => {
@@ -74,6 +75,12 @@
 			if (value === undefined) return;
 			if (el.matches('input, select, textarea')) el.value = value;
 			else el.textContent = value;
+		});
+
+		$$('[data-fill-href]', container).forEach((el) => {
+			const href = data[el.dataset.fillHref];
+			if (href) el.setAttribute('href', href);
+			else el.removeAttribute('href');
 		});
 
 		Object.entries(data).forEach(([key, value]) => {
@@ -506,6 +513,27 @@
 			const update = () => { out.textContent = `${field.value.length} / ${field.maxLength}`; };
 			field.addEventListener('input', update);
 			update();
+		});
+
+		// A multi-line field grows with its text up to data-max-rows lines (10), then scrolls
+		// inside; it is not resized by hand (same as autosize in main.js). Fields filled from
+		// code or hidden at load (modals, tabs) are fitted again on focus
+		$$('textarea').forEach((field) => {
+			const fit = () => {
+				// Not on the screen (a closed dialog or tab): the height of its rows, fitted on focus
+				if (!field.offsetParent) { field.style.height = ''; return; }
+				const cs = getComputedStyle(field);
+				const line = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.5;
+				const borders = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+				const max = Math.round(line * (Number(field.dataset.maxRows) || 10) + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + borders);
+				field.style.height = 'auto';
+				const full = field.scrollHeight + borders;
+				field.style.height = `${Math.min(full, max)}px`;
+				field.style.overflowY = full > max ? 'auto' : 'hidden';
+			};
+			field.addEventListener('input', fit);
+			field.addEventListener('focus', fit);
+			fit();
 		});
 
 		$$('[data-slug-source]').forEach((slugInput) => {

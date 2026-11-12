@@ -33,9 +33,10 @@ $searchCity = (string) ($_GET['city'] ?? '');
 
 	<link rel="stylesheet" href="<?= asset('css/variables.css') ?>">
 	<link rel="stylesheet" href="<?= asset('css/site.css') ?>">
+	<script src="<?= asset('js/select.js') ?>" defer></script>
 	<script src="<?= asset('js/main.js') ?>" defer></script>
 </head>
-<body class="<?= e(trim('site ' . $page['body_class'])) ?>">
+<body class="<?= e(trim('site ' . $page['body_class'])) ?>" data-select-search="<?= e(t('common.search')) ?>" data-select-empty="<?= e(t('common.nothing_found')) ?>" data-select-close="<?= e(t('common.close')) ?>">
 <a class="skip-link" href="#main"><?= e(t('a11y.skip')) ?></a>
 
 <header class="site-header">

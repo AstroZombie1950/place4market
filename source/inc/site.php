@@ -493,18 +493,6 @@ function city_by_input(string $text): ?string
 	return null;
 }
 
-// <option>s of a <datalist> with every active place, the main ones first (search as you type)
-function city_datalist_options(): string
-{
-	$html = '';
-
-	foreach (active_cities() as $city) {
-		$html .= '<option value="' . e(city_name($city['latn'])) . '"></option>';
-	}
-
-	return $html;
-}
-
 // District name in the current script
 function district_name(array $district): string
 {

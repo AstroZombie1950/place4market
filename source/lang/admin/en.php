@@ -12,7 +12,7 @@
 
 return [
 	/* ---------- Sidebar ---------- */
-	'nav.landings' => 'Landing pages',
+	'nav.landings' => 'SEO',
 
 	/* ---------- Shared ---------- */
 	'common.actions' => 'Actions',
@@ -46,7 +46,7 @@ return [
 	'cat.text_hint' => 'Under the listings of the category page (without filters), collapsed. An empty line starts a new paragraph.',
 
 	/* ---------- Landing pages ---------- */
-	'land.title' => 'Landing pages',
+	'land.title' => 'SEO: landing pages',
 	'land.sub' => 'Approved filter pages from the keyword research: their own heading, title, description and SEO text. Empty fields use the templates.',
 	'land.table' => 'Landing pages table',
 	'land.search' => 'Search landing pages',
@@ -153,6 +153,8 @@ return [
 	'nav.migrations' => 'Migrations',
 	'nav.logout' => 'Log out',
 	'common.close' => 'Close',
+	'common.search' => 'Search',
+	'common.nothing_found' => 'Nothing found',
 	'common.cancel' => 'Cancel',
 	'common.confirm' => 'Confirm',
 	'dlg.confirm_title' => 'Are you sure?',
@@ -463,9 +465,7 @@ return [
 	'rep.dialog' => 'Report',
 	'rep.reported_by' => 'Reported by',
 	'rep.resolution' => 'Resolution',
-	'rep.message_ph' => 'For “Ask the seller to edit”: what to fix. The listing is taken off until fixed.',
 	'rep.note' => 'Internal note',
-	'rep.note_ph' => 'Visible to staff only',
 	'rep.mark_review' => 'Mark in review',
 	'rep.resolve' => 'Resolve',
 
@@ -541,7 +541,6 @@ return [
 	'user.sessions_btn' => 'End all sessions',
 	'user.note_save' => 'Save note',
 	'user.delete_title' => 'Delete account',
-	'user.delete_text' => 'Like deleting by the owner: listings and photos are removed, favorites and saved searches cleared, name, email and phone erased. Conversations stay with “Deleted user”.',
 	'user.delete_q' => 'Delete {name}? This cannot be undone.',
 	'user.no_listings' => 'This user has no listings.',
 	'user.reported_by' => 'Reported by {name}',

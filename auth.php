@@ -20,7 +20,8 @@ $old = [
 	'email' => mb_strtolower(trim((string) ($_POST['email'] ?? ''))),
 	'name' => trim(preg_replace('/\s+/u', ' ', (string) ($_POST['name'] ?? ''))),
 	'phone' => trim((string) ($_POST['phone'] ?? '')),
-	'city' => (string) ($_POST['city'] ?? 'Beograd'),
+	// The place is not asked at registration (it can be set in the profile): search starts with all Serbia
+	'city' => '',
 ];
 $password = (string) ($_POST['password'] ?? '');
 
@@ -67,6 +68,8 @@ if ($action === 'register') {
 		$errors['register'] = $dataError;
 	} elseif (!password_ok($password)) {
 		$errors['register'] = t('auth.err_password');
+	} elseif ($password !== (string) ($_POST['password_repeat'] ?? '')) {
+		$errors['register'] = t('auth.err_password_repeat');
 	} elseif (empty($_POST['terms'])) {
 		$errors['register'] = t('auth.err_terms');
 	} elseif (email_taken($old['email'])) {
@@ -140,7 +143,6 @@ require INC_DIR . '/header.php';
 			<!-- Register -->
 			<div class="tabs__panel" role="tabpanel" id="panel-register" aria-labelledby="tab-register" tabindex="0"<?= $openRegister ? '' : ' hidden' ?>>
 				<h2 class="auth__heading"><?= e(t('auth.create')) ?></h2>
-				<p class="muted"><?= e(t('auth.create_sub')) ?></p>
 
 				<form class="auth__form" method="post" action="<?= e(url('auth.php')) ?>">
 					<?= csrf_field() ?>
@@ -151,21 +153,15 @@ require INC_DIR . '/header.php';
 					<?php endif; ?>
 					<div class="field">
 						<label class="field__label" for="reg-name"><?= e(t('auth.name')) ?></label>
-						<input class="input" id="reg-name" name="name" type="text" autocomplete="name" required maxlength="100" value="<?= e($action === 'register' ? $old['name'] : '') ?>">
+						<input class="input" id="reg-name" name="name" type="text" autocomplete="given-name" required minlength="2" maxlength="100" value="<?= e($action === 'register' ? $old['name'] : '') ?>">
 					</div>
 					<div class="field">
 						<label class="field__label" for="reg-email"><?= e(t('auth.email')) ?></label>
 						<input class="input" id="reg-email" name="email" type="email" autocomplete="email" required maxlength="190" value="<?= e($action === 'register' ? $old['email'] : '') ?>">
 					</div>
-					<div class="form-grid">
-						<div class="field">
-							<label class="field__label" for="reg-phone"><?= e(t('auth.phone')) ?></label>
-							<input class="input" id="reg-phone" name="phone" type="tel" autocomplete="tel" placeholder="+381" value="<?= e($action === 'register' ? $old['phone'] : '') ?>">
-						</div>
-						<div class="field">
-							<label class="field__label" for="reg-city"><?= e(t('auth.city')) ?></label>
-							<select class="select" id="reg-city" name="city"><?= city_select_options($old['city'], false) ?></select>
-						</div>
+					<div class="field">
+						<label class="field__label" for="reg-phone"><?= e(t('auth.phone')) ?></label>
+						<input class="input" id="reg-phone" name="phone" type="tel" autocomplete="tel" placeholder="+381" value="<?= e($action === 'register' ? $old['phone'] : '') ?>">
 					</div>
 					<div class="field">
 						<label class="field__label" for="reg-password"><?= e(t('auth.password')) ?></label>
@@ -174,6 +170,10 @@ require INC_DIR . '/header.php';
 							<button type="button" class="btn btn--ghost btn--icon input-wrap__btn" data-password-toggle aria-controls="reg-password" aria-pressed="false" aria-label="<?= e(t('auth.show_password')) ?>"><?= icon('eye', 20) ?><?= icon('eye-off', 20) ?></button>
 						</div>
 						<span class="field__hint" id="reg-password-hint"><?= e(t('auth.password_hint')) ?></span>
+					</div>
+					<div class="field">
+						<label class="field__label" for="reg-password-repeat"><?= e(t('auth.password_repeat')) ?></label>
+						<input class="input" id="reg-password-repeat" name="password_repeat" type="password" autocomplete="new-password" minlength="8" maxlength="72" required data-match="reg-password">
 					</div>
 					<!-- Trap for bots: hidden from people and screen readers -->
 					<div class="visually-hidden" aria-hidden="true">

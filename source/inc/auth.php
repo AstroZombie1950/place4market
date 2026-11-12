@@ -266,7 +266,8 @@ function account_data_error(array $f): string
 		mb_strlen($f['name']) < 2 || mb_strlen($f['name']) > 100 || preg_match('~://|www\.|[<>]~i', $f['name']) => t('auth.err_name'),
 		!filter_var($f['email'], FILTER_VALIDATE_EMAIL) || mb_strlen($f['email']) > 190 => t('auth.err_email'),
 		$f['phone'] !== '' && !preg_match('/^\+?[0-9 ()\-]{6,20}$/', $f['phone']) => t('auth.err_phone'),
-		!in_array($f['city'], array_column(active_cities(), 'latn'), true) => t('auth.err_city'),
+		// The place is optional: without it search starts with all Serbia
+		$f['city'] !== '' && !in_array($f['city'], array_column(active_cities(), 'latn'), true) => t('auth.err_city'),
 		default => '',
 	};
 }

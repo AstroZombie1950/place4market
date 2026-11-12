@@ -198,7 +198,7 @@ require INC_DIR . '/header.php';
 		<div class="profile-head__main">
 			<h1 class="profile-head__name"><?= e(person_name($me['name'])) ?></h1>
 			<p class="profile-head__meta">
-				<span><?= icon('map-pin', 16) ?><?= e(city_name($me['city'])) ?></span>
+				<?php if ($me['city'] !== ''): ?><span><?= icon('map-pin', 16) ?><?= e(city_name($me['city'])) ?></span><?php endif; ?>
 				<span><?= icon('calendar', 16) ?><?= e(t('p.since', ['date' => date_label($me['registered'])])) ?></span>
 				<span><?= icon('tag', 16) ?><?= e(tp('p.active_count', $counts['active'])) ?></span>
 			</p>
@@ -211,7 +211,8 @@ require INC_DIR . '/header.php';
 				<?php endif; ?>
 			</p>
 		</div>
-		<a class="btn btn--primary" href="<?= e(url('post.php')) ?>"><?= icon('plus', 18) ?><?= e(t('nav.post_ad')) ?></a>
+		<!-- Not on phones: the bottom navigation has "Post" -->
+		<a class="btn btn--primary profile-head__cta" href="<?= e(url('post.php')) ?>"><?= icon('plus', 18) ?><?= e(t('nav.post_ad')) ?></a>
 	</section>
 
 	<div data-tabs data-tabs-hash>
@@ -223,11 +224,19 @@ require INC_DIR . '/header.php';
 
 		<!-- My listings -->
 		<div class="tabs__panel" role="tabpanel" id="panel-listings" aria-labelledby="tab-listings" tabindex="0">
+			<!-- Status filter: buttons, on phones a drop-down list (same filter, main.js) -->
 			<div class="pills" role="group" aria-label="<?= e(t('p.status_filter')) ?>" data-pills="my-listings">
 				<button type="button" class="pill" data-value="" aria-pressed="true"><?= e(t('p.status_all')) ?> <span><?= $counts[''] ?></span></button>
 				<?php foreach ($statusKeys as $status => $key): if (!in_array($status, ['active', 'pending'], true) && !$counts[$status]) continue; ?>
 				<button type="button" class="pill" data-value="<?= $status ?>" aria-pressed="false"><?= e(t($key)) ?> <span><?= $counts[$status] ?></span></button>
 				<?php endforeach; ?>
+				<label class="visually-hidden" for="my-listings-status"><?= e(t('p.status_filter')) ?></label>
+				<select class="select pills__select" id="my-listings-status" data-pills-select>
+					<option value=""><?= e(t('p.status_all')) ?> (<?= $counts[''] ?>)</option>
+					<?php foreach ($statusKeys as $status => $key): if (!in_array($status, ['active', 'pending'], true) && !$counts[$status]) continue; ?>
+					<option value="<?= $status ?>"><?= e(t($key)) ?> (<?= $counts[$status] ?>)</option>
+					<?php endforeach; ?>
+				</select>
 			</div>
 
 			<ul class="mylist" id="my-listings">
@@ -324,7 +333,7 @@ require INC_DIR . '/header.php';
 						</div>
 						<div class="field">
 							<label class="field__label" for="s-city"><?= e(t('auth.city')) ?></label>
-							<select class="select" id="s-city" name="city"><?= city_select_options($profile['city'], false) ?></select>
+							<select class="select" id="s-city" name="city"><?= city_select_options($profile['city']) ?></select>
 						</div>
 						<div class="field">
 							<label class="field__label" for="s-lang"><?= e(t('p.language')) ?></label>

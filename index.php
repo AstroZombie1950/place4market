@@ -30,7 +30,7 @@ require INC_DIR . '/header.php';
 		<aside class="layout__side layout__side--home">
 			<h2 class="side-title"><?= e(t('home.categories')) ?></h2>
 			<nav aria-label="<?= e(t('home.categories')) ?>">
-				<ul class="cat-list">
+				<ul class="cat-list" id="home-cats">
 					<?php foreach (visible_categories() as $category): ?>
 					<li>
 						<a class="cat-list__link" href="<?= e(url('category.php', ['cat' => $category['slug']])) ?>">
@@ -42,21 +42,23 @@ require INC_DIR . '/header.php';
 					</li>
 					<?php endforeach; ?>
 				</ul>
+				<!-- Phones: two rows of tiles, the rest opens (main.js, [data-expand]) -->
+				<button type="button" class="expand-btn cat-list__more" data-expand="home-cats" aria-expanded="false" aria-controls="home-cats"><?= e(t('cat.all_categories')) ?><?= icon('chevron-down', 16) ?></button>
 			</nav>
 
 			<h2 class="side-title side-title--cities"><?= e(t('home.cities')) ?></h2>
 			<nav aria-label="<?= e(t('home.cities')) ?>">
-				<!-- The 12 biggest places; the other main ones (cities and resorts) under "More places" -->
+				<!-- The 12 biggest places in two equal columns; the other main ones (cities and resorts) under "More places" -->
 				<?php $mainCities = main_cities(); ?>
-				<ul class="chips chips--scroll">
+				<ul class="place-grid place-grid--main">
 					<?php foreach (array_slice($mainCities, 0, 12) as $city): ?>
 					<li><a class="chip" href="<?= e(url('category.php', ['city' => $city['latn']])) ?>"><?= e(city_name($city['latn'])) ?></a></li>
 					<?php endforeach; ?>
 				</ul>
 				<?php if (count($mainCities) > 12): ?>
 				<details class="more-cities">
-					<summary class="more-cities__toggle"><?= e(t('home.more_cities')) ?></summary>
-					<ul class="chips">
+					<summary class="expand-btn more-cities__toggle"><?= e(t('home.more_cities')) ?><?= icon('chevron-down', 16) ?></summary>
+					<ul class="place-grid">
 						<?php foreach (array_slice($mainCities, 12) as $city): ?>
 						<li><a class="chip" href="<?= e(url('category.php', ['city' => $city['latn']])) ?>"><?= e(city_name($city['latn'])) ?></a></li>
 						<?php endforeach; ?>

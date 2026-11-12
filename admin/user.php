@@ -185,7 +185,7 @@ require ADMIN_INC . '/header.php';
 			<input type="hidden" name="back" value="<?= e($back) ?>">
 			<div class="field">
 				<label class="field__label" for="u-note"><?= e(at('rep.note')) ?></label>
-				<textarea class="textarea" id="u-note" name="note" rows="3" maxlength="2000" placeholder="<?= e(at('rep.note_ph')) ?>"><?= e($user['note'] ?? '') ?></textarea>
+				<textarea class="textarea" id="u-note" name="note" rows="3" maxlength="2000"><?= e($user['note'] ?? '') ?></textarea>
 			</div>
 			<div class="form-actions">
 				<button type="submit" class="btn btn--secondary"><?= icon('check', 18) ?><?= e(at('user.note_save')) ?></button>
@@ -197,9 +197,7 @@ require ADMIN_INC . '/header.php';
 			<?= csrf_field() ?>
 			<input type="hidden" name="id" value="<?= (int) $user['id'] ?>">
 			<input type="hidden" name="back" value="<?= e($back) ?>">
-			<h2 class="form-section__title"><?= e(at('user.delete_title')) ?></h2>
-			<p class="muted"><?= e(at('user.delete_text')) ?></p>
-			<div class="form-actions">
+			<div class="form-actions form-actions--alone">
 				<button type="submit" class="btn btn--danger-ghost" name="action" value="delete" data-confirm="<?= e(at('user.delete_q', ['name' => $user['name']])) ?>" data-confirm-label="<?= e(at('common.delete')) ?>"><?= icon('trash', 18) ?><?= e(at('user.delete_title')) ?></button>
 			</div>
 		</form>

@@ -277,7 +277,7 @@ require ADMIN_INC . '/header.php';
 					</div>
 					<div class="field">
 						<label class="field__label" for="c-text-en"><?= e(at('seo.text')) ?></label>
-						<textarea class="textarea" id="c-text-en" name="text_en" rows="8" maxlength="<?= SEO_TEXT_MAX ?>" lang="en" placeholder="<?= e(at('seo.text_empty')) ?>"><?= e($current['text_en']) ?></textarea>
+						<textarea class="textarea" id="c-text-en" name="text_en" rows="8" data-max-rows="16" maxlength="<?= SEO_TEXT_MAX ?>" lang="en" placeholder="<?= e(at('seo.text_empty')) ?>"><?= e($current['text_en']) ?></textarea>
 						<span class="field__hint"><?= e(at('cat.text_hint')) ?> <?= e(at('seo.links_hint')) ?></span>
 					</div>
 				</div>
@@ -305,7 +305,7 @@ require ADMIN_INC . '/header.php';
 					</div>
 					<div class="field">
 						<label class="field__label" for="c-text-sr"><?= e(at('seo.text')) ?></label>
-						<textarea class="textarea" id="c-text-sr" name="text_sr" rows="8" maxlength="<?= SEO_TEXT_MAX ?>" lang="sr-Latn" placeholder="<?= e(at('seo.text_empty')) ?>"><?= e($current['text_sr']) ?></textarea>
+						<textarea class="textarea" id="c-text-sr" name="text_sr" rows="8" data-max-rows="16" maxlength="<?= SEO_TEXT_MAX ?>" lang="sr-Latn" placeholder="<?= e(at('seo.text_empty')) ?>"><?= e($current['text_sr']) ?></textarea>
 						<span class="field__hint"><?= e(at('cat.text_hint')) ?> <?= e(at('seo.cyrillic_hint')) ?></span>
 					</div>
 				</div>
