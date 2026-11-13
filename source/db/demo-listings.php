@@ -85,7 +85,7 @@ foreach ($data['listings'] as $n => $l) {
 	}
 	[$facets, $err] = clean_facets($l['cat'], $cat['section'], $l['city'], [
 		'deal' => $l['deal'] ?? '', 'type' => $l['type'] ?? '', 'brand' => $l['brand'] ?? '',
-		'district' => $l['district'] ?? '', 'seller_type' => $l['seller'] ?? 'private',
+		'district' => $l['district'] ?? '',
 	]);
 	if ($err !== '') {
 		$errors[] = "$where: $err";
@@ -131,14 +131,17 @@ if ($errors) {
 
 mt_srand(2611);
 $userIds = [];
+$sellerTypes = [];
 db()->beginTransaction();
 foreach ($data['users'] as $i => $u) {
 	$created = db_utc(ago('-' . (40 + $i * 3) . ' days'));
-	db_exec('INSERT INTO users (name, email, phone, city_id, lang, role, status, email_verified_at, created_at, last_active_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+	db_exec('INSERT INTO users (name, email, phone, city_id, lang, role, seller_type, status, email_verified_at, created_at, last_active_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
 		$u['name'], $u['email'] . '@' . DEMO_DOMAIN, '+38160' . (1000000 + $i * 137911), $cities[$u['city']],
-		$u['lang'] ?? 'sr-latn', 'user', 'active', $created, $created, db_utc(ago('-' . mt_rand(1, 30) . ' hours')),
+		$u['lang'] ?? 'sr-latn', 'user', $u['seller'] ?? 'private', 'active', $created, $created, db_utc(ago('-' . mt_rand(1, 30) . ' hours')),
 	]);
 	$userIds[$u['email']] = (int) db()->lastInsertId();
+	// The advertiser of the user's listings (035)
+	$sellerTypes[$u['email']] = $u['seller'] ?? 'private';
 }
 
 /* ---------- Listings, photos, video ---------- */
@@ -160,7 +163,7 @@ foreach ($rows as $l) {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
 		[
 			$userIds[$l['user']], $l['category_id'], $f['deal'], $f['type'], $f['brand'], $l['city_id'],
-			$f['district'] !== null ? $districts[$l['city']][$f['district']] : null, $f['seller_type'], $status,
+			$f['district'] !== null ? $districts[$l['city']][$f['district']] : null, $sellerTypes[$l['user']], $status,
 			$l['t'], $l['d'], $l['lang'], sr_lat($l['t'] . "\n" . $l['d']),
 			$price, $currency, (int) ($l['neg'] ?? false), $l['condition'], $l['attrs'] ? $json($l['attrs']) : null,
 			$status === 'pending' ? 0 : mt_rand(12, 900), mt_rand(0, 14), mt_rand(0, 6), $created, $published ?? $created, $published, $expires,

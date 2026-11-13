@@ -48,7 +48,7 @@ if (isset($_POST['id']) && in_array($listingAction, ['raise', 'deactivate', 'act
 			log_action('listing.' . $listingAction, ['listing_id' => $id]);
 			flash('success', t(['raise' => 'p.raised', 'deactivate' => 'p.deactivated', 'activate' => 'p.activated', 'renew' => 'p.renewed', 'sell' => 'p.sold'][$listingAction], ['days' => setting('listing_days')]));
 		} else {
-			flash('info', t($listingAction === 'raise' ? 'p.raise_wait' : 'p.action_failed'));
+			flash('info', $listingAction === 'raise' ? tp('p.raise_wait', setting('raise_hours')) : t('p.action_failed'));
 		}
 	}
 
@@ -99,8 +99,11 @@ if (($_POST['action'] ?? '') === 'save_profile') {
 
 	if ($profileError === '') {
 		update_profile($me['id'], $profile['name'], $profile['city'], $profile['lang']);
+		// Business (035, M5): turned on once, for good — the account and all its listings
+		$business = !empty($_POST['business']) && $me['seller_type'] !== 'business' && set_user_seller_type($me['id'], 'business');
 		$changed = array_keys(array_filter([
 			'name' => $profile['name'] !== $me['name'], 'city' => $profile['city'] !== $me['city'], 'lang' => $profile['lang'] !== $me['lang'],
+			'seller_type' => $business,
 		]));
 		if ($changed) {
 			log_action('account.update', ['fields' => $changed]);
@@ -429,6 +432,7 @@ require INC_DIR . '/header.php';
 							<span><?= e(t('p.pending_note')) ?></span>
 							<?php endif; ?>
 							<span><?= icon('eye', 14) ?> <?= e(tp('p.stats_views', $item['views'])) ?></span>
+							<span><?= icon('heart', 14) ?> <?= e(tp('p.stats_favorites', $item['favorites'])) ?></span>
 							<span><?= icon('message', 14) ?> <?= e(tp('p.stats_messages', $item['messages'])) ?></span>
 						</p>
 					</div>
@@ -503,6 +507,14 @@ require INC_DIR . '/header.php';
 									<?php endforeach; ?>
 								</select>
 							</div>
+						</div>
+						<!-- Private person or business (035, M5): business is turned on once and stays; the
+						     listings say "Business" and a briefcase follows the name (only staff turn it back) -->
+						<div class="business-switch">
+							<label class="switch">
+								<input type="checkbox" role="switch" name="business" value="1"<?= $me['seller_type'] === 'business' ? ' checked disabled' : '' ?>>
+								<span class="switch__text"><span class="switch__title"><?= e(t('p.business')) ?></span><span class="switch__hint"><?= e(t($me['seller_type'] === 'business' ? 'p.business_on' : 'p.business_hint')) ?></span></span>
+							</label>
 						</div>
 						<div class="form-actions">
 							<button type="submit" class="btn btn--primary"><?= e(t('p.save')) ?></button>
@@ -666,8 +678,9 @@ require INC_DIR . '/header.php';
 				<section class="panel settings-grid__logout" aria-labelledby="logout-title">
 					<div class="panel__body">
 						<h2 class="panel__title" id="logout-title"><?= e(t('nav.logout')) ?></h2>
-						<div class="row row--between">
-							<p class="muted"><?= e(t('p.logout_text')) ?></p>
+						<p class="muted"><?= e(t('p.logout_text')) ?></p>
+						<!-- The button at the bottom in the middle, as in the other blocks (M11) -->
+						<div class="form-actions">
 							<a class="btn btn--outline" href="<?= e(url('logout.php', ['csrf' => csrf_token()])) ?>"><?= icon('logout', 18) ?><?= e(t('nav.logout')) ?></a>
 						</div>
 					</div>

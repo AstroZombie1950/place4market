@@ -41,9 +41,10 @@ require SOURCE_DIR . '/inc/auth.php';
 require SOURCE_DIR . '/inc/mail.php';
 auth_init();
 
-// Staff only (moderator, admin); login.php defines ADMIN_PUBLIC to stay reachable
-if (!defined('ADMIN_PUBLIC') && !is_staff()) {
-	redirect('login.php');
+// Staff only (moderator, admin). Everyone else, guests too, goes to the home page:
+// the admin has no login form of its own, staff sign in on the site (auth.php)
+if (!is_staff()) {
+	redirect(SITE_URL);
 }
 $currentAdmin = current_user();
 if ($currentAdmin) {

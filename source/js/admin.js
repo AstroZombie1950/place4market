@@ -483,7 +483,6 @@
 
 	/* ----------------------------------------------------------------------
 		Small form helpers
-		- [data-password-toggle] aria-controls="input-id": show/hide password
 		- textarea/input[maxlength][data-counter]: live "12 / 80"
 		- [data-slug-source="input-name"] on slug input: auto slug for a new record
 		---------------------------------------------------------------------- */
@@ -495,18 +494,6 @@
 		.replace(/^-+|-+$/g, '');
 
 	const initForms = () => {
-		$$('[data-password-toggle]').forEach((btn) => {
-			btn.addEventListener('click', () => {
-				const input = document.getElementById(btn.getAttribute('aria-controls'));
-				if (!input) return;
-				const show = input.type === 'password';
-				input.type = show ? 'text' : 'password';
-				btn.setAttribute('aria-pressed', String(show));
-				// Labels in the admin language: data-label-show / data-label-hide
-				btn.setAttribute('aria-label', show ? (btn.dataset.labelHide || 'Hide password') : (btn.dataset.labelShow || 'Show password'));
-			});
-		});
-
 		$$('[data-counter][maxlength]').forEach((field) => {
 			const out = document.getElementById(field.dataset.counter);
 			if (!out) return;

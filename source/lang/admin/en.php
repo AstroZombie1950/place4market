@@ -109,18 +109,6 @@ return [
 	'seller.private' => 'Private person',
 	'seller.business' => 'Business',
 
-	/* ---------- Login ---------- */
-	'login.title' => 'Sign in',
-	'login.sub' => 'Staff access only.',
-	'login.email' => 'Email',
-	'login.password' => 'Password',
-	'login.remember' => 'Remember me',
-	'login.forgot' => 'Forgot password?',
-	'login.too_many' => 'Too many attempts. Please try again later.',
-	'login.wrong' => 'Wrong email or password, or no staff access.',
-	'common.show_password' => 'Show password',
-	'common.hide_password' => 'Hide password',
-
 	/* ---------- Layout: header, sidebar, dialogs ---------- */
 	'head.skip' => 'Skip to content',
 	'head.open_menu' => 'Open menu',
@@ -547,6 +535,7 @@ return [
 	'user.access' => 'Access',
 	'user.role_self' => 'Your own role is changed by another administrator.',
 	'user.role_hint' => 'Moderators review listings, reports and users. Admins also manage accounts, settings and the journal.',
+	'user.seller_hint' => 'The user turns business on in the profile and cannot turn it off; only staff can. All the user’s listings follow it.',
 	'user.mail_lang' => 'Language of emails',
 	'user.mail_lang_none' => 'Not chosen (Serbian Latin)',
 	'user.admin_lang' => 'Language of the admin',

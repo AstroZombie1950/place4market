@@ -29,7 +29,7 @@ const CATEGORY_ATTRS = [
 	'motorcycle-gear' => ['fields' => ['size']],
 	// Nekretnine
 	'apartments' => ['fields' => ['area', 'rooms', 'floor', 'heating', 'built', 'furnished', 'new_build'], 'condition' => false],
-	'houses' => ['fields' => ['area', 'plot', 'rooms', 'heating', 'built', 'furnished'], 'condition' => false],
+	'houses' => ['fields' => ['area', 'plot', 'rooms', 'heating', 'built', 'furnished', 'new_build'], 'condition' => false],
 	'cottages' => ['fields' => ['area', 'plot', 'rooms', 'heating'], 'condition' => false],
 	'land' => ['fields' => ['plot'], 'condition' => false],
 	'commercial' => ['fields' => ['area', 'floor', 'heating'], 'condition' => false],
@@ -126,7 +126,9 @@ const CATEGORY_ATTRS = [
 
 // Field types: number (min, max, step, unit; a unit "u.*" is translated), select (options:
 // v.<option>, or shown as is with 'raw'), text (max length; 'raw' = a name, never put into Cyrillic),
-// bool (a checkbox: stored as true when on)
+// bool (a checkbox, or a switch with 'switch': stored as true when on; with 'row' and 'off' the listing
+// page shows a row named 'row' either way — its own label when on, 'off' when off; otherwise an off
+// field is not shown)
 function attr_fields(): array
 {
 	$nextYear = (int) date('Y') + 1;
@@ -135,7 +137,7 @@ function attr_fields(): array
 	return [
 		'model' => ['type' => 'text', 'max' => 40, 'raw' => true],
 		'year' => ['type' => 'number', 'min' => 1900, 'max' => $nextYear],
-		'mileage' => ['type' => 'number', 'min' => 0, 'max' => 2_000_000, 'unit' => 'km'],
+		'mileage' => ['type' => 'number', 'min' => 0, 'max' => 999_999, 'unit' => 'km'],
 		'fuel' => ['type' => 'select', 'options' => ['petrol', 'diesel', 'lpg', 'hybrid', 'electric']],
 		'gearbox' => ['type' => 'select', 'options' => ['manual', 'automatic']],
 		'power' => ['type' => 'number', 'min' => 1, 'max' => 2000, 'unit' => 'kW'],
@@ -169,7 +171,8 @@ function attr_fields(): array
 		'employment' => ['type' => 'select', 'options' => ['full_time', 'part_time', 'temporary', 'freelance']],
 		'damaged' => ['type' => 'bool'],
 		'financing' => ['type' => 'bool'],
-		'new_build' => ['type' => 'bool'],
+		// New build or resale (apartments, houses; checklist 8.1.2, M2): a switch, the filter "build"
+		'new_build' => ['type' => 'bool', 'switch' => true, 'row' => 'a.building', 'off' => 'v.resale'],
 		'season' => ['type' => 'select', 'options' => ['summer', 'winter', 'all_season']],
 		'tyre_size' => ['type' => 'text', 'max' => 20],
 		'diagonal' => ['type' => 'number', 'min' => 10, 'max' => 150, 'unit' => '″'],
@@ -303,7 +306,7 @@ function attr_value(string $key, mixed $value): string
 }
 
 // Rows of the details block: deal, kind and brand, condition (from their own columns) first, then the
-// attributes, the advertiser last
+// attributes (a switch with 'off' also when it is off: new build / resale), the advertiser last
 function listing_details(array $listing): array
 {
 	$rows = [];
@@ -323,12 +326,18 @@ function listing_details(array $listing): array
 	}
 
 	foreach ($listing['attrs'] as $key => $value) {
-		$rows[] = [t('a.' . $key), attr_value($key, $value)];
+		// A switch with two names shows the one that is on: "Building: New build"
+		$row = attr_fields()[$key]['row'] ?? null;
+		$rows[] = $row !== null && $value ? [t($row), t('a.' . $key)] : [t('a.' . $key), attr_value($key, $value)];
+	}
+	foreach (category_attr_fields($listing['category']) as $key => $field) {
+		if (isset($field['row'], $field['off']) && !isset($listing['attrs'][$key])) {
+			$rows[] = [t($field['row']), t($field['off'])];
+		}
 	}
 
-	if (($listing['seller_type'] ?? null) === 'business') {
-		$rows[] = [t('post.f_seller'), t('seller.business')];
-	}
+	// Private person or business: the account's (035), on every listing (M5)
+	$rows[] = [t('post.f_seller'), t('seller.' . ($listing['seller_type'] ?? 'private'))];
 
 	return $rows;
 }

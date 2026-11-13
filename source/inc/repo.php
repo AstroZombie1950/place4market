@@ -44,7 +44,8 @@ const SETTINGS = [
 	'eur_auto' => [true, 'bool'],
 	'eur_rate_info' => ['', 'text', 500],
 	'listing_days' => [30, 'int', 7, 365],
-	'raise_hours' => [24, 'int', 1, 720],
+	// Bump to the top: once per 72 hours (checklist 9.6, M10; was 24)
+	'raise_hours' => [72, 'int', 1, 720],
 	'max_photos' => [12, 'int', 1, 30],
 	// Videos of a listing (D8, H6): 0 = uploading videos is off
 	'max_videos' => [1, 'int', 0, 3],
@@ -450,6 +451,8 @@ function user_from_row(array $r): array
 		// Profile photo: stored path of its folder (028), null = initials
 		'avatar' => $r['status'] === 'deleted' ? null : ($r['avatar'] ?? null),
 		'role' => $r['role'], 'status' => $r['status'], 'verified' => $r['phone_verified_at'] !== null,
+		// Private person or business (035): the advertiser of all the user's listings
+		'seller_type' => $r['seller_type'] ?? 'private',
 		'email_verified' => $r['email_verified_at'] !== null, 'new_email' => $r['new_email'], 'lang' => $r['lang'],
 		'notify' => ['messages' => (bool) $r['notify_messages'], 'saved' => (bool) $r['notify_saved'], 'price' => (bool) $r['notify_price'], 'news' => (bool) $r['notify_news']],
 		// Where they go (030): email | browser | both
@@ -568,8 +571,8 @@ function listing_status_counts(): array
 }
 
 // WHERE for public search: published listings of active users + filters.
-// $f: cat, q, city, district, deal, type, brand, seller, price_from, price_to, currency, condition, negotiable, photos,
-// user, exclude (ids), since
+// $f: cat, q, city, district, deal, type, brand, seller, price_from, price_to, currency, condition, negotiable,
+// agreement, build, photos, user, exclude (ids), since
 function listing_search_where(array $f): array
 {
 	$where = [LISTING_LIVE, "u.status = 'active'", CATEGORY_VISIBLE];
@@ -626,6 +629,16 @@ function listing_search_where(array $f): array
 
 	if (!empty($f['negotiable'])) {
 		$where[] = 'l.negotiable = 1';
+	}
+	// Price by agreement only: listings without a price (checklist 8.1.5, M6)
+	if (!empty($f['agreement'])) {
+		$where[] = 'l.price IS NULL';
+	}
+	// New build or not (apartments, houses: the switch new_build of attrs.php; checklist 8.1.2, M2)
+	if (($f['build'] ?? '') === 'new') {
+		$where[] = "JSON_VALUE(l.attrs, '$.new_build') IN ('true', '1')";
+	} elseif (($f['build'] ?? '') === 'old') {
+		$where[] = "COALESCE(JSON_VALUE(l.attrs, '$.new_build'), 'false') NOT IN ('true', '1')";
 	}
 	// Checkbox details (attrs.php, type bool): damaged, instalments / leasing
 	foreach (['damaged', 'financing'] as $flag) {
@@ -744,39 +757,41 @@ function postable_photos(int $userId, array $ids, ?int $listingId): array
 // New listing or changes to one. $f: user_id, status (pending = to moderation, draft), category
 // (slug), city (Latin name), title, description, lang, price (null = by agreement), currency,
 // negotiable, condition (null when the category has none), attrs, contact (messages | calls | both),
-// moderation_note (why it waits for a moderator, optional).
+// seller_type (the account's: private | business), moderation_note (why it waits for a moderator, optional).
 // Returns the listing id
 function save_listing(array $f, ?int $id = null): int
 {
 	[$set, $values] = listing_set($f);
 
 	$note = $f['moderation_note'] ?? null;
+	$seller = in_array($f['seller_type'] ?? '', SELLER_TYPES, true) ? $f['seller_type'] : 'private';
 
 	if ($id === null) {
-		db_exec('INSERT INTO listings SET user_id = ?, status = ?, moderation_note = ?, ' . $set, [$f['user_id'], $f['status'], $note, ...$values]);
+		db_exec('INSERT INTO listings SET user_id = ?, status = ?, moderation_note = ?, seller_type = ?, ' . $set, [$f['user_id'], $f['status'], $note, $seller, ...$values]);
 
 		return (int) db()->lastInsertId();
 	}
 
-	db_exec('UPDATE listings SET status = ?, moderation_note = ?, ' . $set . ', reject_reason = NULL, reject_comment = NULL WHERE id = ? AND user_id = ?', [$f['status'], $note, ...$values, $id, $f['user_id']]);
+	db_exec('UPDATE listings SET status = ?, moderation_note = ?, seller_type = ?, ' . $set . ', reject_reason = NULL, reject_comment = NULL WHERE id = ? AND user_id = ?', [$f['status'], $note, $seller, ...$values, $id, $f['user_id']]);
 
 	return $id;
 }
 
 // SET of the listing's own fields for save_listing() and staff_save_listing(): [sql, values].
-// deal, type, brand, seller_type: keys (taxonomy.php) or null; district: Latin name within the city or null
+// deal, type, brand: keys (taxonomy.php) or null; district: Latin name within the city or null.
+// The advertiser (seller_type) is the account's (035): save_listing() and set_user_seller_type() write it
 function listing_set(array $f): array
 {
 	return [
 		'title = ?, description = ?, lang = ?, search_text = ?, price = ?, currency = ?, negotiable = ?, item_condition = ?, attrs = ?,
 		contact = ?, category_id = (SELECT id FROM categories WHERE slug = ?), city_id = (SELECT id FROM cities WHERE latn = ?),
-		deal = ?, item_type = ?, brand = ?, seller_type = ?,
+		deal = ?, item_type = ?, brand = ?,
 		district_id = (SELECT d.id FROM districts d JOIN cities dc ON dc.id = d.city_id WHERE dc.latn = ? AND d.latn = ?)',
 		[
 			$f['title'], $f['description'], $f['lang'], sr_lat($f['title'] . "\n" . $f['description'] . (isset($f['attrs']['model']) ? "\n" . $f['attrs']['model'] : '')),
 			$f['price'], $f['currency'], (int) $f['negotiable'], $f['condition'], $f['attrs'] ? json_encode($f['attrs'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
 			in_array($f['contact'] ?? '', LISTING_CONTACTS, true) ? $f['contact'] : 'messages', $f['category'], $f['city'],
-			$f['deal'] ?? null, $f['type'] ?? null, $f['brand'] ?? null, $f['seller_type'] ?? null,
+			$f['deal'] ?? null, $f['type'] ?? null, $f['brand'] ?? null,
 			$f['city'], $f['district'] ?? '',
 		],
 	];
@@ -1469,8 +1484,14 @@ function conversation_state(int $conversationId, int $userId): array
 // "unread" for the other side. False — already read (or not theirs)
 function delete_unread_message(int $id, int $conversationId, int $senderId): bool
 {
-	return db_exec('UPDATE messages SET body = \'\', deleted_at = UTC_TIMESTAMP(), read_at = UTC_TIMESTAMP()
+	$done = db_exec('UPDATE messages SET body = \'\', deleted_at = UTC_TIMESTAMP(), read_at = UTC_TIMESTAMP()
 		WHERE id = ? AND conversation_id = ? AND sender_id = ? AND read_at IS NULL AND deleted_at IS NULL', [$id, $conversationId, $senderId]) > 0;
+	// Its browser notification, if not shown yet, is not shown at all (checklist 10.3.14, M17)
+	if ($done) {
+		db_exec("DELETE FROM notifications WHERE type = 'message' AND delivered_at IS NULL AND JSON_VALUE(data, '$.message') = ?", [(string) $id]);
+	}
+
+	return $done;
 }
 
 // Unread messages to the user in one conversation
@@ -1566,6 +1587,20 @@ function mark_email_verified(int $id): void
 function update_profile(int $id, string $name, string $city, string $lang): void
 {
 	db_exec('UPDATE users SET name = ?, city_id = (SELECT id FROM cities WHERE latn = ?), lang = ? WHERE id = ?', [$name, $city, $lang, $id]);
+}
+
+// Private person or business (035): the account and all its listings (the "Advertiser" filter).
+// The user only turns business on (profile.php); back to private — staff (admin → user card).
+// False — it was so already
+function set_user_seller_type(int $id, string $type): bool
+{
+	$type = in_array($type, SELLER_TYPES, true) ? $type : 'private';
+	if (!db_exec('UPDATE users SET seller_type = ? WHERE id = ? AND seller_type <> ?', [$type, $id, $type])) {
+		return false;
+	}
+	db_exec('UPDATE listings SET seller_type = ?, updated_at = updated_at WHERE user_id = ?', [$type, $id]);
+
+	return true;
 }
 
 // The profile's phone (null removes it); a changed number is not confirmed any more

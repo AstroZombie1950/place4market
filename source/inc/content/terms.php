@@ -3,12 +3,12 @@
 	Terms of use. Written 11.11.2026 from how the site really works (posting,
 	moderation, reports, messages, account); the client and the client's lawyer
 	finish it: [brackets] are to fill. Numbers follow admin → Settings
-	(listing_days 30, max_photos 12, raise_hours 24): change both together.
+	(listing_days 30, max_photos 12, raise_hours 72): change both together.
 	Values are ['en' => …, 'sr' => …]; Cyrillic is made on the fly (tc())
 	========================================================================== */
 
 return [
-	'updated' => '2026-11-11',
+	'updated' => '2026-11-13',
 	'lead' => [
 		'en' => 'These terms apply to everyone who uses Place4Market: visitors, buyers and sellers. By creating an account or posting a listing you accept them. How we handle personal data is described in the privacy policy.',
 		'sr' => 'Ovi uslovi važe za sve koji koriste Place4Market: posetioce, kupce i prodavce. Pravljenjem naloga ili postavljanjem oglasa prihvatate ih. Kako postupamo sa ličnim podacima opisano je u politici privatnosti.',
@@ -39,7 +39,7 @@ return [
 			'id' => 'listings',
 			'title' => ['en' => '3. Listings', 'sr' => '3. Oglasi'],
 			'blocks' => [
-				['en' => 'A listing must describe a real item, property, job or service you are offering, in the right category and place, with your own photos (up to 12) and an honest price. A listing is published for 30 days; after that you can renew it. Once a day you can move it back to the top of the list.', 'sr' => 'Oglas mora opisivati stvarnu stvar, nekretninu, posao ili uslugu koju nudite, u odgovarajućoj kategoriji i mestu, sa vašim fotografijama (do 12) i poštenom cenom. Oglas je objavljen 30 dana; posle toga ga možete obnoviti. Jednom dnevno ga možete podići na vrh liste.'],
+				['en' => 'A listing must describe a real item, property, job or service you are offering, in the right category and place, with your own photos (up to 12) and an honest price. A listing is published for 30 days; after that you can renew it. Once every 3 days you can move it back to the top of the list.', 'sr' => 'Oglas mora opisivati stvarnu stvar, nekretninu, posao ili uslugu koju nudite, u odgovarajućoj kategoriji i mestu, sa vašim fotografijama (do 12) i poštenom cenom. Oglas je objavljen 30 dana; posle toga ga možete obnoviti. Jednom u 3 dana ga možete podići na vrh liste.'],
 				['en' => 'It is not allowed to post:', 'sr' => 'Nije dozvoljeno objavljivati:'],
 				['list' => [
 					['en' => 'items and services whose sale or advertising is prohibited by the laws of Serbia (weapons and ammunition without a permit, drugs, medicines on prescription, counterfeit goods, stolen items and the like);', 'sr' => 'stvari i usluge čija je prodaja ili oglašavanje zabranjeno zakonima Srbije (oružje i municija bez dozvole, droge, lekovi na recept, falsifikovana roba, ukradene stvari i slično);'],

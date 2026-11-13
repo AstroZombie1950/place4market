@@ -3,8 +3,9 @@
 	Test listings for the new structure (stage 6), used by demo-listings.php.
 	Only for trying the site before launch: removed with --purge together with
 	the demo users (all on @demo.place4market.test).
-	Listing: cat — subcategory slug; deal / type / brand / district / seller —
-	as in the post form; t, d — title and description in the author's language
+	User: seller — 'business' for a business account (035; private by default),
+	all its listings say so. Listing: cat — subcategory slug; deal / type /
+	brand / district — as in the post form; t, d — title and description in the author's language
 	(lang: sr-latn by default, sr-cyrl or en); p — [price, currency] or null;
 	a — details as typed in the form (checked by clean_attrs()); ph — photo set
 	of the demo photos (img/demo, see POOLS in demo-listings.php) and how many,
@@ -23,8 +24,8 @@ return [
 		['name' => 'Marija Ilić', 'email' => 'marija', 'city' => 'Subotica'],
 		['name' => 'Dragan Stojanović', 'email' => 'dragan', 'city' => 'Čačak'],
 		['name' => 'Tamara Pavlović', 'email' => 'tamara', 'city' => 'Beograd'],
-		['name' => 'Auto Centar Delta', 'email' => 'autodelta', 'city' => 'Beograd'],
-		['name' => 'Nekretnine Kvadrat', 'email' => 'kvadrat', 'city' => 'Novi Sad'],
+		['name' => 'Auto Centar Delta', 'email' => 'autodelta', 'city' => 'Beograd', 'seller' => 'business'],
+		['name' => 'Nekretnine Kvadrat', 'email' => 'kvadrat', 'city' => 'Novi Sad', 'seller' => 'business'],
 		['name' => 'Peter Walsh', 'email' => 'peter', 'city' => 'Beograd', 'lang' => 'en'],
 		['name' => 'Зоран Илић', 'email' => 'zoran', 'city' => 'Kraljevo', 'lang' => 'sr-cyrl'],
 	],
@@ -32,7 +33,7 @@ return [
 	'listings' => [
 
 		// ---------- Vehicles ----------
-		['user' => 'autodelta', 'seller' => 'business', 'cat' => 'cars', 'brand' => 'volkswagen', 'city' => 'Beograd', 'days' => 1,
+		['user' => 'autodelta', 'cat' => 'cars', 'brand' => 'volkswagen', 'city' => 'Beograd', 'days' => 1,
 			't' => 'Volkswagen Passat B8 2.0 TDI, 2017', 'p' => [14900, 'EUR'], 'neg' => true, 'cond' => 'used',
 			'd' => "Passat karavan, uvezen iz Nemačke 2023, redovno servisiran u ovlašćenom servisu. DSG menjač, navigacija, parking senzori napred i nazad, grejanje sedišta.\n\nZamenjen zupčasti kaiš i sva ulja na 180 000 km. Moguća zamena i kupovina na rate.",
 			'a' => ['year' => 2017, 'mileage' => 189000, 'fuel' => 'diesel', 'gearbox' => 'automatic', 'power' => 110, 'body' => 'wagon', 'color' => 'grey', 'financing' => 1], 'ph' => ['cars', 4]],
@@ -60,7 +61,7 @@ return [
 			't' => 'Renault Clio 1.5 dCi, 2016', 'p' => [7400, 'EUR'], 'neg' => false, 'cond' => 'used',
 			'd' => "Clio IV, prvi vlasnik u Srbiji, uvoz iz Francuske. Navigacija, tempomat, ekonomičan dizel.\n\nNije udaran, lak originalan osim branika.",
 			'a' => ['year' => 2016, 'mileage' => 121000, 'fuel' => 'diesel', 'gearbox' => 'manual', 'power' => 66, 'body' => 'hatchback', 'color' => 'white'], 'ph' => ['cars', 1]],
-		['user' => 'autodelta', 'seller' => 'business', 'cat' => 'cars', 'brand' => 'toyota', 'city' => 'Beograd', 'days' => 0,
+		['user' => 'autodelta', 'cat' => 'cars', 'brand' => 'toyota', 'city' => 'Beograd', 'days' => 0,
 			't' => 'Toyota Yaris 1.5 Hybrid, 2020, garancija', 'p' => [16500, 'EUR'], 'neg' => false, 'cond' => 'used',
 			'd' => "Yaris Hybrid sa automatskim menjačem, kamera za vožnju unazad, adaptivni tempomat. Vozilo je pregledano u našem servisu i ide uz garanciju 12 meseci.\n\nMoguća kupovina na rate i lizing, zamena staro za novo.",
 			'a' => ['year' => 2020, 'mileage' => 64000, 'fuel' => 'hybrid', 'gearbox' => 'automatic', 'power' => 85, 'body' => 'hatchback', 'color' => 'red', 'financing' => 1], 'ph' => ['cars', 3]],
@@ -106,7 +107,7 @@ return [
 			'a' => ['size' => 'M'], 'ph' => ['jacket', 1]],
 
 		// ---------- Real estate ----------
-		['user' => 'kvadrat', 'seller' => 'business', 'cat' => 'apartments', 'deal' => 'sale', 'city' => 'Beograd', 'district' => 'Novi Beograd', 'days' => 1,
+		['user' => 'kvadrat', 'cat' => 'apartments', 'deal' => 'sale', 'city' => 'Beograd', 'district' => 'Novi Beograd', 'days' => 1,
 			't' => 'Dvosoban stan 58 m², Blok 45, uknjižen', 'p' => [168000, 'EUR'], 'neg' => true,
 			'd' => "Dvosoban stan na četvrtom spratu zgrade sa liftom, pogled na park. Renoviran 2022: nova kupatila, PVC stolarija, laminat.\n\nCentralno grejanje, terasa, podrum. Blizu škola, vrtić i tramvaj. Uknjižen, bez tereta, odmah useljiv.",
 			'a' => ['area' => 58, 'rooms' => 2, 'floor' => '4/8', 'heating' => 'central', 'built' => 1978, 'furnished' => 'partly'], 'ph' => ['apartments', 4]],
@@ -122,7 +123,7 @@ return [
 			't' => 'Garsonjera za izdavanje, Zemun, novogradnja', 'p' => [380, 'EUR'], 'neg' => true,
 			'd' => 'Garsonjera 27 m² u novoj zgradi, namešteno, internet i kablovska uključeni u cenu.',
 			'a' => ['area' => 27, 'rooms' => 0.5, 'floor' => '1/4', 'heating' => 'electricity', 'furnished' => 'yes', 'new_build' => 1], 'ph' => ['apartments', 2]],
-		['user' => 'kvadrat', 'seller' => 'business', 'cat' => 'apartments', 'deal' => 'sale', 'city' => 'Novi Sad', 'district' => 'Liman', 'days' => 2,
+		['user' => 'kvadrat', 'cat' => 'apartments', 'deal' => 'sale', 'city' => 'Novi Sad', 'district' => 'Liman', 'days' => 2,
 			't' => 'Trosoban stan, Liman 2, blizu Keja', 'p' => [189000, 'EUR'], 'neg' => true,
 			'd' => "Funkcionalan trosoban stan od 71 m² na petom spratu, sa dve terase. Zgrada sa liftom, uređen ulaz.\n\nPet minuta od Dunava i Štranda, u blizini fakulteta. Agencijska provizija 2%.",
 			'a' => ['area' => 71, 'rooms' => 3, 'floor' => '5/8', 'heating' => 'central', 'built' => 1984, 'furnished' => 'no'], 'ph' => ['apartments', 4]],
@@ -150,7 +151,7 @@ return [
 			't' => 'Izdajem stan studentima, blizu fakulteta', 'p' => [250, 'EUR'], 'neg' => true,
 			'd' => 'Dvosoban namešten stan, idealan za dva studenta. Blizu Mašinskog i Elektronskog fakulteta.',
 			'a' => ['area' => 48, 'rooms' => 2, 'heating' => 'central', 'furnished' => 'yes'], 'ph' => ['apartments', 1]],
-		['user' => 'kvadrat', 'seller' => 'business', 'cat' => 'houses', 'deal' => 'sale', 'city' => 'Novi Sad', 'district' => 'Sremska Kamenica', 'days' => 4,
+		['user' => 'kvadrat', 'cat' => 'houses', 'deal' => 'sale', 'city' => 'Novi Sad', 'district' => 'Sremska Kamenica', 'days' => 4,
 			't' => 'Kuća 160 m² sa dvorištem, Sremska Kamenica', 'p' => [245000, 'EUR'], 'neg' => true,
 			'd' => "Porodična kuća na dva nivoa, plac od 5 ari. Četiri spavaće sobe, dva kupatila, garaža i letnja kuhinja.\n\nGrejanje na gas, kamin u dnevnoj sobi. Pogled na Dunav i Novi Sad.",
 			'a' => ['area' => 160, 'plot' => 5, 'rooms' => 5, 'heating' => 'gas', 'built' => 2008, 'furnished' => 'partly'], 'ph' => ['houses', 3]],
@@ -170,7 +171,7 @@ return [
 			't' => 'Građevinski plac 6 ari, Kaluđerica', 'p' => [36000, 'EUR'], 'neg' => true,
 			'd' => 'Plac na asfaltu, struja i voda u ulici. Uknjižen, pogodan za gradnju porodične kuće.',
 			'a' => ['plot' => 6], 'ph' => ['houses', 1]],
-		['user' => 'kvadrat', 'seller' => 'business', 'cat' => 'commercial', 'deal' => 'rent', 'type' => 'offices', 'city' => 'Novi Sad', 'district' => 'Centar', 'days' => 8,
+		['user' => 'kvadrat', 'cat' => 'commercial', 'deal' => 'rent', 'type' => 'offices', 'city' => 'Novi Sad', 'district' => 'Centar', 'days' => 8,
 			't' => 'Poslovni prostor 45 m², centar Novog Sada', 'p' => [600, 'EUR'], 'neg' => true,
 			'd' => "Kancelarijski prostor na prvom spratu, dve prostorije, čajna kuhinja i toalet. Klima i internet.\n\nPogodno za agenciju ili advokatsku kancelariju.",
 			'a' => ['area' => 45, 'floor' => '1/4', 'heating' => 'central'], 'ph' => ['apartments', 1]],
@@ -184,7 +185,7 @@ return [
 			'a' => ['area' => 12, 'furnished' => 'yes'], 'ph' => ['apartments', 1]],
 
 		// ---------- Jobs ----------
-		['user' => 'autodelta', 'seller' => 'business', 'cat' => 'drivers-delivery', 'city' => 'Beograd', 'days' => 1,
+		['user' => 'autodelta', 'cat' => 'drivers-delivery', 'city' => 'Beograd', 'days' => 1,
 			't' => 'Vozač B kategorije za dostavu po Beogradu', 'p' => null,
 			'd' => "Tražimo vozača za dostavu delova servisima po Beogradu. Radno vreme 8–16, subota slobodna.\n\nUslovi: B kategorija, iskustvo u vožnji po gradu. Plata 90 000 dinara plus bonusi. CV na poruku.",
 			'a' => ['employment' => 'full_time']],
@@ -214,11 +215,11 @@ return [
 			'a' => ['employment' => 'part_time']],
 
 		// ---------- Services ----------
-		['user' => 'milan', 'seller' => 'business', 'cat' => 'tradesmen', 'type' => 'electrician', 'city' => 'Beograd', 'days' => 0,
+		['user' => 'milan', 'cat' => 'tradesmen', 'type' => 'electrician', 'city' => 'Beograd', 'days' => 0,
 			't' => 'Električar 0–24, Beograd, hitne intervencije', 'p' => null,
 			'd' => "Elektroinstalaterski radovi: zamena osigurača i tabli, nove instalacije, ugradnja rasvete i bojlera. Izlazak na teren i noću i vikendom.\n\nRadim na celoj teritoriji Beograda, garancija na radove.",
 			'a' => ['experience' => 'years_10', 'area_served' => 'Beograd'], 'ph' => ['tradesman', 1]],
-		['user' => 'jelena', 'seller' => 'business', 'cat' => 'tradesmen', 'type' => 'plumber', 'city' => 'Novi Sad', 'days' => 3,
+		['user' => 'jelena', 'cat' => 'tradesmen', 'type' => 'plumber', 'city' => 'Novi Sad', 'days' => 3,
 			't' => 'Vodoinstalater Novi Sad, odgušenje i popravke', 'p' => null,
 			'd' => 'Popravka i zamena slavina, vodokotlića i bojlera, odgušenje kanalizacije. Brz dolazak, povoljne cene.',
 			'a' => ['experience' => 'years_5', 'area_served' => 'Novi Sad i okolina']],
@@ -226,11 +227,11 @@ return [
 			't' => 'Molersko-farbarski radovi, gletovanje', 'p' => [250, 'RSD'],
 			'd' => "Krečenje, gletovanje i farbanje stanova i kuća. Cena je po kvadratu za krečenje, materijal po dogovoru.\n\nČisto i uredno, zaštita nameštaja i podova.",
 			'a' => ['experience' => 'years_15', 'area_served' => 'Niš']],
-		['user' => 'autodelta', 'seller' => 'business', 'cat' => 'car-service', 'type' => 'tyre-service', 'city' => 'Beograd', 'days' => 2,
+		['user' => 'autodelta', 'cat' => 'car-service', 'type' => 'tyre-service', 'city' => 'Beograd', 'days' => 2,
 			't' => 'Vulkanizer Novi Beograd, sezonska zamena guma', 'p' => [2400, 'RSD'],
 			'd' => "Montaža, demontaža i balansiranje za četiri točka, čuvanje guma tokom sezone. Radimo bez zakazivanja.\n\nRadno vreme 8–20, subotom 8–15.",
 			'a' => ['experience' => 'years_10', 'area_served' => 'Novi Beograd'], 'ph' => ['tyres', 1]],
-		['user' => 'nikola', 'seller' => 'business', 'cat' => 'moving', 'type' => 'moving', 'city' => 'Beograd', 'days' => 5,
+		['user' => 'nikola', 'cat' => 'moving', 'type' => 'moving', 'city' => 'Beograd', 'days' => 5,
 			't' => 'Selidbe i prevoz nameštaja, Beograd i Srbija', 'p' => null,
 			'd' => 'Selidbe stanova i kancelarija, demontaža i montaža nameštaja, odvoz šuta. Kombi i radnici.',
 			'a' => ['area_served' => 'Cela Srbija']],
@@ -242,7 +243,7 @@ return [
 			't' => 'Čišćenje stanova i generalno spremanje', 'p' => [2000, 'RSD'],
 			'd' => 'Redovno i generalno čišćenje stanova i kuća, pranje prozora. Imam svoj pribor i sredstva. Cena po satu.',
 			'a' => ['experience' => 'years_3', 'area_served' => 'Beograd']],
-		['user' => 'ana', 'seller' => 'business', 'cat' => 'repairs', 'type' => 'air-conditioning', 'city' => 'Kragujevac', 'days' => 12,
+		['user' => 'ana', 'cat' => 'repairs', 'type' => 'air-conditioning', 'city' => 'Kragujevac', 'days' => 12,
 			't' => 'Servis i ugradnja klima uređaja', 'p' => [4000, 'RSD'],
 			'd' => "Čišćenje i dezinfekcija klima uređaja, dopuna freona, ugradnja novih klima. Cena za servis jedne unutrašnje jedinice.\n\nIzlazak na teren u Kragujevcu i okolini.",
 			'a' => ['experience' => 'years_10', 'area_served' => 'Kragujevac'], 'ph' => ['tradesman', 1]],
@@ -394,7 +395,7 @@ return [
 			't' => 'Ovce na prodaju, rasa virtemberg', 'p' => [190, 'EUR'], 'neg' => true,
 			'd' => 'Prodajem 10 ovaca i jednog ovna, vakcinisane, sa markicama. Cena po grlu.',
 			'a' => ['breed' => 'Virtemberg', 'age' => '2–4 godine'], 'ph' => null],
-		['user' => 'dragan', 'seller' => 'business', 'cat' => 'plants', 'type' => 'fruit-trees', 'city' => 'Čačak', 'days' => 10,
+		['user' => 'dragan', 'cat' => 'plants', 'type' => 'fruit-trees', 'city' => 'Čačak', 'days' => 10,
 			't' => 'Sadnice šljive i jabuke, sertifikovane', 'p' => [450, 'RSD'], 'neg' => false,
 			'd' => "Rasadnik nudi sadnice šljive (čačanska lepotica, stenlej) i jabuke (ajdared, zlatni delišes). Cena po sadnici, za veće količine popust.\n\nIsporuka kurirskom službom širom Srbije.",
 			'a' => [], 'ph' => null],

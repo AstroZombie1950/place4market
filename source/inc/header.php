@@ -66,7 +66,7 @@ $searchCity = (string) ($_GET['city'] ?? (current_script() === 'category.php' ? 
 				<a class="account-nav__link" href="<?= e(url('favorites.php')) ?>"<?= nav_current('favorites', $page['nav']) ?>>
 					<?= icon('heart', 20) ?><span><?= e(t('nav.favorites')) ?></span>
 				</a>
-				<a class="account-nav__link" href="<?= e(url('messages.php')) ?>"<?= nav_current('messages', $page['nav']) ?> aria-label="<?= e(t('nav.messages_unread', ['n' => $unread])) ?>">
+				<a class="account-nav__link" href="<?= e(url('messages.php')) ?>"<?= nav_current('messages', $page['nav']) ?> data-unread-link aria-label="<?= e(t('nav.messages_unread', ['n' => $unread])) ?>">
 					<?= icon('message', 20) ?><span aria-hidden="true"><?= e(t('nav.messages')) ?></span>
 					<?php if ($unread > 0): ?><span class="count-badge" aria-hidden="true" data-unread-total><?= $unread ?></span><?php endif; ?>
 				</a>

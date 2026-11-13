@@ -45,7 +45,6 @@ $v = [
 	'type' => (string) $listing['type'],
 	'brand' => (string) $listing['brand'],
 	'district' => (string) $listing['district'],
-	'seller_type' => (string) $listing['seller_type'],
 ];
 $error = '';
 
@@ -76,7 +75,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			'type' => (string) ($_POST['type'] ?? ''),
 			'brand' => (string) ($_POST['brand'] ?? ''),
 			'district' => (string) ($_POST['district'] ?? ''),
-			'seller_type' => (string) ($_POST['seller_type'] ?? ''),
 		];
 		[$parent, $child] = find_category($v['category']);
 		$hasCondition = $child && category_has_condition($child['slug']);
@@ -311,11 +309,6 @@ require ADMIN_INC . '/header.php';
 						<select class="select" id="l-district-<?= e(url_slug($city)) ?>" name="district"><?= options(['' => at('edit.district_none')] + array_combine(array_column($list, 'latn'), array_column($list, 'latn')), $on ? $v['district'] : '') ?></select>
 					</fieldset>
 					<?php endforeach; ?>
-
-					<div class="field">
-						<label class="field__label" for="l-seller"><?= e(at('edit.f_seller')) ?></label>
-						<select class="select" id="l-seller" name="seller_type"><?= options(array_combine(SELLER_TYPES, array_map(fn($type) => at('seller.' . $type), SELLER_TYPES)), $v['seller_type']) ?></select>
-					</div>
 
 					<div class="field">
 						<label class="field__label" for="l-price"><?= e(at('common.price')) ?></label>

@@ -296,7 +296,8 @@ const CATEGORY_BRANDS = [
 	],
 ];
 
-// Seller of a listing: private person or a business (car dealer, agency); stored in listings.seller_type
+// Seller: private person or a business (car dealer, agency). A setting of the account (users.seller_type,
+// 035), copied to its listings (listings.seller_type, the "Advertiser" filter)
 const SELLER_TYPES = ['private', 'business'];
 
 /* ---------- Lookups ---------- */
@@ -382,12 +383,12 @@ const DISTRICT_SECTIONS = ['real-estate'];
 // Label of the kind select: the seaside asks for the country
 const TYPE_LABELS = ['seaside' => 'post.f_country'];
 
-// Deal, kind, brand, district and seller of a form for subcategory $slug of section $section in $city
-// (Latin name): [values (deal, type, brand, district, seller_type; null = none), error key or ''].
+// Deal, kind, brand and district of a form for subcategory $slug of section $section in $city
+// (Latin name): [values (deal, type, brand, district; null = none), error key or ''].
 // Not strict (a draft, a staff edit) drops what does not fit instead of reporting it
 function clean_facets(string $slug, string $section, string $city, array $in, bool $strict = true): array
 {
-	$out = ['deal' => null, 'type' => null, 'brand' => null, 'district' => null, 'seller_type' => 'private'];
+	$out = ['deal' => null, 'type' => null, 'brand' => null, 'district' => null];
 	$pick = fn(string $key) => is_scalar($in[$key] ?? null) ? (string) $in[$key] : '';
 
 	if ($deals = category_deals($slug)) {
@@ -415,10 +416,6 @@ function clean_facets(string $slug, string $section, string $city, array $in, bo
 	if (in_array($section, DISTRICT_SECTIONS, true) && in_array($pick('district'), array_column(districts()[$city] ?? [], 'latn'), true)) {
 		$out['district'] = $pick('district');
 	}
-	if (in_array($pick('seller_type'), SELLER_TYPES, true)) {
-		$out['seller_type'] = $pick('seller_type');
-	}
-
 	return [$out, ''];
 }
 

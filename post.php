@@ -4,7 +4,10 @@
 	GET: id = edit an own ad. POST: the form + csrf; photos come as photo_ids[]
 	in display order (uploaded beforehand by photo-upload.php), videos as video_ids[]
 	(video-upload.php; they may still be processed), details as attrs[].
-	New ads and edited ones go to moderation (status pending).
+	New ads and edited ones go to moderation (status pending). A published ad edited
+	without changes, or only in price, currency, "negotiable / by agreement", the way to
+	reach the seller and removed or reordered photos, stays as it is (checklist 9.2, M3).
+	The advertiser (private / business) is the account's (profile, 035).
 	action=draft: saved as a draft with lighter checks (a new ad or a draft only),
 	then the form opens again for that draft.
 	========================================================================== */
@@ -40,7 +43,6 @@ $v = [
 	'type' => $editing['type'] ?? '',
 	'brand' => $editing['brand'] ?? '',
 	'district' => $editing['district'] ?? '',
-	'seller_type' => $editing['seller_type'] ?? 'private',
 	'attrs' => array_map('attr_input_value', $editing['attrs'] ?? []),
 	'price' => isset($editing['price']) ? (string) $editing['price'] : '',
 	'currency' => $editing['currency'] ?? 'RSD',
@@ -66,7 +68,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		'type' => (string) ($_POST['type'] ?? ''),
 		'brand' => (string) ($_POST['brand'] ?? ''),
 		'district' => (string) ($_POST['district'] ?? ''),
-		'seller_type' => (string) ($_POST['seller_type'] ?? ''),
 		'attrs' => array_map('strval', array_filter((array) ($_POST['attrs'] ?? []), 'is_scalar')),
 		'price' => price_digits((string) ($_POST['price'] ?? '')),
 		'currency' => ($_POST['currency'] ?? '') === 'EUR' ? 'EUR' : 'RSD',
@@ -131,6 +132,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$error = tp('post.err_photos', setting('max_photos'));
 	} elseif (empty($_POST['terms'])) {
 		$error = t('auth.err_terms');
+	} elseif ($editing && !$isNew && !needs_moderation($editing, $v, $attrs, $facets, $hasCondition)) {
+		// A published ad and nothing for a moderator: saved in its status, stays published (M3)
+		post_save($me, $v, $editId, [
+			'status' => $editing['status'], 'title' => $v['title'], 'description' => $v['description'],
+			'price' => $v['agreement'] ? null : $price, 'condition' => $hasCondition ? $v['condition'] : null,
+			'attrs' => $attrs, 'facets' => $facets, 'city' => $v['city'], 'contact' => $v['contact'], 'photos' => $v['photos'],
+		]);
+		log_action('listing.update', ['listing_id' => $editId, 'photos' => count($v['photos']), 'moderation' => false]);
+		flash('success', t('post.saved_live'));
+		redirect(url('profile.php'));
 	} else {
 		[$publish, $note] = post_route($me, $editing, $v['title'] . "\n" . $v['description']);
 		$id = post_save($me, $v, $editId, [
@@ -143,6 +154,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		flash('success', t($publish ? 'post.published' : ($isNew ? 'post.submitted' : 'post.updated')));
 		redirect(url('profile.php'));
 	}
+}
+
+// Whether an edit of a published ad goes to a moderator (checklist 9.2, M3): what the ad says and shows
+// changed — category, texts, condition, details, deal, kind, brand, place, a new photo or video. Price,
+// currency, "negotiable / by agreement", the way to reach the seller and taking photos out or reordering
+// them do not (the photos and videos that stay were checked already)
+function needs_moderation(array $editing, array $v, array $attrs, array $facets, bool $hasCondition): bool
+{
+	// The stored texts the way the form sends them (older rows may keep extra spaces or \r\n)
+	$was = [
+		$editing['category'], trim(preg_replace('/\s+/u', ' ', $editing['title'])), trim(str_replace("\r\n", "\n", $editing['description'])),
+		$editing['condition'], $editing['attrs'],
+		$editing['deal'], $editing['type'], $editing['brand'], $editing['city'], $editing['district'],
+	];
+	$now = [
+		$v['subcategory'], $v['title'], $v['description'], $hasCondition ? $v['condition'] : null, $attrs,
+		$facets['deal'], $facets['type'], $facets['brand'], $v['city'], $facets['district'],
+	];
+
+	return $was != $now
+		|| array_diff($v['photos'], array_column($editing['images'], 'id'))
+		|| array_diff($v['videos'], listing_video_ids($editing['id']));
 }
 
 // Published at once, or to moderation (admin → Settings → Moderation): [publish, note for the moderator].
@@ -179,7 +212,7 @@ function post_save(array $me, array $v, ?int $editId, array $f, bool $publish = 
 			'title' => $f['title'], 'description' => $f['description'], 'lang' => detect_text_lang($f['title'] . ' ' . $f['description']),
 			'price' => $f['price'], 'currency' => $v['currency'], 'negotiable' => $v['negotiable'] && $f['price'] !== null,
 			'condition' => $f['condition'], 'attrs' => $f['attrs'], 'contact' => $f['contact'],
-			'moderation_note' => $f['moderation_note'] ?? null,
+			'seller_type' => $me['seller_type'], 'moderation_note' => $f['moderation_note'] ?? null,
 		] + $f['facets'], $editId);
 		$removed = set_listing_photos($id, $me['id'], $f['photos']);
 		array_push($removed, ...set_listing_videos($id, $me['id'], $v['videos']));
@@ -289,13 +322,15 @@ require INC_DIR . '/header.php';
 						</select>
 					</div>
 
-					<!-- Deal (real estate): one set of choices per group of subcategories -->
+					<!-- Deal (real estate): one set of choices per group of subcategories. All the sets are one
+					     radio group (name="deal"): only the shown set has a checked one — the ad's deal, else
+					     the first; main.js checks the first of a set shown later (checklist 9.2, M4) -->
 					<?php foreach ($dealSets as $deals => $slugs): $on = $shown($slugs); ?>
 					<fieldset class="field field--full filters__fieldset" data-for="<?= $for($slugs) ?>"<?= $on ? '' : ' disabled hidden' ?>>
 						<legend class="field__label"><?= e(t('post.f_deal')) ?></legend>
 						<div class="seg seg--spaced">
 							<?php foreach (explode(' ', $deals) as $i => $deal): ?>
-							<label class="seg__item"><input type="radio" name="deal" value="<?= e($deal) ?>" required<?= ($on ? $v['deal'] === $deal : false) || (!in_array($v['deal'], explode(' ', $deals), true) && $i === 0) ? ' checked' : '' ?>><span class="seg__label"><?= e(t('deal.' . $deal)) ?></span></label>
+							<label class="seg__item"><input type="radio" name="deal" value="<?= e($deal) ?>" required<?= $on && ($v['deal'] === $deal || (!in_array($v['deal'], explode(' ', $deals), true) && $i === 0)) ? ' checked' : '' ?>><span class="seg__label"><?= e(t('deal.' . $deal)) ?></span></label>
 							<?php endforeach; ?>
 						</div>
 					</fieldset>
@@ -357,7 +392,8 @@ require INC_DIR . '/header.php';
 						</div>
 					</div>
 
-					<fieldset class="field field--full filters__fieldset" data-condition-field<?= $v['subcategory'] !== '' && !category_has_condition($v['subcategory']) ? ' disabled hidden' : '' ?>>
+					<!-- Condition: only once a subcategory that has it is chosen (not property, services…; M1) -->
+					<fieldset class="field field--full filters__fieldset" data-condition-field<?= $v['subcategory'] === '' || !category_has_condition($v['subcategory']) ? ' disabled hidden' : '' ?>>
 						<legend class="field__label"><?= e(t('post.f_condition')) ?></legend>
 						<div class="seg seg--spaced">
 							<label class="seg__item"><input type="radio" name="condition" value="new" required<?= $v['condition'] === 'new' ? ' checked' : '' ?>><span class="seg__label"><?= e(t('v.new')) ?></span></label>
@@ -378,7 +414,15 @@ require INC_DIR . '/header.php';
 								$unit = $field['unit'] ?? '';
 								$label = t('a.' . $key) . ($unit !== '' ? ', ' . (str_starts_with($unit, 'u.') ? t($unit) : $unit) : '');
 							?>
-							<?php if ($field['type'] === 'bool'): ?>
+							<?php if ($field['type'] === 'bool' && !empty($field['switch'])): ?>
+							<!-- A switch: new build (on) or resale (off), M2 -->
+							<div class="field field--end">
+								<label class="switch">
+									<input type="checkbox" role="switch" id="<?= e($fieldId) ?>" name="attrs[<?= e($key) ?>]" value="1"<?= $value === '1' ? ' checked' : '' ?>>
+									<span class="switch__text"><span class="switch__title"><?= e($label) ?></span></span>
+								</label>
+							</div>
+							<?php continue; elseif ($field['type'] === 'bool'): ?>
 							<div class="field field--end">
 								<label class="check"><input type="checkbox" id="<?= e($fieldId) ?>" name="attrs[<?= e($key) ?>]" value="1"<?= $value === '1' ? ' checked' : '' ?>><span><?= e($label) ?></span></label>
 							</div>
@@ -485,14 +529,6 @@ require INC_DIR . '/header.php';
 						</select>
 					</fieldset>
 					<?php endforeach; ?>
-					<fieldset class="field filters__fieldset">
-						<legend class="field__label"><?= e(t('post.f_seller')) ?></legend>
-						<div class="seg seg--spaced">
-							<?php foreach (SELLER_TYPES as $seller): ?>
-							<label class="seg__item"><input type="radio" name="seller_type" value="<?= e($seller) ?>"<?= $v['seller_type'] === $seller ? ' checked' : '' ?>><span class="seg__label"><?= e(t('seller.' . $seller)) ?></span></label>
-							<?php endforeach; ?>
-						</div>
-					</fieldset>
 					<!-- How buyers reach the author: calls only to the confirmed phone of the profile -->
 					<fieldset class="field field--full filters__fieldset">
 						<legend class="field__label"><?= e(t('post.f_contact')) ?></legend>

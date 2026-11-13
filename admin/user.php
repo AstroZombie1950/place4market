@@ -144,6 +144,13 @@ require ADMIN_INC . '/header.php';
 							<span class="field__label"><?= e(at('user.mail_lang')) ?></span>
 							<span><?= e(languages()[$user['lang'] ?? '']['name'] ?? at('user.mail_lang_none')) ?></span>
 						</div>
+						<!-- Private person or business (035): the user turns business on once in the profile, only
+						     staff turn it back; all the user's listings follow (the "Advertiser" filter) -->
+						<div class="field">
+							<label class="field__label" for="u-seller"><?= e(at('edit.f_seller')) ?></label>
+							<select class="select" id="u-seller" name="seller_type"><?= options(array_combine(SELLER_TYPES, array_map(fn($type) => at('seller.' . $type), SELLER_TYPES)), $user['seller_type']) ?></select>
+							<span class="field__hint"><?= e(at('user.seller_hint')) ?></span>
+						</div>
 						<?php if ($user['role'] !== 'user'): ?>
 						<div class="field">
 							<span class="field__label"><?= e(at('user.admin_lang')) ?></span>

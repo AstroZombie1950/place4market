@@ -1164,10 +1164,32 @@
 		- the sound needs a click somewhere on the page first (browser rule)
 		- a message of the conversation open on the screen makes only the sound:
 		  the chat shows it itself
+		- every logged-in user asks it: "unread" sets the Messages badges of the
+		  header and the bottom navigation (a[data-unread-link], setUnreadTotal())
 		- profile: fieldset[data-notify-channel] is hidden while every notification
 		  type is off; choosing the browser there asks for the permission, and
 		  [data-notify-blocked] says so when the browser refuses it
 		---------------------------------------------------------------------- */
+	// The unread badge of Messages in the header and the bottom navigation (a[data-unread-link]):
+	// n > 0 shows the number (the badge is made when there was none), 0 takes it away
+	const setUnreadTotal = (n) => {
+		$$('a[data-unread-link]').forEach((link) => {
+			let badge = $('[data-unread-total]', link);
+			if (n <= 0) {
+				if (badge) badge.remove();
+				return;
+			}
+			if (!badge) {
+				badge = document.createElement('span');
+				badge.className = link.classList.contains('bottom-nav__link') ? 'count-badge bottom-nav__badge' : 'count-badge';
+				badge.setAttribute('aria-hidden', 'true');
+				badge.dataset.unreadTotal = '';
+				link.appendChild(badge);
+			}
+			badge.textContent = n;
+		});
+	};
+
 	const initNotify = () => {
 		const channel = $('[data-notify-channel]');
 		if (channel) {
@@ -1241,6 +1263,7 @@
 			busy = true;
 			try {
 				const data = await postJson(i18n.notifyUrl, {});
+				if (typeof data.unread === 'number') setUnreadTotal(data.unread);
 				if (data.items && data.items.length) {
 					data.items.forEach(show);
 					beep();
@@ -1329,9 +1352,13 @@
 				const on = set.dataset.for.split(' ').includes(subSelect.value) && (!set.dataset.city || set.dataset.city === place);
 				set.hidden = !on;
 				set.disabled = !on;
+				// The deal sets share one radio group: a set shown with nothing checked gets its first (M4)
+				const radios = $$('input[type="radio"][name="deal"]', set);
+				if (on && radios.length && !radios.some((radio) => radio.checked)) radios[0].checked = true;
 			});
 			if (conditionField) {
-				const off = noCondition.includes(subSelect.value);
+				// Asked only once a subcategory that has it is chosen (M1)
+				const off = !subSelect.value || noCondition.includes(subSelect.value);
 				conditionField.hidden = off;
 				conditionField.disabled = off;
 			}
@@ -1959,7 +1986,9 @@
 		  puts it into [data-reply-bar] and [data-reply-input] of the composer;
 		  [data-msg-delete] (own, unread; asks first) — action unsend.
 		  [data-quote="id"] scrolls to the message it answers
-		- [data-quick] buttons put a ready phrase into the input
+		- [data-quick] buttons put a ready phrase into the input (an empty
+		  conversation only: hidden after the first message)
+		- an empty message is not sent: the field turns red (.is-invalid)
 		- [data-chat-search] filters the list
 		---------------------------------------------------------------------- */
 	const initChat = () => {
@@ -2074,17 +2103,34 @@
 
 		// Phones: an open conversation is the whole screen (site.css). With the keyboard open the
 		// visible part is lower than the screen and the browser may move it down: the thread takes
-		// its height and follows its top (--chat-top), the field stays in view (K20)
+		// its height and follows its top (--chat-top), the field stays in view (K20).
+		// iPhone (checklist 10.3.11, M16): while the keyboard slides in, Safari fires these events
+		// for every step and pans the page after each move of the thread — following each step made
+		// the field shake for seconds. Now the thread is fitted once the viewport has stood still
+		// for a moment, and at most once a frame; small differences (< 2 px) are left alone
 		if (window.visualViewport) {
 			const vv = window.visualViewport;
+			let settle = 0;
+			let frame = 0;
+			let last = { h: -1, top: -1 };
 			const fitThread = () => {
-				chat.style.setProperty('--chat-h', `${Math.round(vv.height)}px`);
+				frame = 0;
 				const open = !desktop.matches && chat.classList.contains('is-thread-open');
-				chat.style.setProperty('--chat-top', `${open ? Math.round(vv.offsetTop) : 0}px`);
-				if (open && window.scrollY) window.scrollTo(0, 0);
+				const h = Math.round(vv.height);
+				const top = open ? Math.round(vv.offsetTop) : 0;
+				if (Math.abs(h - last.h) < 2 && Math.abs(top - last.top) < 2) return;
+				last = { h, top };
+				chat.style.setProperty('--chat-h', `${h}px`);
+				chat.style.setProperty('--chat-top', `${top}px`);
 			};
-			vv.addEventListener('resize', fitThread);
-			vv.addEventListener('scroll', fitThread);
+			const later = () => {
+				clearTimeout(settle);
+				settle = setTimeout(() => {
+					if (!frame) frame = requestAnimationFrame(fitThread);
+				}, 120);
+			};
+			vv.addEventListener('resize', later);
+			vv.addEventListener('scroll', later);
 			fitThread();
 		}
 
@@ -2105,10 +2151,7 @@
 				data.messages.forEach((message) => appendMessage(thread, message));
 				applyState(thread, data.state);
 				if (data.messages.length && atBottom) scrollDown(thread);
-				$$('[data-unread-total]').forEach((total) => {
-					if (data.unread > 0) total.textContent = data.unread;
-					else total.remove();
-				});
+				setUnreadTotal(data.unread);
 			} catch (err) {
 				// Offline or logged out: the next round tries again
 			} finally {
@@ -2179,9 +2222,19 @@
 			const thread = form.closest('[data-thread]');
 			let sending = false;
 
+			// Nothing typed: the field turns red (no hint of the browser, M15) until something is typed
+			field.addEventListener('input', () => field.classList.remove('is-invalid'));
+
 			const send = async () => {
 				const text = field.value.trim();
-				if (!text || sending) return;
+				if (!text) {
+					field.classList.remove('is-invalid');
+					void field.offsetWidth;
+					field.classList.add('is-invalid');
+					field.focus();
+					return;
+				}
+				if (sending) return;
 				sending = true;
 				submit.disabled = true;
 
@@ -2208,6 +2261,8 @@
 
 				appendMessage(thread, data.message);
 				setReply(thread, null);
+				// Quick replies are for an empty conversation only (M15)
+				$$('.quick', thread).forEach((quick) => { quick.hidden = true; });
 				field.value = '';
 				field.dispatchEvent(new Event('input'));
 				scrollDown(thread);

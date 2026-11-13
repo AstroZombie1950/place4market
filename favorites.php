@@ -26,7 +26,9 @@ require INC_DIR . '/header.php';
 	<div data-tabs data-tabs-hash>
 		<div class="tabs__list" role="tablist" aria-label="<?= e(t('fav.sections')) ?>">
 			<button type="button" class="tabs__tab" role="tab" id="tab-listings" aria-controls="panel-listings" aria-selected="true"><?= icon('heart', 18) ?><?= e(t('fav.listings')) ?> <span class="tabs__count" data-fav-count><?= count($saved) ?></span></button>
-			<button type="button" class="tabs__tab" role="tab" id="tab-searches" aria-controls="panel-searches" aria-selected="false"><?= icon('search', 18) ?><?= e(t('fav.searches')) ?> <span class="tabs__count"><?= count($savedSearches) ?></span></button>
+			<!-- New listings of all the searches are seen on the tab itself (checklist 10.2.4, M13) -->
+			<?php $searchesNew = array_sum(array_column($savedSearches, 'new')); ?>
+			<button type="button" class="tabs__tab" role="tab" id="tab-searches" aria-controls="panel-searches" aria-selected="false"><?= icon('search', 18) ?><?= e(t('fav.searches')) ?> <span class="tabs__count"><?= count($savedSearches) ?></span><?php if ($searchesNew): ?> <span class="badge badge--accent"><?= e(tp('fav.new', $searchesNew)) ?></span><?php endif; ?></button>
 		</div>
 
 		<!-- Saved listings -->

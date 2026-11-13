@@ -1,7 +1,10 @@
 <?php
 /* ==========================================================================
 	Notifications in the browser (main.js asks every 30 s while the site is open
-	in a tab; profile → Notifications → "in the browser").
+	in a tab; profile → Notifications → "in the browser"). Every logged-in user asks
+	it for "unread": the Messages badges of the header and the bottom navigation
+	follow new and taken back messages without a reload (checklist 10.3.14, M17);
+	items come only to those who chose the browser.
 	POST + csrf. Logged-in users only. Answer (JSON):
 	{"items": [{"type": "message", "title": "…", "text": "…", "url": "…",
 	"conversation": 12}, …], "unread": 3} — each event is handed out once
@@ -31,7 +34,8 @@ foreach (notify_via($me['notify_channel'], 'browser') ? take_notifications($me['
 		$items[] = [
 			'type' => 'message',
 			'title' => t('n.message', ['name' => $sender ? person_name($sender['name']) : t('user.deleted')]),
-			'text' => user_text((string) ($d['text'] ?? ''), (string) ($d['lang'] ?? 'sr-latn')),
+			// As written (M14): private texts are not put into the other script
+			'text' => (string) ($d['text'] ?? ''),
 			'url' => url('messages.php', ['c' => (int) ($d['conversation'] ?? 0)]),
 			'conversation' => (int) ($d['conversation'] ?? 0),
 		];

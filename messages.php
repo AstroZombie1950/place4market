@@ -49,8 +49,9 @@ function messages_answer(int $status, array $data, array $back = []): never
 // chose there. In the browser: every message (notify.php shows it while the site is open).
 // By e-mail ($mail): once per conversation until they read it, in their language (or the one
 // they write in here; the seller: of the listing until they reply).
-// $textLang: the message's own, so its script follows the letter
-function notify_recipient(array $conversation, ?array $listing, int $senderId, string $text, string $textLang, bool $mail = true): void
+// The text goes as written (no Latin ↔ Cyrillic, checklist 10.3.15, M14); $textLang only for the record.
+// $messageId: a browser notification of a message taken back before it was shown is dropped (M17)
+function notify_recipient(array $conversation, ?array $listing, int $senderId, int $messageId, string $text, string $textLang, bool $mail = true): void
 {
 	$recipient = user($conversation['buyer_id'] === $senderId ? $conversation['seller_id'] : $conversation['buyer_id']);
 	$sender = user($senderId);
@@ -60,7 +61,7 @@ function notify_recipient(array $conversation, ?array $listing, int $senderId, s
 	}
 
 	if (notify_via($recipient['notify_channel'], 'browser')) {
-		add_notification($recipient['id'], 'message', ['conversation' => $conversation['id'], 'sender' => $senderId, 'text' => mb_substr($text, 0, 140), 'lang' => $textLang]);
+		add_notification($recipient['id'], 'message', ['conversation' => $conversation['id'], 'sender' => $senderId, 'message' => $messageId, 'text' => mb_substr($text, 0, 140), 'lang' => $textLang]);
 	}
 
 	if (!$mail || !$recipient['email_verified'] || !notify_via($recipient['notify_channel'], 'email')) {
@@ -68,26 +69,27 @@ function notify_recipient(array $conversation, ?array $listing, int $senderId, s
 	}
 
 	$lang = $recipient['lang'] ?? conversation_lang($conversation['id'], $recipient['id']) ?? ($listing && $recipient['id'] === $listing['user_id'] ? $listing['lang'] : DEFAULT_LANG);
-	in_lang($lang, function () use ($conversation, $listing, $recipient, $sender, $text, $textLang) {
+	in_lang($lang, function () use ($conversation, $listing, $recipient, $sender, $text) {
 		// Without a listing: the staff member wrote to the user, or the user answered
 		$template = $listing ? 'message_new' : ($conversation['seller_id'] === $sender['id'] ? 'message_support' : 'message_reply');
 		send_template_mail($recipient['email'], $template, [
 			'name' => person_name($recipient['name']),
 			'sender' => person_name($sender['name']),
 			'title' => $listing ? (listing_title($listing) ?: '#' . $listing['id']) : '',
-			'text' => user_text(mb_strlen($text) > 500 ? mb_substr($text, 0, 500) . '…' : $text, $textLang),
+			'text' => mb_strlen($text) > 500 ? mb_substr($text, 0, 500) . '…' : $text,
 			'link' => site_url(url('messages.php', ['c' => $conversation['id']])),
 		], ['user_id' => $recipient['id'], 'listing_id' => $listing['id'] ?? null]);
 	});
 }
 
-// A short line of a message for a quote or the conversation list
+// A short line of a message for a quote or the conversation list. Messages are shown as written,
+// on every version of the site (no Latin ↔ Cyrillic: private texts are not touched, M14)
 function message_line(array $msg, int $max = 140): string
 {
 	if ($msg['deleted']) {
 		return t('m.msg_deleted');
 	}
-	$text = trim(preg_replace('/\s+/u', ' ', user_text($msg['text'], $msg['lang'])));
+	$text = trim(preg_replace('/\s+/u', ' ', $msg['text']));
 
 	return mb_strlen($text) > $max ? mb_substr($text, 0, $max) . '…' : $text;
 }
@@ -111,7 +113,7 @@ function message_html(array $msg, array $other, ?array $quoted): string
 
 	$html .= $msg['deleted']
 		? '<span class="msg__text">' . icon('ban', 16) . e(t('m.msg_deleted')) . '</span>'
-		: '<span class="msg__text">' . e(user_text($msg['text'], $msg['lang'])) . '</span>';
+		: '<span class="msg__text">' . e($msg['text']) . '</span>';
 
 	$html .= '<span class="msg__meta"><time class="msg__time" datetime="' . e(date('c', $stamp)) . '">' . date('H:i', $stamp) . '</time>';
 	if ($mine && !$msg['deleted']) {
@@ -238,7 +240,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 	// A failed letter is logged by mail.php and does not stop the message
 	try {
-		notify_recipient($conversation, $listing, $me['id'], $text, $lang, $firstUnread);
+		notify_recipient($conversation, $listing, $me['id'], $messageId, $text, $lang, $firstUnread);
 	} catch (Throwable $e) {
 		log_exception($e);
 	}
@@ -385,10 +387,19 @@ require INC_DIR . '/header.php';
 			<!-- Head: back, person, delete -->
 			<div class="thread__head">
 				<button type="button" class="btn btn--ghost btn--icon thread__back" data-chat-back aria-label="<?= e(t('m.back')) ?>"><?= icon('chevron-left') ?></button>
+				<?php if ($item && $other['status'] === 'active'): ?>
+				<!-- The photo and the name lead to the person's page (M18); not in a support conversation
+				     or with a deleted account -->
+				<a class="thread__person" href="<?= e(seller_url($other)) ?>" tabindex="-1" aria-hidden="true"><?= avatar($other, 'sm') ?></a>
+				<div class="thread__who">
+					<h2 class="thread__name"><a class="thread__name-text" href="<?= e(seller_url($other)) ?>"><?= e(person_name($other['name'])) ?></a><?= trust_marks($other) ?></h2>
+				</div>
+				<?php else: ?>
 				<?= avatar($other, 'sm') ?>
 				<div class="thread__who">
 					<h2 class="thread__name"><span class="thread__name-text"><?= e(person_name($other['name'])) ?></span><?= trust_marks($other) ?></h2>
 				</div>
+				<?php endif; ?>
 				<?php if ($conv['id']): ?>
 				<form method="post" action="<?= e(url('messages.php')) ?>">
 					<?= csrf_field() ?>
@@ -437,8 +448,9 @@ require INC_DIR . '/header.php';
 				<?php endforeach; ?>
 			</div>
 
-			<!-- Quick replies: a buyer's questions, so the seller of the listing does not get them -->
-			<?php if ($item && $item['user_id'] !== $me['id']): ?>
+			<!-- Quick replies: a buyer's questions, so the seller of the listing does not get them; only in
+			     an empty conversation — after the first message they are in the way (M15, main.js hides them) -->
+			<?php if ($item && $item['user_id'] !== $me['id'] && !$conv['messages']): ?>
 			<div class="quick" role="group" aria-label="<?= e(t('m.quick')) ?>">
 				<?php foreach ($quickReplies as $reply): ?>
 				<button type="button" class="chip" data-quick><?= e($reply) ?></button>
@@ -466,7 +478,8 @@ require INC_DIR . '/header.php';
 				<input type="hidden" name="listing" value="<?= (int) $conv['listing_id'] ?>">
 				<?php endif; ?>
 				<label class="visually-hidden" for="msg-<?= (int) $conv['id'] ?>"><?= e(t('m.message_input')) ?></label>
-				<textarea class="textarea composer__input" id="msg-<?= (int) $conv['id'] ?>" name="text" rows="1" data-max-rows="5" maxlength="<?= MESSAGE_MAX ?>" required placeholder="<?= e(t('m.placeholder')) ?>"></textarea>
+				<!-- Not "required": an empty field is marked red by main.js, without the browser's hint (M15) -->
+				<textarea class="textarea composer__input" id="msg-<?= (int) $conv['id'] ?>" name="text" rows="1" data-max-rows="5" maxlength="<?= MESSAGE_MAX ?>" placeholder="<?= e(t('m.placeholder')) ?>"></textarea>
 				<button type="submit" class="btn btn--primary" aria-label="<?= e(t('m.send')) ?>"><?= icon('send', 18) ?></button>
 			</form>
 		</section>

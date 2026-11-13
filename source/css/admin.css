@@ -901,22 +901,6 @@ button {
 	padding-left: 38px;
 }
 
-/* Input with a button on the right (password) */
-.input-wrap {
-	position: relative;
-}
-
-.input-wrap > .input {
-	padding-right: 48px;
-}
-
-.input-wrap__btn {
-	position: absolute;
-	right: 2px;
-	top: 50%;
-	transform: translateY(-50%);
-}
-
 /* Phone field (phone_input(), phone.js): "+381" before the national number */
 .input-phone {
 	position: relative;
@@ -934,11 +918,6 @@ button {
 
 .input-phone > .input {
 	padding-left: calc(var(--space-3) + 3.4em);
-}
-
-[data-password-toggle][aria-pressed="true"] .icon--eye,
-[data-password-toggle]:not([aria-pressed="true"]) .icon--eye-off {
-	display: none;
 }
 
 /* Checkbox / radio */
@@ -2180,53 +2159,6 @@ a.list__title:hover {
 	gap: var(--space-1);
 }
 
-/* ---------- Auth (login) ---------- */
-.auth {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	min-height: 100vh;
-	padding: var(--space-6) var(--space-4);
-}
-
-.auth__card {
-	width: 100%;
-	max-width: 400px;
-	padding: var(--space-8);
-	background: var(--color-surface);
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-lg);
-	box-shadow: var(--shadow-md);
-}
-
-.auth__logo {
-	display: flex;
-	align-items: center;
-	gap: var(--space-2);
-	font-size: var(--fs-lg);
-	font-weight: var(--fw-bold);
-}
-
-.auth__title {
-	margin-top: var(--space-6);
-	font-size: var(--fs-xl);
-}
-
-.auth__form {
-	display: flex;
-	flex-direction: column;
-	gap: var(--space-4);
-	margin-top: var(--space-6);
-}
-
-.auth__row {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: space-between;
-	gap: var(--space-2);
-}
-
 /* ---------- Utilities ---------- */
 .muted { color: var(--color-text-muted); }
 .text-danger { color: var(--color-danger); }
@@ -2381,10 +2313,6 @@ a.list__title:hover {
 
 	.toast {
 		max-width: none;
-	}
-
-	.auth__card {
-		padding: var(--space-6) var(--space-5);
 	}
 }
 

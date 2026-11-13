@@ -66,6 +66,8 @@ switch ($action) {
 			'role' => (string) ($_POST['role'] ?? ''),
 			'email_verified' => !empty($_POST['email_verified']),
 			'phone_verified' => !empty($_POST['phone_verified']),
+			// Private person or business (035): staff may also turn business back (the user cannot)
+			'seller_type' => in_array($_POST['seller_type'] ?? '', SELLER_TYPES, true) ? $_POST['seller_type'] : $user['seller_type'],
 		];
 		$error = match (true) {
 			mb_strlen($f['name']) < 2 || mb_strlen($f['name']) > NAME_MAX => at('ua.err_name'),
@@ -87,9 +89,10 @@ switch ($action) {
 		}
 
 		staff_update_user($id, ['phone' => $f['phone'] !== '' ? $f['phone'] : null] + $f);
+		set_user_seller_type($id, $f['seller_type']);
 
 		$was = ['name' => $user['name'], 'email' => $user['email'], 'phone' => $user['phone'] ?? '', 'city' => $user['city'], 'role' => $user['role'],
-			'email_verified' => $user['email_verified'], 'phone_verified' => $user['verified']];
+			'email_verified' => $user['email_verified'], 'phone_verified' => $user['verified'], 'seller_type' => $user['seller_type']];
 		$changed = array_keys(array_filter($f, fn($value, $key) => $value !== $was[$key], ARRAY_FILTER_USE_BOTH));
 		if ($changed) {
 			log_action('admin.user_update', ['user_id' => $id, 'fields' => $changed] + (in_array('role', $changed, true) ? ['role' => $f['role']] : []));

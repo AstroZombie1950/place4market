@@ -67,7 +67,7 @@ $footerCols = [
 	<a class="bottom-nav__link bottom-nav__link--post" href="<?= e(url('post.php')) ?>"<?= nav_current('post', $page['nav']) ?>>
 		<span class="bottom-nav__plus"><?= icon('plus', 22) ?></span><span><?= e(t('nav.post')) ?></span>
 	</a>
-	<a class="bottom-nav__link" href="<?= e(url('messages.php')) ?>"<?= nav_current('messages', $page['nav']) ?> aria-label="<?= e(t('nav.messages_unread', ['n' => $unread])) ?>">
+	<a class="bottom-nav__link" href="<?= e(url('messages.php')) ?>"<?= nav_current('messages', $page['nav']) ?> data-unread-link aria-label="<?= e(t('nav.messages_unread', ['n' => $unread])) ?>">
 		<?= icon('message', 22) ?><span aria-hidden="true"><?= e(t('nav.messages')) ?></span>
 		<?php if ($unread > 0): ?><span class="count-badge bottom-nav__badge" aria-hidden="true" data-unread-total><?= $unread ?></span><?php endif; ?>
 	</a>
@@ -114,8 +114,9 @@ $footerCols = [
 	'photoUnreadable' => t('post.photo_unreadable'),
 	'photoUploadFailed' => t('post.photo_err_failed'),
 	'photoUploading' => t('p.avatar_uploading'),
-	// Notifications in the browser: only for a user who chose them (main.js, initNotify())
-	'notifyUrl' => ($nUser = current_user()) && notify_via($nUser['notify_channel'], 'browser') && array_filter($nUser['notify']) ? url('notify.php') : '',
+	// Notifications in the browser (for a user who chose them) and the unread badge (every logged-in
+	// user, M17): main.js, initNotify()
+	'notifyUrl' => current_user() ? url('notify.php') : '',
 	'photosBusy' => t('post.photos_busy'),
 	'photoCover' => t('post.photo_cover'),
 	'makeCover' => t('post.photo_make_cover'),

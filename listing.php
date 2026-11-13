@@ -183,6 +183,10 @@ require INC_DIR . '/header.php';
 					<span><?= icon('map-pin', 16) ?><?= e(listing_place($listing)) ?></span>
 					<span><?= icon('clock', 16) ?><time datetime="<?= e(date('c', strtotime(listing_time($listing)))) ?>"><?= e(time_ago(listing_time($listing))) ?></time></span>
 					<span><?= icon('eye', 16) ?><?= e(tp('p.stats_views', $listing['views'])) ?></span>
+					<?php if ($isOwn): ?>
+					<!-- How many saved it: the author only (checklist 10.1.4, M12) -->
+					<span><?= icon('heart', 16) ?><?= e(tp('p.stats_favorites', $listing['favorites'])) ?></span>
+					<?php endif; ?>
 				</p>
 
 				<div class="listing-head__actions">
