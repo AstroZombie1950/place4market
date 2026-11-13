@@ -222,11 +222,26 @@ function clean_attrs(string $slug, array $input, bool $strict = true): array
 		if ($value !== null) {
 			$attrs[$key] = $value;
 		} elseif ($strict) {
-			return [[], t('post.err_attr', ['field' => t('a.' . $key)])];
+			// A number out of its range says the range (K19)
+			return [[], $field['type'] === 'number'
+				? t('post.err_attr_range', ['field' => t('a.' . $key), 'min' => attr_limit_text($field['min']), 'max' => attr_limit_text($field['max'])])
+				: t('post.err_attr', ['field' => t('a.' . $key)])];
 		}
 	}
 
 	return [$attrs, ''];
+}
+
+// A limit of a number field as written for people: 1900 (years are not split), 2 000 000, 0,5
+function attr_limit_text(int|float $v): string
+{
+	return $v != (int) $v ? str_replace('.', ',', (string) $v) : ($v >= 10_000 ? number_format((int) $v, 0, ',', "\u{00A0}") : (string) (int) $v);
+}
+
+// The range of a number field as shown in it (placeholder): "1900 – 2027", "0 – 2 000 000"
+function attr_range_text(array $field): string
+{
+	return attr_limit_text($field['min']) . ' – ' . attr_limit_text($field['max']);
 }
 
 // "168 000" / "2,5" / "168 000 km" (the field's own unit typed after the number) → number

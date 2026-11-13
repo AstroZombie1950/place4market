@@ -387,7 +387,7 @@ require INC_DIR . '/header.php';
 				<button type="button" class="btn btn--ghost btn--icon thread__back" data-chat-back aria-label="<?= e(t('m.back')) ?>"><?= icon('chevron-left') ?></button>
 				<?= avatar($other, 'sm') ?>
 				<div class="thread__who">
-					<h2 class="thread__name"><?= e(person_name($other['name'])) ?><?= trust_marks($other) ?></h2>
+					<h2 class="thread__name"><span class="thread__name-text"><?= e(person_name($other['name'])) ?></span><?= trust_marks($other) ?></h2>
 				</div>
 				<?php if ($conv['id']): ?>
 				<form method="post" action="<?= e(url('messages.php')) ?>">

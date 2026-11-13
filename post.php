@@ -261,11 +261,13 @@ require INC_DIR . '/header.php';
 	</div>
 
 	<div class="post">
-		<form class="post__form" id="post-form" method="post" action="<?= e(url('post.php', ['id' => $editId])) ?>" data-post-form data-live-validation data-upload-url="<?= e(url('photo-upload.php')) ?>">
+		<form class="post__form" id="post-form" method="post" action="<?= e(url('post.php', ['id' => $editId])) ?>" data-post-form data-live-validation data-invalid-toast="<?= e(t('post.fill_required')) ?>" data-upload-url="<?= e(url('photo-upload.php')) ?>">
 			<?= csrf_field() ?>
 			<?php if ($error !== ''): ?>
 			<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($error) ?></p>
 			<?php endif; ?>
+			<!-- Required fields have a red star after the label (site.css, K19) -->
+			<p class="form-note"><span class="req" aria-hidden="true">*</span> <?= e(t('post.required_note')) ?></p>
 
 			<!-- 1. Category -->
 			<section class="form-card" aria-labelledby="s-category">
@@ -358,9 +360,9 @@ require INC_DIR . '/header.php';
 					<fieldset class="field field--full filters__fieldset" data-condition-field<?= $v['subcategory'] !== '' && !category_has_condition($v['subcategory']) ? ' disabled hidden' : '' ?>>
 						<legend class="field__label"><?= e(t('post.f_condition')) ?></legend>
 						<div class="seg seg--spaced">
-							<label class="seg__item"><input type="radio" name="condition" value="new"<?= $v['condition'] === 'new' ? ' checked' : '' ?>><span class="seg__label"><?= e(t('v.new')) ?></span></label>
-							<label class="seg__item"><input type="radio" name="condition" value="like_new"<?= $v['condition'] === 'like_new' ? ' checked' : '' ?>><span class="seg__label"><?= e(t('v.like_new')) ?></span></label>
-							<label class="seg__item"><input type="radio" name="condition" value="used"<?= $v['condition'] === 'used' ? ' checked' : '' ?>><span class="seg__label"><?= e(t('v.used')) ?></span></label>
+							<label class="seg__item"><input type="radio" name="condition" value="new" required<?= $v['condition'] === 'new' ? ' checked' : '' ?>><span class="seg__label"><?= e(t('v.new')) ?></span></label>
+							<label class="seg__item"><input type="radio" name="condition" value="like_new" required<?= $v['condition'] === 'like_new' ? ' checked' : '' ?>><span class="seg__label"><?= e(t('v.like_new')) ?></span></label>
+							<label class="seg__item"><input type="radio" name="condition" value="used" required<?= $v['condition'] === 'used' ? ' checked' : '' ?>><span class="seg__label"><?= e(t('v.used')) ?></span></label>
 						</div>
 					</fieldset>
 
@@ -391,7 +393,11 @@ require INC_DIR . '/header.php';
 									<?php endforeach; ?>
 								</select>
 								<?php elseif ($field['type'] === 'number'): ?>
-								<input class="input" id="<?= e($fieldId) ?>" name="attrs[<?= e($key) ?>]" type="text" inputmode="<?= isset($field['step']) ? 'decimal' : 'numeric' ?>" maxlength="12" value="<?= e($value) ?>">
+								<!-- Only digits, no longer than the largest value; out of range → pulled to the
+								     nearest limit when the field is left (main.js, [data-range-max], K19) -->
+								<input class="input" id="<?= e($fieldId) ?>" name="attrs[<?= e($key) ?>]" type="text" inputmode="<?= isset($field['step']) ? 'decimal' : 'numeric' ?>"
+									maxlength="<?= strlen((string) (int) $field['max']) + (isset($field['step']) ? 2 : 0) ?>" data-range-min="<?= e((string) $field['min']) ?>" data-range-max="<?= e((string) $field['max']) ?>" data-range-step="<?= e((string) ($field['step'] ?? 1)) ?>" data-range-text="<?= e(attr_limit_text($field['min']) . '|' . attr_limit_text($field['max'])) ?>"
+									placeholder="<?= e(attr_range_text($field)) ?>" value="<?= e($value) ?>">
 								<?php else: ?>
 								<input class="input" id="<?= e($fieldId) ?>" name="attrs[<?= e($key) ?>]" type="text" maxlength="<?= (int) $field['max'] ?>" value="<?= e($value) ?>">
 								<?php endif; ?>

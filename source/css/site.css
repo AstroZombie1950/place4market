@@ -2707,24 +2707,39 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 	pointer-events: none;
 }
 
-.profile-head__photo {
-	margin-top: var(--space-2);
+/* The avatar with the cross that removes the photo (K18): the cross is a button of its own
+   (not inside the label, which opens the file picker), 44 px to tap, the circle as the pencil */
+.avatar-box {
+	position: relative;
+	display: inline-flex;
+	flex-shrink: 0;
 }
 
-.profile-head__photo button {
-	min-height: 44px;
+.avatar-box__remove {
+	position: absolute;
+	right: -10px;
+	bottom: -10px;
+}
+
+.avatar-remove {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
 	padding: 0;
 	border: 0;
+	border-radius: 50%;
 	background: none;
 	cursor: pointer;
-	color: var(--color-text-muted);
-	font-size: var(--fs-sm);
-	text-decoration: underline;
-	text-underline-offset: 3px;
 }
 
-.profile-head__photo button:hover {
-	color: var(--color-text);
+.avatar-remove > .avatar-edit__badge {
+	position: static;
+}
+
+.avatar-remove:hover > .avatar-edit__badge {
+	color: var(--color-danger);
 }
 
 /* Rating and reviews (stars() and seller_rating_html() in site.php, seller.php) */
@@ -3000,6 +3015,24 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 /* Details of the chosen subcategory: the legend is for screen readers only */
 .attrs {
 	padding-top: 0;
+}
+
+/* Required fields of the post form (K19): a red star after the label of a field (or group)
+   that has a required control; a disabled (hidden) block has none */
+.post__form .field:has(:required:not(:disabled)) > .field__label::after,
+.post__form .check:has(> input:required)::after {
+	content: " *";
+	color: var(--color-danger);
+}
+
+.req {
+	color: var(--color-danger);
+}
+
+.form-note {
+	margin-bottom: var(--space-4);
+	color: var(--color-text-muted);
+	font-size: var(--fs-sm);
 }
 
 .form-card__title {
@@ -3446,46 +3479,87 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 	padding-bottom: 0;
 }
 
-/* Two columns (notifications in the profile, K14): the top row has no space above, the bottom
-   row (the last two of an even list) no line below */
-.switch-list--cols {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	column-gap: var(--space-8);
-}
-
-.switch-list--cols li:nth-child(2) {
-	padding-top: 0;
-}
-
-.switch-list--cols li:nth-last-child(2):nth-child(odd) {
-	border-bottom: 0;
-	padding-bottom: 0;
-}
-
-/* Account settings (profile, checklist K14): two independent columns of blocks, so blocks
-   of different heights leave no gaps; one column below 1024 (Responsive) */
+/* Account settings (profile, checklist K17): one grid of named areas — personal data next to
+   phone and e-mail (as high as both), password next to notifications, delete next to log out;
+   the blocks of a row are of one height, their button sits at the bottom, centred. One column
+   below 1024 (Responsive) */
 .settings-grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-template-areas:
+		"personal phone"
+		"personal email"
+		"password notify"
+		"delete logout";
 	gap: var(--space-5);
-	align-items: start;
 }
 
-.settings-grid__col {
+.settings-grid__personal { grid-area: personal; }
+.settings-grid__phone { grid-area: phone; }
+.settings-grid__email { grid-area: email; }
+.settings-grid__password { grid-area: password; }
+.settings-grid__notify { grid-area: notify; }
+.settings-grid__delete { grid-area: delete; }
+.settings-grid__logout { grid-area: logout; }
+
+.settings-grid > .panel {
 	display: flex;
 	flex-direction: column;
-	gap: var(--space-5);
 	min-width: 0;
 }
 
-.settings-grid__col > .panel + .panel {
+.settings-grid > .panel + .panel {
 	margin-top: 0;
+}
+
+.settings-grid > .panel > .panel__body {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+}
+
+/* The form of a block fills it, so its buttons can go to the bottom (a hidden one stays hidden) */
+.settings-grid > .panel > .panel__body > form:last-child:not([hidden]) {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+}
+
+.settings-grid .form-actions {
+	justify-content: center;
+	margin-top: auto;
+	padding-top: var(--space-6);
 }
 
 .panel + .settings-grid,
 .settings-grid + .panel {
 	margin-top: var(--space-5);
+}
+
+/* Three fields in a row (personal data) */
+.form-grid--3 {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Notifications: the switches on the left, where they go on the right */
+.notify-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	gap: var(--space-6);
+	align-items: start;
+}
+
+/* Delete the account: the password with the button right next to it */
+.delete-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: var(--space-3);
+	margin-top: var(--space-4);
+}
+
+.delete-row > .field {
+	flex: 1 1 220px;
 }
 
 .danger-zone {
@@ -3686,9 +3760,25 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 }
 
 .thread__name {
+	display: flex;
+	align-items: center;
+	min-width: 0;
 	font-family: var(--font-serif);
 	font-size: var(--fs-lg);
 	font-weight: var(--fw-bold);
+}
+
+/* A long name is cut with "…" (K20): the marks after it and the buttons of the head stay in place */
+.thread__name-text,
+.conv__name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.thread__name > .trust {
+	flex-shrink: 0;
 }
 
 .thread__listing {
@@ -4139,10 +4229,9 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 	overflow-wrap: anywhere;
 }
 
-/* Profile: where notifications go (a list, K14) */
+/* Profile: where notifications go (a list, K14; next to the switches, K17) */
 .notify-channel {
 	max-width: 360px;
-	margin-top: var(--space-5);
 }
 
 /* Profile: the phone line (number, status, pencil, "Confirm") and its form (checklist K5) */
@@ -4748,18 +4837,11 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 /* Tablet: filters become a drawer, listing and post pages stack,
    home categories become tiles, header links show icons only */
 @media (max-width: 1023px) {
-	/* Account settings: one column, the columns dissolve so that the phone and the e-mail come
-	   right after the personal data, the password and logging out after them */
+	/* Account settings: one column — personal data, phone, e-mail, password, notifications,
+	   log out, delete */
 	.settings-grid {
 		grid-template-columns: minmax(0, 1fr);
-	}
-
-	.settings-grid__col {
-		display: contents;
-	}
-
-	.settings-grid__late {
-		order: 1;
+		grid-template-areas: "personal" "phone" "email" "password" "notify" "logout" "delete";
 	}
 
 	.cards,
@@ -5042,18 +5124,9 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 
 /* Phones */
 @media (max-width: 767px) {
-	/* Notifications in the profile: one column of switches */
-	.switch-list--cols {
-		display: block;
-	}
-
-	.switch-list--cols li:nth-child(2) {
-		padding-top: var(--space-4);
-	}
-
-	.switch-list--cols li:nth-last-child(2):nth-child(odd) {
-		border-bottom: 1px dashed var(--color-dash);
-		padding-bottom: var(--space-4);
+	/* Notifications in the profile: where they go under the switches */
+	.notify-layout {
+		grid-template-columns: minmax(0, 1fr);
 	}
 
 	body {
@@ -5429,7 +5502,8 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 	}
 
 	/* Forms */
-	.form-grid {
+	.form-grid,
+	.form-grid--3 {
 		grid-template-columns: minmax(0, 1fr);
 	}
 
@@ -5540,10 +5614,33 @@ details[open]:not(.is-closing) > .expand-btn .icon {
 		display: flex;
 		height: var(--chat-h, 100dvh);
 		background: var(--color-surface);
+		/* With the keyboard open the browser moves the visible part of the screen down:
+		   --chat-top (main.js) keeps the thread on it (K20) */
+		transform: translateY(var(--chat-top, 0px));
+		overscroll-behavior: contain;
+	}
+
+	/* The page under an open conversation does not move at all (K20): no scrolling of the list,
+	   the footer or the bottom navigation behind the keyboard; only the messages scroll */
+	html:has(.chat.is-thread-open),
+	body:has(.chat.is-thread-open) {
+		overflow: hidden;
+		overscroll-behavior: none;
 	}
 
 	body:has(.chat.is-thread-open) {
-		overflow: hidden;
+		position: fixed;
+		inset: 0;
+		width: 100%;
+	}
+
+	body:has(.chat.is-thread-open) .bottom-nav,
+	body:has(.chat.is-thread-open) .site-footer {
+		visibility: hidden;
+	}
+
+	.chat.is-thread-open .thread__body {
+		overscroll-behavior: contain;
 	}
 
 	.thread__head {

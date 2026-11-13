@@ -343,13 +343,25 @@ require INC_DIR . '/header.php';
 <div class="container page">
 	<!-- Profile header -->
 	<section class="profile-head" aria-label="<?= e(t('p.title')) ?>">
-		<!-- Profile photo: a click on it picks a new one (main.js prepares and uploads it) -->
-		<label class="avatar-edit" data-avatar-upload="<?= e(url('photo-upload.php')) ?>" title="<?= e(t('p.avatar_change')) ?>">
-			<?= avatar($me, 'xl') ?>
-			<span class="avatar-edit__badge"><?= icon('edit', 16) ?></span>
-			<span class="visually-hidden"><?= e(t('p.avatar_change')) ?></span>
-			<input class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp">
-		</label>
+		<!-- Profile photo: a click on it picks a new one (main.js prepares and uploads it). Without a
+		     photo there is a pencil on it; with one — a cross that removes it after "Yes" (K18) -->
+		<div class="avatar-box">
+			<label class="avatar-edit" data-avatar-upload="<?= e(url('photo-upload.php')) ?>" title="<?= e(t('p.avatar_change')) ?>">
+				<?= avatar($me, 'xl') ?>
+				<?php if (!$me['avatar']): ?>
+				<span class="avatar-edit__badge"><?= icon('edit', 16) ?></span>
+				<?php endif; ?>
+				<span class="visually-hidden"><?= e(t('p.avatar_change')) ?></span>
+				<input class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp">
+			</label>
+			<?php if ($me['avatar']): ?>
+			<form class="avatar-box__remove" method="post" action="<?= e(url('profile.php')) ?>">
+				<?= csrf_field() ?>
+				<button type="submit" class="avatar-remove" name="action" value="remove_avatar" aria-label="<?= e(t('p.avatar_remove')) ?>" title="<?= e(t('p.avatar_remove')) ?>"
+					data-confirm="<?= e(t('p.avatar_remove_q')) ?>" data-confirm-label="<?= e(t('v.yes')) ?>" data-confirm-cancel="<?= e(t('v.no')) ?>"><span class="avatar-edit__badge"><?= icon('x', 16) ?></span></button>
+			</form>
+			<?php endif; ?>
+		</div>
 		<div class="profile-head__main">
 			<h1 class="profile-head__name"><?= e(person_name($me['name'])) ?><?= trust_marks($me) ?></h1>
 			<p class="profile-head__meta">
@@ -360,12 +372,6 @@ require INC_DIR . '/header.php';
 				<span><?= icon('check', 16) ?><?= e(tp('p.sold_count', $counts['sold'])) ?><?= $soldSums ? ' · ' . e(t('p.sold_total', ['sum' => implode(' + ', array_map('price_text', $soldSums, array_keys($soldSums)))])) : '' ?></span>
 				<?php endif; ?>
 			</p>
-			<?php if ($me['avatar']): ?>
-			<form class="profile-head__photo" method="post" action="<?= e(url('profile.php')) ?>">
-				<?= csrf_field() ?>
-				<button type="submit" name="action" value="remove_avatar"><?= e(t('p.avatar_remove')) ?></button>
-			</form>
-			<?php endif; ?>
 		</div>
 		<!-- Not on phones: the bottom navigation has "Post" -->
 		<a class="btn btn--primary profile-head__cta" href="<?= e(url('post.php')) ?>"><?= icon('plus', 18) ?><?= e(t('nav.post_ad')) ?></a>
@@ -467,11 +473,12 @@ require INC_DIR . '/header.php';
 			</form>
 			<?php endif; ?>
 
-			<!-- Laptops and desktops: two independent columns (checklist K14), one column below 1024 -->
+			<!-- Laptops and desktops: a grid of named areas (checklist K17, site.css "settings-grid"):
+			     personal data | phone, e-mail; password | notifications; delete | log out — blocks of a
+			     row are of one height, the personal data as high as phone + e-mail. One column below 1024 -->
 			<div class="settings-grid">
-				<div class="settings-grid__col">
 				<!-- Name as written (not transliterated: it is saved back as is) -->
-				<form class="panel" method="post" action="<?= e(url('profile.php')) ?>#settings">
+				<form class="panel settings-grid__personal" method="post" action="<?= e(url('profile.php')) ?>#settings">
 					<?= csrf_field() ?>
 					<input type="hidden" name="action" value="save_profile">
 					<div class="panel__body">
@@ -479,10 +486,10 @@ require INC_DIR . '/header.php';
 						<?php if ($profileError !== ''): ?>
 						<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($profileError) ?></p>
 						<?php endif; ?>
-						<div class="form-grid">
+						<div class="form-grid form-grid--3">
 							<div class="field">
 								<label class="field__label" for="s-name"><?= e(t('auth.name')) ?></label>
-								<input class="input" id="s-name" name="name" type="text" autocomplete="name" maxlength="100" value="<?= e($profile['name']) ?>" required>
+								<input class="input" id="s-name" name="name" type="text" autocomplete="name" maxlength="<?= NAME_MAX ?>" value="<?= e($profile['name']) ?>" required>
 							</div>
 							<div class="field">
 								<label class="field__label" for="s-city"><?= e(t('auth.city')) ?></label>
@@ -503,7 +510,7 @@ require INC_DIR . '/header.php';
 					</div>
 				</form>
 
-				<form class="panel settings-grid__late" method="post" action="<?= e(url('profile.php')) ?>#settings">
+				<form class="panel settings-grid__password" method="post" action="<?= e(url('profile.php')) ?>#settings">
 					<?= csrf_field() ?>
 					<input type="hidden" name="action" value="change_password">
 					<div class="panel__body">
@@ -527,12 +534,11 @@ require INC_DIR . '/header.php';
 						</div>
 					</div>
 				</form>
-				</div>
-				<div class="settings-grid__col">
+
 				<!-- Phone (checklist K5): the number with its status, "Confirm" (a code by SMS, codes.php;
 				     not active until SMS is set up) and the pencil; the form opens in place of the line
 				     (main.js, [data-phone-edit]) or with ?phone=edit -->
-				<section class="panel" aria-labelledby="phone-title">
+				<section class="panel settings-grid__phone" aria-labelledby="phone-title">
 					<div class="panel__body">
 						<h2 class="panel__title" id="phone-title"><?= e(t('p.phone_title')) ?></h2>
 						<?php if ($phoneError !== ''): ?>
@@ -596,7 +602,7 @@ require INC_DIR . '/header.php';
 
 				<!-- E-mail: changed with the password and a code, then the link sent to the new address;
 				     not confirmed yet — with the password alone (K12) -->
-				<section class="panel" aria-labelledby="email-title">
+				<section class="panel settings-grid__email" aria-labelledby="email-title">
 					<div class="panel__body">
 						<h2 class="panel__title" id="email-title"><?= e(t('p.email_title')) ?></h2>
 						<?php if ($emailError !== ''): ?>
@@ -657,7 +663,7 @@ require INC_DIR . '/header.php';
 					</div>
 				</section>
 
-				<section class="panel settings-grid__late" aria-labelledby="logout-title">
+				<section class="panel settings-grid__logout" aria-labelledby="logout-title">
 					<div class="panel__body">
 						<h2 class="panel__title" id="logout-title"><?= e(t('nav.logout')) ?></h2>
 						<div class="row row--between">
@@ -666,74 +672,71 @@ require INC_DIR . '/header.php';
 						</div>
 					</div>
 				</section>
-				</div>
-			</div>
 
-			<!-- Notifications (K14: a block of the settings, not a tab of its own; #notifications opens it) -->
-			<form class="panel" id="notifications" method="post" action="<?= e(url('profile.php')) ?>#notifications">
-				<?= csrf_field() ?>
-				<input type="hidden" name="action" value="save_notifications">
-				<div class="panel__body">
-					<h2 class="panel__title"><?= e(t('p.notifications')) ?></h2>
-					<ul class="switch-list switch-list--cols">
-						<?php
-						$notices = [
-							['messages', 'p.n_messages', 'p.n_messages_hint'],
-							['saved', 'p.n_saved', 'p.n_saved_hint'],
-							['price', 'p.n_price', 'p.n_price_hint'],
-							['news', 'p.n_news', 'p.n_news_hint'],
-						];
-						foreach ($notices as [$name, $titleKey, $hintKey]): $on = $me['notify'][$name];
-						?>
-						<li>
-							<label class="switch">
-								<input type="checkbox" role="switch" name="notify[<?= $name ?>]"<?= $on ? ' checked' : '' ?>>
-								<span class="switch__text"><span class="switch__title"><?= e(t($titleKey)) ?></span><span class="switch__hint"><?= e(t($hintKey)) ?></span></span>
-							</label>
-						</li>
-						<?php endforeach; ?>
-					</ul>
-					<!-- Where they go (a list, e-mail by default); hidden while every type is off (main.js, [data-notify-channel]) -->
-					<div class="field notify-channel" data-notify-channel<?= array_filter($me['notify']) ? '' : ' hidden' ?>>
-						<label class="field__label" for="s-notify-channel"><?= e(t('p.n_channel')) ?></label>
-						<select class="select" id="s-notify-channel" name="channel" aria-describedby="s-notify-channel-hint"<?= array_filter($me['notify']) ? '' : ' disabled' ?>>
-							<?php foreach (['email', 'browser', 'both'] as $channel): ?>
-							<option value="<?= $channel ?>"<?= $me['notify_channel'] === $channel ? ' selected' : '' ?>><?= e(t('p.n_channel_' . $channel)) ?></option>
+				<!-- Notifications (K14: a block of the settings, not a tab of its own; #notifications opens it) -->
+				<form class="panel settings-grid__notify" id="notifications" method="post" action="<?= e(url('profile.php')) ?>#notifications">
+					<?= csrf_field() ?>
+					<input type="hidden" name="action" value="save_notifications">
+					<div class="panel__body">
+						<h2 class="panel__title"><?= e(t('p.notifications')) ?></h2>
+						<div class="notify-layout">
+						<ul class="switch-list">
+							<?php
+							$notices = [
+								['messages', 'p.n_messages', 'p.n_messages_hint'],
+								['saved', 'p.n_saved', 'p.n_saved_hint'],
+								['price', 'p.n_price', 'p.n_price_hint'],
+								['news', 'p.n_news', 'p.n_news_hint'],
+							];
+							foreach ($notices as [$name, $titleKey, $hintKey]): $on = $me['notify'][$name];
+							?>
+							<li>
+								<label class="switch">
+									<input type="checkbox" role="switch" name="notify[<?= $name ?>]"<?= $on ? ' checked' : '' ?>>
+									<span class="switch__text"><span class="switch__title"><?= e(t($titleKey)) ?></span><span class="switch__hint"><?= e(t($hintKey)) ?></span></span>
+								</label>
+							</li>
 							<?php endforeach; ?>
-						</select>
-						<span class="field__hint" id="s-notify-channel-hint"><?= e(t('p.n_channel_hint')) ?></span>
-						<span class="field__error" data-notify-blocked hidden><?= e(t('p.n_blocked')) ?></span>
+						</ul>
+						<!-- Where they go (a list, e-mail by default); hidden while every type is off (main.js, [data-notify-channel]) -->
+						<div class="field notify-channel" data-notify-channel<?= array_filter($me['notify']) ? '' : ' hidden' ?>>
+							<label class="field__label" for="s-notify-channel"><?= e(t('p.n_channel')) ?></label>
+							<select class="select" id="s-notify-channel" name="channel" aria-describedby="s-notify-channel-hint"<?= array_filter($me['notify']) ? '' : ' disabled' ?>>
+								<?php foreach (['email', 'browser', 'both'] as $channel): ?>
+								<option value="<?= $channel ?>"<?= $me['notify_channel'] === $channel ? ' selected' : '' ?>><?= e(t('p.n_channel_' . $channel)) ?></option>
+								<?php endforeach; ?>
+							</select>
+							<span class="field__hint" id="s-notify-channel-hint"><?= e(t('p.n_channel_hint')) ?></span>
+							<span class="field__error" data-notify-blocked hidden><?= e(t('p.n_blocked')) ?></span>
+						</div>
+						</div>
+						<div class="form-actions">
+							<button type="submit" class="btn btn--primary"><?= e(t('p.save')) ?></button>
+						</div>
 					</div>
-					<div class="form-actions">
-						<button type="submit" class="btn btn--primary"><?= e(t('p.save')) ?></button>
-					</div>
-				</div>
-			</form>
+				</form>
 
-			<section class="panel danger-zone" aria-labelledby="danger-title">
-				<div class="panel__body">
-					<h2 class="panel__title" id="danger-title"><?= e(t('p.danger')) ?></h2>
-					<?php if ($deleteError !== ''): ?>
-					<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($deleteError) ?></p>
-					<?php endif; ?>
-					<form method="post" action="<?= e(url('profile.php')) ?>#settings">
-						<?= csrf_field() ?>
-						<input type="hidden" name="action" value="delete_account">
-						<div class="stack">
+				<section class="panel danger-zone settings-grid__delete" aria-labelledby="danger-title">
+					<div class="panel__body">
+						<h2 class="panel__title" id="danger-title"><?= e(t('p.danger')) ?></h2>
+						<?php if ($deleteError !== ''): ?>
+						<p class="notice notice--danger" role="alert"><?= icon('alert', 20) ?><?= e($deleteError) ?></p>
+						<?php endif; ?>
+						<form method="post" action="<?= e(url('profile.php')) ?>#settings">
+							<?= csrf_field() ?>
+							<input type="hidden" name="action" value="delete_account">
 							<p class="muted"><?= e(t('p.delete_account_text')) ?></p>
-							<div class="form-grid">
+							<div class="delete-row">
 								<div class="field">
 									<label class="field__label" for="s-delete-pass"><?= e(t('p.current_password')) ?></label>
 									<input class="input" id="s-delete-pass" name="password" type="password" autocomplete="current-password" required>
 								</div>
+								<button type="submit" class="btn btn--danger-ghost" data-confirm="<?= e(t('p.delete_account_confirm')) ?>" data-confirm-label="<?= e(t('p.delete_account')) ?>"><?= icon('trash', 18) ?><?= e(t('p.delete_account')) ?></button>
 							</div>
-						</div>
-						<div class="form-actions">
-							<button type="submit" class="btn btn--danger-ghost" data-confirm="<?= e(t('p.delete_account_confirm')) ?>" data-confirm-label="<?= e(t('p.delete_account')) ?>"><?= icon('trash', 18) ?><?= e(t('p.delete_account')) ?></button>
-						</div>
-					</form>
-				</div>
-			</section>
+						</form>
+					</div>
+				</section>
+			</div>
 		</div>
 	</div>
 </div>

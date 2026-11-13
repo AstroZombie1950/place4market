@@ -488,7 +488,7 @@ return [
 	'ua.admins_only' => 'Only administrators can change accounts, roles and delete users.',
 	'ua.staff_admins_only' => 'Only administrators can do this with a staff account.',
 	'ua.no_account' => 'This account does not exist or was deleted.',
-	'ua.err_name' => 'The name takes 2 to 100 characters.',
+	'ua.err_name' => 'The name takes 2 to 40 characters.',
 	'ua.err_email' => 'Enter a valid email.',
 	'ua.err_email_taken' => 'Another account already uses {email}.',
 	'ua.err_phone' => 'Serbian numbers only: 06x… or +381…',

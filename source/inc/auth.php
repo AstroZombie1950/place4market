@@ -271,11 +271,15 @@ function rate_hit(string $action, string $value): void
 /* ---------- Account data ---------- */
 
 // Name, email, phone and city (registration, profile): error text or ''
+// A person's name: up to 40 characters (K20: longer ones pushed the marks and buttons of the
+// conversation head aside); names saved before stay, shown with "…" where space is short
+const NAME_MAX = 40;
+
 function account_data_error(array $f): string
 {
 	return match (true) {
 		// No addresses in a name: it opens our letters ("Hello, {name}") sent to any email typed at registration
-		mb_strlen($f['name']) < 2 || mb_strlen($f['name']) > 100 || preg_match('~://|www\.|[<>]~i', $f['name']) => t('auth.err_name'),
+		mb_strlen($f['name']) < 2 || mb_strlen($f['name']) > NAME_MAX || preg_match('~://|www\.|[<>]~i', $f['name']) => t('auth.err_name'),
 		!filter_var($f['email'], FILTER_VALIDATE_EMAIL) || mb_strlen($f['email']) > 190 => t('auth.err_email'),
 		// A Serbian number, already in its stored form (the caller passes phone_normalize() ?? as typed)
 		$f['phone'] !== '' && phone_normalize($f['phone']) !== $f['phone'] => t('auth.err_phone'),

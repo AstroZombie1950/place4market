@@ -443,7 +443,7 @@
 
 	/* ----------------------------------------------------------------------
 		Confirm: [data-confirm="Question?"]
-		data-confirm-label: OK button text
+		data-confirm-label: OK button text; data-confirm-cancel: the other one ("No")
 		After OK: follows the link or submits the form (a submit button is sent
 		as the submitter, with its name and value); a button without a form gets
 		the "confirmed" event.
@@ -454,7 +454,9 @@
 
 		const text = $('[data-confirm-text]', dialog);
 		const ok = $('[data-confirm-ok]', dialog);
+		const cancel = $('[data-confirm-cancel]', dialog);
 		const defaultLabel = ok.textContent;
+		const defaultCancel = cancel ? cancel.textContent : '';
 		let pending = null;
 
 		document.addEventListener('click', (e) => {
@@ -464,6 +466,7 @@
 			pending = el;
 			text.textContent = el.dataset.confirm;
 			ok.textContent = el.dataset.confirmLabel || defaultLabel;
+			if (cancel) cancel.textContent = el.dataset.confirmCancel || defaultCancel;
 			dialog.showModal();
 		});
 
@@ -617,6 +620,8 @@
 			if (!wrong.length) return;
 			e.preventDefault();
 			e.stopImmediatePropagation();
+			// form[data-invalid-toast]: says so on top as well (the post form: "Fill in the required fields", K19)
+			if (form.dataset.invalidToast) toast(form.dataset.invalidToast, 'info');
 
 			const first = control(wrong[0]);
 			// A wrong field that is not on the screen cannot be shown: say it in a toast
@@ -1379,14 +1384,44 @@
 		if (field('price')) field('price').required = true;
 		updatePreview();
 
-		// "Publish" works once everything required is filled in (category, subcategory, kind, title,
-		// description, price or "by agreement", place, terms); what is missing shows under the fields
-		// as they are left. "Save draft" (formnovalidate) is always available
-		const publish = $('[type="submit"]:not([formnovalidate])', form);
-		const updatePublish = () => { if (publish) publish.disabled = !form.checkValidity(); };
-		form.addEventListener('input', updatePublish);
-		form.addEventListener('change', updatePublish);
-		updatePublish();
+		// "Publish" is always pressable (K19): with something required missing the form says so
+		// (form[data-invalid-toast], initValidation()) and goes to the first such field; required
+		// fields have a red star (site.css). "Save draft" (formnovalidate) skips the checks
+
+		// Number details (year, mileage, power…): only digits (and one decimal mark where the step
+		// is a half), no longer than the largest value; out of the range → an error under the field
+		// while typing, the nearest limit when the field is left (2150 → 2027, 1500 → 1900)
+		$$('input[data-range-max]', form).forEach((input) => {
+			const min = Number(input.dataset.rangeMin);
+			const max = Number(input.dataset.rangeMax);
+			const step = Number(input.dataset.rangeStep) || 1;
+			const [minText, maxText] = (input.dataset.rangeText || '').split('|');
+			const range = String(i18n.errRange || '').replace('{min}', minText).replace('{max}', maxText);
+			const number = () => Number(input.value.replace(',', '.'));
+			const mark = () => {
+				const out = input.value !== '' && (number() < min || number() > max);
+				input.setCustomValidity(out ? range : '');
+			};
+			input.addEventListener('input', () => {
+				let value = input.value.replace(/[^\d.,]/g, '');
+				if (step % 1 === 0) value = value.replace(/[.,]/g, '');
+				else value = value.replace(/([.,])(.*)$/, (all, mark1, rest) => mark1 + rest.replace(/[.,]/g, '').slice(0, 1));
+				if (value !== input.value) input.value = value;
+				mark();
+			});
+			input.addEventListener('change', () => {
+				if (input.value === '') return;
+				let n = Math.min(max, Math.max(min, number()));
+				n = Math.round(n / step) * step;
+				const text = String(n).replace('.', ',');
+				if (text !== input.value) {
+					input.value = text;
+					input.dispatchEvent(new Event('input', { bubbles: true }));
+				}
+				mark();
+			});
+			mark();
+		});
 
 		// Photos. Prepared in the browser before upload (CLAUDE.md, section 2): EXIF
 		// rotation applied, long side up to 2560 px, JPEG 0.9, which also drops EXIF
@@ -2038,13 +2073,18 @@
 		};
 
 		// Phones: an open conversation is the whole screen (site.css). With the keyboard open the
-		// visible part is lower than the screen: the thread takes its height, the field stays in view
+		// visible part is lower than the screen and the browser may move it down: the thread takes
+		// its height and follows its top (--chat-top), the field stays in view (K20)
 		if (window.visualViewport) {
+			const vv = window.visualViewport;
 			const fitThread = () => {
-				chat.style.setProperty('--chat-h', `${Math.round(window.visualViewport.height)}px`);
-				if (!desktop.matches && chat.classList.contains('is-thread-open')) window.scrollTo(0, 0);
+				chat.style.setProperty('--chat-h', `${Math.round(vv.height)}px`);
+				const open = !desktop.matches && chat.classList.contains('is-thread-open');
+				chat.style.setProperty('--chat-top', `${open ? Math.round(vv.offsetTop) : 0}px`);
+				if (open && window.scrollY) window.scrollTo(0, 0);
 			};
-			window.visualViewport.addEventListener('resize', fitThread);
+			vv.addEventListener('resize', fitThread);
+			vv.addEventListener('scroll', fitThread);
 			fitThread();
 		}
 

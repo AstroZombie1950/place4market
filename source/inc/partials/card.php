@@ -3,7 +3,8 @@
 	Listing card. Expects $listing.
 	Optional: $cardRemoveOnUnsave = true (favorites page removes the card),
 	$cardEager = true (first row on the screen: photo is not lazy-loaded),
-	$cardPriority = true (the very first card: its photo is the LCP on phones)
+	$cardPriority = true (first row too: fetchpriority=high — the LCP is the first card on
+	phones and any card of the first row on desktops)
 	========================================================================== */
 
 $cardTitle = listing_title($listing);

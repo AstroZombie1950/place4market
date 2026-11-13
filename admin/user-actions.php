@@ -68,7 +68,7 @@ switch ($action) {
 			'phone_verified' => !empty($_POST['phone_verified']),
 		];
 		$error = match (true) {
-			mb_strlen($f['name']) < 2 || mb_strlen($f['name']) > 100 => at('ua.err_name'),
+			mb_strlen($f['name']) < 2 || mb_strlen($f['name']) > NAME_MAX => at('ua.err_name'),
 			!filter_var($f['email'], FILTER_VALIDATE_EMAIL) || mb_strlen($f['email']) > 190 => at('ua.err_email'),
 			$f['email'] !== $user['email'] && email_taken($f['email']) => at('ua.err_email_taken', ['email' => $f['email']]),
 			$f['phone'] !== '' && phone_normalize($f['phone']) !== $f['phone'] => at('ua.err_phone'),

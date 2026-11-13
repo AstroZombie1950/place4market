@@ -159,7 +159,7 @@ require INC_DIR . '/header.php';
 					<?php endif; ?>
 					<div class="field">
 						<label class="field__label" for="reg-name"><?= e(t('auth.name')) ?></label>
-						<input class="input" id="reg-name" name="name" type="text" autocomplete="given-name" required minlength="2" maxlength="100" value="<?= e($action === 'register' ? $old['name'] : '') ?>">
+						<input class="input" id="reg-name" name="name" type="text" autocomplete="given-name" required minlength="2" maxlength="<?= NAME_MAX ?>" value="<?= e($action === 'register' ? $old['name'] : '') ?>">
 					</div>
 					<div class="field">
 						<label class="field__label" for="reg-email"><?= e(t('auth.email')) ?></label>

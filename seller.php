@@ -75,7 +75,7 @@ require INC_DIR . '/header.php';
 
 		<?php if ($items): ?>
 		<div class="cards">
-			<?php foreach ($items as $listing): ?>
+			<?php foreach (array_values($items) as $i => $listing): $cardEager = $cardPriority = $i < 4; ?>
 			<?php include INC_DIR . '/partials/card.php'; ?>
 			<?php endforeach; ?>
 		</div>

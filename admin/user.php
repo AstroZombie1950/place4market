@@ -113,7 +113,7 @@ require ADMIN_INC . '/header.php';
 					<div class="form-grid">
 						<div class="field">
 							<label class="field__label" for="u-name"><?= e(at('user.full_name')) ?></label>
-							<input class="input" id="u-name" name="name" type="text" minlength="2" maxlength="100" required value="<?= e($user['name']) ?>">
+							<input class="input" id="u-name" name="name" type="text" minlength="2" maxlength="<?= NAME_MAX ?>" required value="<?= e($user['name']) ?>">
 						</div>
 						<div class="field">
 							<label class="field__label" for="u-email"><?= e(at('login.email')) ?></label>

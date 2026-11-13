@@ -6,6 +6,8 @@
 	- 12 options and more: a search field on top (Latin and Cyrillic, with or
 	  without č ć š ž đ); on phones such a list opens on the whole screen
 	- select[data-plain] is left as the browser draws it
+	- the options of the list are built on the first opening (a page has two city
+	  lists of ~190 cities: ~400 elements less for the browser to lay out at load)
 	Strings: <body data-select-search="…" data-select-empty="…" data-select-close="…">
 	Styles: "Drop-down lists" in site.css and admin.css
 	========================================================================== */
@@ -88,6 +90,7 @@
 		if (select.getAttribute('aria-describedby')) button.setAttribute('aria-describedby', select.getAttribute('aria-describedby'));
 
 		let items = [];
+		let built = false;
 		let active = -1;
 		let searchable = false;
 		let isOpen = false;
@@ -105,9 +108,17 @@
 			items.forEach((item) => item.setAttribute('aria-selected', String(option ? Number(item.dataset.index) === option.index : false)));
 		};
 
+		// Before the first opening only the value and the search field are set
 		const render = () => {
 			list.textContent = '';
 			items = [];
+			if (!built) {
+				searchable = Array.from(select.options).filter((option) => !option.hidden).length >= SEARCH_FROM;
+				wrap.classList.toggle('cselect--search', searchable);
+				search.hidden = !searchable;
+				sync();
+				return;
+			}
 			const add = (option) => {
 				if (option.hidden) return;
 				const item = el('li', `cselect__option${option.disabled ? ' is-disabled' : ''}`, {
@@ -188,6 +199,10 @@
 			if (closeOpen) closeOpen();
 			isOpen = true;
 			closeOpen = closePanel;
+			if (!built) {
+				built = true;
+				render();
+			}
 			sync();
 			search.value = '';
 			panel.hidden = false;

@@ -34,10 +34,10 @@ require INC_DIR . '/header.php';
 			<h2 class="visually-hidden"><?= e(t('fav.listings')) ?></h2>
 			<div class="cards"<?= $saved ? '' : ' hidden' ?>>
 				<?php $cardRemoveOnUnsave = true; ?>
-				<?php foreach ($saved as $listing): ?>
+				<?php foreach (array_values($saved) as $i => $listing): $cardEager = $cardPriority = $i < 4; ?>
 				<?php include INC_DIR . '/partials/card.php'; ?>
 				<?php endforeach; ?>
-				<?php $cardRemoveOnUnsave = false; ?>
+				<?php $cardRemoveOnUnsave = $cardEager = $cardPriority = false; ?>
 			</div>
 
 			<div class="empty" data-fav-empty<?= $saved ? ' hidden' : '' ?>>

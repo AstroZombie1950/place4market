@@ -87,7 +87,7 @@ $footerCols = [
 			<p data-confirm-text></p>
 		</div>
 		<div class="modal__foot">
-			<button type="button" class="btn btn--outline" data-dialog-close><?= e(t('common.cancel')) ?></button>
+			<button type="button" class="btn btn--outline" data-dialog-close data-confirm-cancel><?= e(t('common.cancel')) ?></button>
 			<button type="button" class="btn btn--danger" data-confirm-ok><?= e(t('common.confirm')) ?></button>
 		</div>
 	</div>
@@ -133,6 +133,7 @@ $footerCols = [
 	'errShort' => t('form.err_short'),
 	'errInvalid' => t('form.err_invalid'),
 	'errMatch' => t('auth.err_password_repeat'),
+	'errRange' => t('form.err_range'),
 ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
 </body>
 </html>
