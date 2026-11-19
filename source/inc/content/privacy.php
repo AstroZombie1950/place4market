@@ -2,14 +2,15 @@
 /* ==========================================================================
 	Privacy policy (with cookies). Written 11.11.2026 from what the site really
 	does (README: accounts, listings, photos, messages, log, storage, analytics,
-	mail); the client and the client's lawyer finish it: [brackets] are to fill.
+	mail). Operator details: neutral "operator of the Place4Market website" since 19.11, until the
+	client sends company name, address, MB and PIB (section 1).
 	Periods of section 7 follow the code (RETENTION_MONTHS in repo.php, log 90 days, backups 14 days).
 	Update it when a processor is added (mail service, cloud storage).
 	Values are ['en' => …, 'sr' => …]; Cyrillic is made on the fly (tc())
 	========================================================================== */
 
 return [
-	'updated' => '2026-11-12',
+	'updated' => '2026-11-19',
 	'lead' => [
 		'en' => 'This policy explains what personal data Place4Market collects, why, how long we keep it, who else processes it and what rights you have under the Law on Personal Data Protection of the Republic of Serbia (ZZPL).',
 		'sr' => 'Ova politika objašnjava koje lične podatke Place4Market prikuplja, zašto, koliko dugo ih čuvamo, ko ih još obrađuje i koja prava imate prema Zakonu o zaštiti podataka o ličnosti Republike Srbije (ZZPL).',
@@ -20,7 +21,7 @@ return [
 			'id' => 'controller',
 			'title' => ['en' => '1. Who is responsible', 'sr' => '1. Ko je odgovoran'],
 			'blocks' => [
-				['en' => 'The controller of your data is [Company name], [address], company ID (MB) [number], tax ID (PIB) [number]. For any question about your data, write to support@place4market.com or use the contact page.', 'sr' => 'Rukovalac vašim podacima je [Naziv firme], [adresa], matični broj [broj], PIB [broj]. Za sva pitanja o vašim podacima pišite na support@place4market.com ili preko stranice za kontakt.'],
+				['en' => 'The controller of your data is the operator of the Place4Market website. For any question about your data, write to support@place4market.com or use the contact page.', 'sr' => 'Rukovalac vašim podacima je operater sajta Place4Market. Za sva pitanja o vašim podacima pišite na support@place4market.com ili preko stranice za kontakt.'],
 			],
 		],
 		[

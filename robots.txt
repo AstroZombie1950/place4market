@@ -1,6 +1,3 @@
-# DEV-ONLY: пока идёт разработка, сайт закрыт заголовком X-Robots-Tag (source/inc/bootstrap.php и .htaccess),
-# а не здесь: иначе роботы не увидят noindex. Эти две строки убрать при запуске (A22)
-
 User-agent: *
 Disallow: /admin/
 

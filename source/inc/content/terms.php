@@ -2,13 +2,14 @@
 /* ==========================================================================
 	Terms of use. Written 11.11.2026 from how the site really works (posting,
 	moderation, reports, messages, account); the client and the client's lawyer
-	finish it: [brackets] are to fill. Numbers follow admin → Settings
+	finish it. Operator: neutral wording since 19.11, until the client sends company details
+	(first paragraph, court in the last). Numbers follow admin → Settings
 	(listing_days 30, max_photos 12, raise_hours 72): change both together.
 	Values are ['en' => …, 'sr' => …]; Cyrillic is made on the fly (tc())
 	========================================================================== */
 
 return [
-	'updated' => '2026-11-13',
+	'updated' => '2026-11-19',
 	'lead' => [
 		'en' => 'These terms apply to everyone who uses Place4Market: visitors, buyers and sellers. By creating an account or posting a listing you accept them. How we handle personal data is described in the privacy policy.',
 		'sr' => 'Ovi uslovi važe za sve koji koriste Place4Market: posetioce, kupce i prodavce. Pravljenjem naloga ili postavljanjem oglasa prihvatate ih. Kako postupamo sa ličnim podacima opisano je u politici privatnosti.',
@@ -19,7 +20,7 @@ return [
 			'id' => 'service',
 			'title' => ['en' => '1. About the service', 'sr' => '1. O servisu'],
 			'blocks' => [
-				['en' => 'Place4Market is a website where users publish classified ads and contact each other. Browsing and posting listings is free. The site is run by [Company name], [address], company ID (MB) [number], tax ID (PIB) [number].', 'sr' => 'Place4Market je sajt na kome korisnici objavljuju male oglase i stupaju u kontakt. Pregled i postavljanje oglasa su besplatni. Sajtom upravlja [Naziv firme], [adresa], matični broj [broj], PIB [broj].'],
+				['en' => 'Place4Market is a website where users publish classified ads and contact each other. Browsing and posting listings is free. The site is run by the operator of the Place4Market website, whom you can reach through the contact page.', 'sr' => 'Place4Market je sajt na kome korisnici objavljuju male oglase i stupaju u kontakt. Pregled i postavljanje oglasa su besplatni. Sajtom upravlja operater sajta Place4Market, kome se možete obratiti preko stranice „Kontakt“.'],
 				['en' => 'We are not a party to deals between users: we do not sell, buy, deliver or take payments, and we do not guarantee the quality, safety or legality of what is offered.', 'sr' => 'Nismo strana u poslovima između korisnika: ne prodajemo, ne kupujemo, ne dostavljamo i ne primamo uplate, i ne garantujemo kvalitet, bezbednost ni zakonitost onoga što se nudi.'],
 			],
 		],
@@ -78,7 +79,7 @@ return [
 			'id' => 'changes',
 			'title' => ['en' => '7. Changes and applicable law', 'sr' => '7. Izmene i merodavno pravo'],
 			'blocks' => [
-				['en' => 'We may update these terms. The date of the last change is at the top of the page; important changes are announced by email before they apply. The laws of the Republic of Serbia apply; disputes are resolved by the competent court in [city].', 'sr' => 'Ove uslove možemo ažurirati. Datum poslednje izmene nalazi se na vrhu stranice; važne izmene najavljujemo e-poštom pre nego što počnu da važe. Primenjuje se pravo Republike Srbije; sporove rešava nadležni sud u [grad].'],
+				['en' => 'We may update these terms. The date of the last change is at the top of the page; important changes are announced by email before they apply. The laws of the Republic of Serbia apply; disputes are resolved by the competent court in the Republic of Serbia.', 'sr' => 'Ove uslove možemo ažurirati. Datum poslednje izmene nalazi se na vrhu stranice; važne izmene najavljujemo e-poštom pre nego što počnu da važe. Primenjuje se pravo Republike Srbije; sporove rešava stvarno i mesno nadležni sud u Republici Srbiji.'],
 			],
 		],
 	],

@@ -27,10 +27,6 @@ require INC_DIR . '/taxonomy.php';
 require INC_DIR . '/seo.php';
 security_headers(true);
 
-// DEV-ONLY: closed from indexing while in development (duplicates .htaccess,
-// works on any server). Remove at launch together with the .htaccess block
-header('X-Robots-Tag: noindex, nofollow');
-
 // Language of the address (route.php) or ?lang=
 i18n_init();
 
