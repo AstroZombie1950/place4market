@@ -89,6 +89,8 @@ return [
 	'home.cities' => 'Cities',
 	'home.more_cities' => 'More places',
 	'home.recent' => 'Recent listings',
+	'home.empty_title' => 'No listings yet',
+	'home.empty_text' => 'Place4Market has just opened. Be among the first: post an ad in two minutes, it’s free.',
 	'home.cta_title' => 'Have something to sell?',
 	'home.cta_text' => 'Post an ad in two minutes. It’s free.',
 
@@ -416,6 +418,7 @@ return [
 	'post.err_title' => 'Enter a title (3 to 80 characters).',
 	'post.err_description' => 'Describe the item (10 to 3000 characters).',
 	'post.err_condition' => 'Choose the condition.',
+	'post.err_limit' => ['one' => 'You can post at most {n} new listing a day. Please try again tomorrow.', 'other' => 'You can post at most {n} new listings a day. Please try again tomorrow.'],
 	'post.err_price' => 'Enter a price or choose “by agreement”.',
 	'post.err_photos' => ['one' => 'Up to {n} photo per ad.', 'other' => 'Up to {n} photos per ad.'],
 	'post.err_attr' => 'Check the “{field}” field.',

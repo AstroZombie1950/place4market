@@ -30,7 +30,7 @@ $footerCols = [
 <footer class="site-footer">
 	<div class="container site-footer__inner">
 		<div class="site-footer__brand">
-			<a class="site-footer__logo" href="<?= e(url('index.php')) ?>"><?= site_logo('280px', 'Place4Market', true) ?></a>
+			<a class="site-footer__logo" href="<?= e(url('index.php')) ?>"><?= site_logo('(max-width: 767px) min(480px, calc(100vw - 32px)), 280px', 'Place4Market', true) ?></a>
 			<p class="site-footer__tagline"><?= e(t('footer.tagline')) ?></p>
 		</div>
 

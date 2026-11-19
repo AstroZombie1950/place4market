@@ -49,7 +49,7 @@ $searchCity = (string) ($_GET['city'] ?? (current_script() === 'category.php' ? 
 	<div class="container site-header__inner">
 		<!-- Top row: logo, language, account, CTA -->
 		<div class="site-header__top">
-			<a class="logo" href="<?= e(url('index.php')) ?>" aria-label="Place4Market — <?= e(t('nav.home')) ?>"><?= site_logo('(max-width: 767px) 104px, (max-width: 1023px) 144px, 168px') ?></a>
+			<a class="logo" href="<?= e(url('index.php')) ?>" aria-label="Place4Market — <?= e(t('nav.home')) ?>"><?= site_logo('(max-width: 767px) min(280px, calc(100vw - 178px)), (max-width: 1023px) 144px, 168px') ?></a>
 
 			<span class="site-header__spacer"></span>
 

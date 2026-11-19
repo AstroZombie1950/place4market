@@ -1,7 +1,45 @@
-# Пока идёт разработка, сайт закрыт заголовком X-Robots-Tag (source/inc/bootstrap.php и .htaccess),
-# а не здесь: иначе роботы не увидят noindex
+# DEV-ONLY: пока идёт разработка, сайт закрыт заголовком X-Robots-Tag (source/inc/bootstrap.php и .htaccess),
+# а не здесь: иначе роботы не увидят noindex. Эти две строки убрать при запуске (A22)
 
 User-agent: *
 Disallow: /admin/
+
+# Служебные страницы (вход, профиль, сообщения, избранное, подача, ссылки из писем): они noindex,
+# а ссылки на них есть на каждом объявлении и в выдаче (/poruke?listing=…, /prijava?next=…) —
+# роботы не тратят на них обход (аудит 18.11, B6)
+Disallow: /poruke
+Disallow: /prijava
+Disallow: /profil
+Disallow: /omiljeno
+Disallow: /postavi-oglas
+Disallow: /nova-lozinka
+Disallow: /potvrda
+Disallow: /cir/poruke
+Disallow: /cir/prijava
+Disallow: /cir/profil
+Disallow: /cir/omiljeno
+Disallow: /cir/postavi-oglas
+Disallow: /cir/nova-lozinka
+Disallow: /cir/potvrda
+Disallow: /en/messages
+Disallow: /en/login
+Disallow: /en/profile
+Disallow: /en/favorites
+Disallow: /en/post-ad
+Disallow: /en/reset-password
+Disallow: /en/verify
+
+# Обработчики запросов страниц (POST из main.js, выход)
+Disallow: /favorite.php
+Disallow: /phone.php
+Disallow: /view.php
+Disallow: /notify.php
+Disallow: /saved-search.php
+Disallow: /report.php
+Disallow: /review.php
+Disallow: /photo-upload.php
+Disallow: /video-upload.php
+Disallow: /js-error.php
+Disallow: /logout.php
 
 Sitemap: https://place4market.com/sitemap.xml

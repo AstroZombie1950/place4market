@@ -78,14 +78,26 @@ require INC_DIR . '/header.php';
 		<section class="layout__main" aria-labelledby="recent-title">
 			<div class="section-head">
 				<h2 class="section-title" id="recent-title"><?= e(t('home.recent')) ?></h2>
+				<?php if ($recent): ?>
 				<a class="link-underline" href="<?= e(url('category.php')) ?>"><?= e(t('common.see_all')) ?></a>
+				<?php endif; ?>
 			</div>
 
+			<?php if ($recent): ?>
 			<div class="cards">
 				<?php foreach (array_values($recent) as $i => $listing): $cardEager = $cardPriority = $i < 4; ?>
 				<?php include INC_DIR . '/partials/card.php'; ?>
 				<?php endforeach; ?>
 			</div>
+			<?php else: ?>
+			<!-- No published listings yet (the first days after launch): an invitation instead of an empty grid -->
+			<div class="empty">
+				<?= icon('tag', 40) ?>
+				<p class="empty__title"><?= e(t('home.empty_title')) ?></p>
+				<p><?= e(t('home.empty_text')) ?></p>
+				<a class="btn btn--primary" href="<?= e(url('post.php')) ?>"><?= icon('plus', 18) ?><?= e(t('nav.post_ad')) ?></a>
+			</div>
+			<?php endif; ?>
 
 			<?php if ($hasMore): ?>
 			<div class="show-more">

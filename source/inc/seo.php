@@ -167,7 +167,7 @@ function schema_listing(array $listing, array $seller, array $category): array
 		'price' => $listing['price'],
 		'priceCurrency' => $listing['currency'],
 		'availability' => 'https://schema.org/InStock',
-		'seller' => ['@type' => 'Person', 'name' => person_name($seller['name'])],
+		'seller' => schema_seller($seller),
 	];
 	if ($listing['condition'] !== null) {
 		$offer['itemCondition'] = 'https://schema.org/' . ($listing['condition'] === 'new' ? 'NewCondition' : 'UsedCondition');
@@ -253,18 +253,26 @@ function schema_faq(array $items): array
 	];
 }
 
-// Seller page: profile of a person
+// The seller as schema.org knows them: a business account (035) is an Organization, a private
+// person a Person; the address only with a place in the profile (it is optional since 12.11)
+function schema_seller(array $user): array
+{
+	$seller = ['@type' => ($user['seller_type'] ?? 'private') === 'business' ? 'Organization' : 'Person', 'name' => person_name($user['name'])];
+	if (($user['city'] ?? '') !== '') {
+		$seller['address'] = ['@type' => 'PostalAddress', 'addressLocality' => city_name($user['city']), 'addressCountry' => 'RS'];
+	}
+
+	return $seller;
+}
+
+// Seller page: profile of a person or a business
 function schema_profile(array $user): array
 {
 	return [
 		'@type' => 'ProfilePage',
 		'url' => canonical_url(),
 		'dateCreated' => date('c', strtotime($user['registered'])),
-		'mainEntity' => [
-			'@type' => 'Person',
-			'name' => person_name($user['name']),
-			'address' => ['@type' => 'PostalAddress', 'addressLocality' => city_name($user['city']), 'addressCountry' => 'RS'],
-		],
+		'mainEntity' => schema_seller($user),
 	];
 }
 

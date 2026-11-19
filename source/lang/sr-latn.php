@@ -90,6 +90,8 @@ return [
 	'home.cities' => 'Gradovi',
 	'home.more_cities' => 'Još mesta',
 	'home.recent' => 'Najnoviji oglasi',
+	'home.empty_title' => 'Još nema oglasa',
+	'home.empty_text' => 'Place4Market je tek otvoren. Budite među prvima: postavite oglas za dva minuta, besplatno je.',
 	'home.cta_title' => 'Imate nešto za prodaju?',
 	'home.cta_text' => 'Postavite oglas za dva minuta. Besplatno je.',
 
@@ -417,6 +419,7 @@ return [
 	'post.err_title' => 'Unesite naslov (od 3 do 80 znakova).',
 	'post.err_description' => 'Opišite predmet (od 10 do 3000 znakova).',
 	'post.err_condition' => 'Izaberite stanje.',
+	'post.err_limit' => ['one' => 'Dnevno možete postaviti najviše {n} novi oglas. Pokušajte ponovo sutra.', 'few' => 'Dnevno možete postaviti najviše {n} nova oglasa. Pokušajte ponovo sutra.', 'many' => 'Dnevno možete postaviti najviše {n} novih oglasa. Pokušajte ponovo sutra.'],
 	'post.err_price' => 'Unesite cenu ili izaberite „po dogovoru“.',
 	'post.err_photos' => ['one' => 'Najviše {n} fotografija po oglasu.', 'few' => 'Najviše {n} fotografije po oglasu.', 'many' => 'Najviše {n} fotografija po oglasu.'],
 	'post.err_attr' => 'Proverite polje „{field}“.',

@@ -1880,15 +1880,32 @@ function create_remember_token(int $userId, string $selector, string $validatorH
 		[$userId, $selector, $validatorHash, $ttlSeconds]);
 }
 
-// ['user_id', 'validator_hash'] of a live token, or null
+// ['user_id', 'validator_hash', 'retired' (bool: replaced a moment ago, see retire_remember_token())]
+// of a live token, or null
 function find_remember_token(string $selector): ?array
 {
-	return db_one('SELECT user_id, validator_hash FROM remember_tokens WHERE selector = ? AND expires_at > UTC_TIMESTAMP()', [$selector]);
+	$row = db_one('SELECT user_id, validator_hash, expires_at <= UTC_TIMESTAMP() + INTERVAL ? SECOND AS retired
+		FROM remember_tokens WHERE selector = ? AND expires_at > UTC_TIMESTAMP()', [REMEMBER_GRACE, $selector]);
+
+	return $row ? ['retired' => (bool) $row['retired']] + $row : null;
+}
+
+// A used token lives REMEMBER_GRACE seconds more instead of going at once: requests sent with it
+// at the same moment (several tabs restored together) still sign in (auth.php, remember_login())
+function retire_remember_token(string $selector): void
+{
+	db_exec('UPDATE remember_tokens SET expires_at = LEAST(expires_at, UTC_TIMESTAMP() + INTERVAL ? SECOND) WHERE selector = ?', [REMEMBER_GRACE, $selector]);
 }
 
 function delete_remember_token(string $selector): void
 {
 	db_exec('DELETE FROM remember_tokens WHERE selector = ?', [$selector]);
+}
+
+// Tokens past their time (cron.php); returns how many
+function delete_old_remember_tokens(): int
+{
+	return db_exec('DELETE FROM remember_tokens WHERE expires_at < UTC_TIMESTAMP()');
 }
 
 // Rate limits: attempts of an action by a key (sha256 of IP or email) in the last $seconds

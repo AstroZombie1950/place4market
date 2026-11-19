@@ -15,6 +15,9 @@
 const SESSION_COOKIE = 'p4m_sid';
 const REMEMBER_COOKIE = 'p4m_remember';
 const REMEMBER_TTL = 30 * 86400;
+// A replaced "remember me" token still signs in this long: tabs restored together send the same
+// cookie at once, and the first one replaces it (remember_login())
+const REMEMBER_GRACE = 60;
 const PASSWORD_MIN = 8;
 // bcrypt reads 72 bytes; longer input is refused instead of silently cut
 const PASSWORD_MAX = 72;
@@ -168,21 +171,36 @@ function remember_issue(int $userId): void
 	auth_cookie(REMEMBER_COOKIE, $selector . ':' . $validator, time() + REMEMBER_TTL);
 }
 
-// Log in by the cookie; the token is used up and replaced. User id or null
+// Log in by the cookie; the token is used up and replaced. User id or null.
+// Several requests with one cookie at once (tabs restored together): the first replaces the token,
+// the others find it retired (REMEMBER_GRACE) and sign in without a new one, leaving the browser
+// the new cookie. An unknown selector (already gone, expired) leaves the cookie alone: a parallel
+// request may have just set the new one, and clearing it here would undo that (audit 18.11, B3).
+// A known selector with a wrong validator is a stolen or forged cookie: the token goes
 function remember_login(): ?int
 {
 	[$selector, $validator] = array_pad(explode(':', (string) $_COOKIE[REMEMBER_COOKIE], 2), 2, '');
 	$token = $selector !== '' ? find_remember_token($selector) : null;
 
-	if ($selector !== '') {
-		delete_remember_token($selector);
-	}
-
-	if (!$token || !hash_equals($token['validator_hash'], hash('sha256', $validator))) {
-		auth_cookie(REMEMBER_COOKIE, '', -1);
+	if (!$token) {
 		return null;
 	}
 
+	if (!hash_equals($token['validator_hash'], hash('sha256', $validator))) {
+		delete_remember_token($selector);
+		auth_cookie(REMEMBER_COOKIE, '', -1);
+		log_event('warning', 'Remember-me cookie with a wrong validator', ['user_id' => $token['user_id']], 'audit');
+
+		return null;
+	}
+
+	if ($token['retired']) {
+		login_user($token['user_id']);
+
+		return $token['user_id'];
+	}
+
+	retire_remember_token($selector);
 	login_user($token['user_id'], true);
 
 	return $token['user_id'];
@@ -228,6 +246,8 @@ const RATE_LIMITS = [
 	'photo_upload' => [120, 3600],
 	// Videos started per account a day (each one is up to VIDEO_MAX_BYTES on the disk until processed)
 	'video_upload' => [10, 86400],
+	// New listings (drafts too) per account a day; staff are not counted (post.php, audit 18.11)
+	'listing_new' => [5, 86400],
 	'report' => [10, 3600],
 	'review' => [10, 86400],
 	// An SMS costs money (codes.php): per account, per number and per IP a day. No ceiling for the

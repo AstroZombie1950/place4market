@@ -93,9 +93,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$hasCondition = $child && category_has_condition($child['slug']);
 	[$attrs, $attrError] = $child ? clean_attrs($child['slug'], $v['attrs'], !$isDraft) : [[], ''];
 	[$facets, $facetError] = $child ? clean_facets($child['slug'], $parent['slug'], $v['city'], $v, !$isDraft) : [[], ''];
+	// A new listing row (a draft or sent at once) counts against RATE_LIMITS['listing_new']; edits do not
+	$newRow = $editId === null && !is_staff();
+	$limited = $newRow && rate_limited('listing_new', (string) $me['id']);
+	if ($limited) {
+		log_event('warning', 'New listing rate limit', ['user_id' => $me['id']], 'audit');
+	}
 
 	if (!csrf_valid()) {
 		$error = t('auth.err_csrf');
+	} elseif ($limited) {
+		$error = tp('post.err_limit', RATE_LIMITS['listing_new'][0]);
 	} elseif ($isDraft) {
 		// Draft: only the category is required (the listing row needs it); the rest is kept as far as valid
 		if (!$child || $parent['slug'] !== $v['category']) {
@@ -110,6 +118,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				'contact' => $canCall ? $v['contact'] : 'messages',
 				'photos' => array_slice($v['photos'], 0, setting('max_photos')),
 			]);
+			if ($newRow) {
+				rate_hit('listing_new', (string) $me['id']);
+			}
 			log_action('listing.draft', ['listing_id' => $id, 'photos' => min(setting('max_photos'), count($v['photos']))]);
 			flash('success', t('post.draft_saved'));
 			redirect(url('post.php', ['id' => $id]));
@@ -155,6 +166,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			'price' => $v['agreement'] ? null : $price, 'condition' => $hasCondition ? $v['condition'] : null,
 			'attrs' => $attrs, 'facets' => $facets, 'city' => $v['city'], 'contact' => $v['contact'], 'photos' => $v['photos'], 'moderation_note' => $note,
 		], $publish);
+		if ($newRow) {
+			rate_hit('listing_new', (string) $me['id']);
+		}
 		log_action($isNew ? 'listing.create' : 'listing.update', ['listing_id' => $id, 'photos' => count($v['photos'])]
 			+ ($publish ? ['published' => true] : []) + ($note ? ['note' => $note] : []));
 		flash('success', t($publish ? 'post.published' : ($isNew ? 'post.submitted' : ($editing['status'] === 'pending' ? 'post.saved_pending' : 'post.updated'))));

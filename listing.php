@@ -63,6 +63,8 @@ $relatedLinks = $listing['status'] === 'active' ? landing_links(listing_landings
 
 // "Write to seller": messages.php opens the conversation about this listing or starts one
 $messageUrl = url('messages.php', ['listing' => $listing['id']]);
+// Back here after the login page (calls, report). Counted now: the "similar" cards below reuse $listing
+$listingUrl = listing_url($listing);
 
 // Breadcrumbs
 $crumbs = [
@@ -198,7 +200,7 @@ require INC_DIR . '/header.php';
 					<button type="button" class="btn <?= $contactWays['messages'] ? 'btn--outline' : 'btn--primary btn--lg' ?> btn--block" data-reveal-phone="<?= $phoneFor ?>"><?= icon('call', 18) ?><?= e(t('l.show_phone')) ?></button>
 					<?php elseif ($phoneFor): ?>
 					<!-- Guests: the number is for logged-in users only (phone.php) -->
-					<a class="btn <?= $contactWays['messages'] ? 'btn--outline' : 'btn--primary btn--lg' ?> btn--block" href="<?= e(url('auth.php', ['next' => listing_url($listing)])) ?>" rel="nofollow"><?= icon('call', 18) ?><?= e(t('l.phone_login')) ?></a>
+					<a class="btn <?= $contactWays['messages'] ? 'btn--outline' : 'btn--primary btn--lg' ?> btn--block" href="<?= e(url('auth.php', ['next' => $listingUrl])) ?>" rel="nofollow"><?= icon('call', 18) ?><?= e(t('l.phone_login')) ?></a>
 					<?php endif; ?>
 					<?php elseif ($listing['status'] !== 'sold'): ?>
 					<a class="btn btn--outline btn--block" href="<?= e(url('post.php', ['id' => $listing['id']])) ?>"><?= icon('edit', 18) ?><?= e(t('common.edit')) ?></a>
@@ -247,7 +249,7 @@ require INC_DIR . '/header.php';
 						<?php if ($canReport && current_user()): ?>
 						<button type="button" class="text-link" data-dialog-open="report-dialog"><?= icon('flag', 16) ?><?= e(t('l.report')) ?></button>
 						<?php elseif ($canReport): ?>
-						<a class="text-link" href="<?= e(url('auth.php', ['next' => listing_url($listing)])) ?>" title="<?= e(t('l.report_login')) ?>"><?= icon('flag', 16) ?><?= e(t('l.report')) ?></a>
+						<a class="text-link" href="<?= e(url('auth.php', ['next' => $listingUrl])) ?>" title="<?= e(t('l.report_login')) ?>"><?= icon('flag', 16) ?><?= e(t('l.report')) ?></a>
 						<?php endif; ?>
 					</div>
 				</div>
@@ -307,7 +309,7 @@ require INC_DIR . '/header.php';
 	<?php endif; ?>
 	<?php if ($phoneFor && !current_user() && !$contactWays['messages']): ?>
 	<!-- Guests: only when the seller takes calls only (otherwise "Message", as before) -->
-	<a class="btn btn--primary" href="<?= e(url('auth.php', ['next' => listing_url($listing)])) ?>" rel="nofollow"><?= icon('call', 18) ?><?= e(t('l.call')) ?></a>
+	<a class="btn btn--primary" href="<?= e(url('auth.php', ['next' => $listingUrl])) ?>" rel="nofollow"><?= icon('call', 18) ?><?= e(t('l.call')) ?></a>
 	<?php endif; ?>
 	<?php if ($contactWays['messages']): ?>
 	<a class="btn btn--primary" href="<?= e($messageUrl) ?>"><?= icon('message', 18) ?><?= e(t('l.message')) ?></a>

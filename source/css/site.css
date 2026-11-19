@@ -5195,11 +5195,29 @@ a.thread__name-text:hover {
 
 	.site-header__top {
 		flex-wrap: nowrap;
-		column-gap: var(--space-3);
+		column-gap: var(--space-4);
+	}
+
+	/* Logo fills the row up to the language switch (client, 19.11), no wider than in the footer
+		on desktop: 280px; height follows the picture (width/height attributes, no CLS) */
+	.logo {
+		flex: 1 1 auto;
+		min-width: 0;
+		max-width: 280px;
 	}
 
 	.logo__img {
-		height: 52px;
+		width: 100%;
+		height: auto;
+	}
+
+	.site-header__spacer {
+		display: none;
+	}
+
+	.lang-switch {
+		flex: none;
+		margin-left: auto;
 	}
 
 	.account-nav,
@@ -5825,6 +5843,16 @@ a.thread__name-text:hover {
 
 	.site-footer__col--categories {
 		grid-column: 1 / -1;
+	}
+
+	/* Logo across the whole column (client, 19.11), up to 480px on the widest phones */
+	.site-footer__logo {
+		display: flex;
+	}
+
+	.site-footer__logo .logo__img {
+		width: 100%;
+		max-width: 480px;
 	}
 
 	.site-footer__col--categories .site-footer__links {

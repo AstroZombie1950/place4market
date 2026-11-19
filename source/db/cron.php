@@ -21,7 +21,7 @@
 	  also (or only) wait for their open tab (notifications, notify.php); shown
 	  and stale ones are deleted
 	- session files older than the session lifetime and old sign-in tokens
-	  are deleted (PHP's own cleanup runs once in 1000 requests on the server)
+	  (e-mail links, expired "remember me") are deleted (PHP's own cleanup runs once in 1000 requests on the server)
 	- EUR rate: once a day from outside when "update automatically" is on
 	  (rates.php); after a failure it is tried again next run
 	- disk usage: the uploads, the video queue, journal and session files and
@@ -224,7 +224,7 @@ try {
 	delete_old_notifications();
 	delete_old_verify_codes();
 	$sessions = purge_session_files();
-	$tokens = delete_old_auth_tokens();
+	$tokens = delete_old_auth_tokens() + delete_old_remember_tokens();
 } catch (Throwable $e) {
 	log_exception($e);
 }
