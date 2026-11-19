@@ -145,6 +145,19 @@ function asset(string $path): string
 	return ASSETS_URL . '/' . $path . (is_file($file) ? '?v=' . filemtime($file) : '');
 }
 
+// Logo widths in source/img/logo/logo-<w>.webp (the client's picture, 1080x542, 2 : 1)
+const LOGO_WIDTHS = [208, 336, 560, 840];
+
+// The logo picture. $sizes: its width on the page (header: 168px, phones 104px; footer: 280px);
+// $alt empty when the link around it is labelled already
+function site_logo(string $sizes, string $alt = '', bool $lazy = false): string
+{
+	$srcset = implode(', ', array_map(fn($w) => asset('img/logo/logo-' . $w . '.webp') . ' ' . $w . 'w', LOGO_WIDTHS));
+
+	return '<img class="logo__img" src="' . e(asset('img/logo/logo-336.webp')) . '" srcset="' . e($srcset) . '" sizes="' . e($sizes) . '"'
+		. ' width="168" height="84" alt="' . e($alt) . '"' . ($lazy ? ' loading="lazy"' : '') . ' decoding="async">';
+}
+
 // Listing photo URL: photo_url($photo, 480) → /source/img/demo/1048-1/480.webp,
 // /uploads/listings/…/480.webp or, for a photo in the cloud, https://<bucket URL>/uploads/listings/…/480.webp
 // $photo: ['path' => stored path (storage.php), 'color' => '#rrggbb', 'sizes' => [long side => [w, h]]]

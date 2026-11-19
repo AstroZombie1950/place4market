@@ -50,7 +50,7 @@ function seo_head(): string
 	$title = $page['title'] !== '' ? $page['title'] . ' — ' . SITE_NAME : t('meta.title');
 	$canonical = canonical_url();
 	$locale = fn(string $code) => str_replace('@latin', '', lang_meta($code)['locale']);
-	$image = site_url(ASSETS_URL . '/img/og-image.png');
+	$image = site_url(ASSETS_URL . '/img/og-image.jpg');
 
 	$tags = [
 		'<title>' . e($title) . '</title>',
@@ -182,7 +182,7 @@ function schema_listing(array $listing, array $seller, array $category): array
 		// All photos in the largest size; the site image when there are none
 		'image' => $listing['images']
 			? array_map(fn($photo) => site_url(photo_url($photo, array_key_first($photo['sizes']))), $listing['images'])
-			: site_url(ASSETS_URL . '/img/og-image.png'),
+			: site_url(ASSETS_URL . '/img/og-image.jpg'),
 		'offers' => $offer,
 	];
 	if ($videos) {

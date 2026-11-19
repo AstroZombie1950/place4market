@@ -21,17 +21,17 @@ $searchCity = (string) ($_GET['city'] ?? (current_script() === 'category.php' ? 
 	<?= seo_head() ?>
 
 	<!-- Icons, theme -->
-	<link rel="icon" href="/favicon.ico" sizes="32x32">
+	<link rel="icon" href="/favicon.ico?v=<?= (int) @filemtime(ROOT_DIR . '/favicon.ico') ?>" sizes="32x32">
 	<link rel="icon" href="<?= asset('img/icons/favicon.svg') ?>" type="image/svg+xml">
 	<link rel="apple-touch-icon" href="<?= asset('img/icons/apple-touch-icon.png') ?>">
 	<link rel="manifest" href="/site.webmanifest">
-	<meta name="theme-color" content="#FBF8F2">
+	<meta name="theme-color" content="#0A2E7A">
 
 	<!-- Fonts of the first screen (self-hosted, see variables.css): Cyrillic or Latin set.
 	     Same URLs as in the CSS, no ?v= (a changed font gets a new file name) -->
 	<?php $fontSet = lang() === 'sr-cyrl' ? 'cyrillic' : 'latin'; ?>
-	<link rel="preload" href="<?= ASSETS_URL ?>/fonts/source-sans-3-<?= $fontSet ?>.woff2" as="font" type="font/woff2" crossorigin>
-	<link rel="preload" href="<?= ASSETS_URL ?>/fonts/lora-<?= $fontSet ?>.woff2" as="font" type="font/woff2" crossorigin>
+	<link rel="preload" href="<?= ASSETS_URL ?>/fonts/inter-<?= $fontSet ?>.woff2" as="font" type="font/woff2" crossorigin>
+	<link rel="preload" href="<?= ASSETS_URL ?>/fonts/manrope-<?= $fontSet ?>.woff2" as="font" type="font/woff2" crossorigin>
 
 	<link rel="stylesheet" href="<?= asset('css/variables.css') ?>">
 	<link rel="stylesheet" href="<?= asset('css/site.css') ?>">
@@ -49,7 +49,7 @@ $searchCity = (string) ($_GET['city'] ?? (current_script() === 'category.php' ? 
 	<div class="container site-header__inner">
 		<!-- Top row: logo, language, account, CTA -->
 		<div class="site-header__top">
-			<a class="logo" href="<?= e(url('index.php')) ?>" aria-label="Place4Market — <?= e(t('nav.home')) ?>">Place<span class="logo__4">4</span>Market</a>
+			<a class="logo" href="<?= e(url('index.php')) ?>" aria-label="Place4Market — <?= e(t('nav.home')) ?>"><?= site_logo('(max-width: 767px) 104px, (max-width: 1023px) 144px, 168px') ?></a>
 
 			<span class="site-header__spacer"></span>
 

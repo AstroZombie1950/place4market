@@ -1,14 +1,92 @@
 /* ==========================================================================
-	Place4Market — design tokens (option C: local & warm)
-	Shared by the site and the admin. Change values here, not in components.
+	Place4Market — design tokens. Change values here, not in components.
+	:root — the admin (option C: local & warm, kept as it was) and everything
+	shared (spacing, radius, layout). .site — the site's own palette and fonts
+	(client's logo, 14.11.2026: navy + orange), set on <body class="site">.
 	========================================================================== */
 
 /* ==========================================================================
-	Fonts: self-hosted Lora (500–700, italic digits for the logo "4")
-	and Source Sans 3 (400–700), variable woff2 split like Google Fonts:
-	latin / latin-ext (Serbian Latin) / cyrillic, so a page loads only what it uses.
+	Fonts, self-hosted variable woff2 split like Google Fonts: latin /
+	latin-ext (Serbian Latin) / cyrillic, so a page loads only what it uses.
+	Site: Manrope (500–800, headings, prices) and Inter (400–700, text).
+	Admin: Lora (500–700) and Source Sans 3 (400–700).
+	A browser downloads only the faces its page uses.
 	Fallback faces copy the web fonts' metrics, so the swap doesn't shift the layout.
 	========================================================================== */
+@font-face {
+	font-family: "Manrope";
+	font-style: normal;
+	font-weight: 500 800;
+	font-display: swap;
+	src: url("../fonts/manrope-latin.woff2") format("woff2");
+	unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+	font-family: "Manrope";
+	font-style: normal;
+	font-weight: 500 800;
+	font-display: swap;
+	src: url("../fonts/manrope-latin-ext.woff2") format("woff2");
+	unicode-range: U+0100-017F, U+0218-021B, U+1E9E, U+20A0-20AB, U+20AD-20C0, U+2113;
+}
+
+@font-face {
+	font-family: "Manrope";
+	font-style: normal;
+	font-weight: 500 800;
+	font-display: swap;
+	src: url("../fonts/manrope-cyrillic.woff2") format("woff2");
+	unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+	font-family: "Inter";
+	font-style: normal;
+	font-weight: 400 700;
+	font-display: swap;
+	src: url("../fonts/inter-latin.woff2") format("woff2");
+	unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+	font-family: "Inter";
+	font-style: normal;
+	font-weight: 400 700;
+	font-display: swap;
+	src: url("../fonts/inter-latin-ext.woff2") format("woff2");
+	unicode-range: U+0100-017F, U+0218-021B, U+1E9E, U+20A0-20AB, U+20AD-20C0, U+2113;
+}
+
+@font-face {
+	font-family: "Inter";
+	font-style: normal;
+	font-weight: 400 700;
+	font-display: swap;
+	src: url("../fonts/inter-cyrillic.woff2") format("woff2");
+	unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+/* Metrics from the woff2 files (Manrope at 700 against Arial Bold, Inter at 400 against Arial) */
+@font-face {
+	font-family: "Manrope Fallback";
+	src: local("Arial Bold"), local("Arial-BoldMT"), local("Arial");
+	size-adjust: 101.43%;
+	ascent-override: 105.1%;
+	descent-override: 29.58%;
+	line-gap-override: 0%;
+}
+
+@font-face {
+	font-family: "Inter Fallback";
+	src: local("Arial");
+	size-adjust: 107.48%;
+	ascent-override: 90.14%;
+	descent-override: 22.44%;
+	line-gap-override: 0%;
+}
+
+
 @font-face {
 	font-family: "Lora";
 	font-style: normal;
@@ -34,15 +112,6 @@
 	font-display: swap;
 	src: url("../fonts/lora-cyrillic.woff2") format("woff2");
 	unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
-}
-
-@font-face {
-	font-family: "Lora";
-	font-style: italic;
-	font-weight: 700;
-	font-display: swap;
-	src: url("../fonts/lora-italic-digits.woff2") format("woff2");
-	unicode-range: U+0020, U+0030-0039;
 }
 
 @font-face {
@@ -209,6 +278,7 @@
 	/* Typography */
 	--font-sans: "Source Sans 3", "Source Sans 3 Fallback", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 	--font-serif: "Lora", "Lora Fallback", Georgia, "Times New Roman", serif;
+	--font-heading: var(--font-serif);    /* headings, prices (the site: Manrope, below) */
 	--font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 	--fs-xs: 12px;
 	--fs-sm: 14px;
@@ -283,6 +353,114 @@
 	--z-overlay: 90;
 	--z-sidebar: 100;
 	--z-toast: 300;
+}
+
+/* ==========================================================================
+	The site (<body class="site">): navy + orange from the client's logo.
+	Overrides :root for every page of the site; the admin keeps :root.
+	Orange fills carry navy text (white on #F97316 is 2.8 : 1, navy 6 : 1).
+	========================================================================== */
+.site {
+	/* Brand: orange accent */
+	--color-accent: #F97316;
+	--color-accent-hover: #EA580C;
+	--color-accent-ink: #C2410C;          /* accent for text on light backgrounds (AA) */
+	--color-accent-soft: #FFEDD5;
+	--color-on-accent: #0F1B3D;
+
+	/* Navy (header, footer, badges) and blue */
+	--color-olive: #0A2E7A;
+	--color-olive-soft: #E0E7FF;
+	--color-on-olive: #FFFFFF;
+	--color-sea: #0A2E7A;
+	--color-sea-ink: #1D4ED8;
+	--color-sea-soft: #E0E7FF;
+	--color-on-sea: #FFFFFF;
+	--color-on-sea-muted: #C7D2FE;
+	--color-on-sea-line: rgba(255, 255, 255, 0.2);
+	--color-on-sea-border: rgba(255, 255, 255, 0.35);
+
+	/* Header: navy, light text in its top row (the search keeps the page colors) */
+	--color-header-bg: #0A2E7A;
+	--color-on-header: #FFFFFF;
+	--color-on-header-muted: #C7D2FE;
+	--color-on-header-line: rgba(255, 255, 255, 0.35);
+	--color-on-header-hover: rgba(255, 255, 255, 0.12);
+	--color-on-header-accent: #FDBA74;
+
+	/* Page & neutrals: cool white */
+	--color-bg: #F4F6FA;
+	--color-surface: #FFFFFF;
+	--color-surface-alt: #F8FAFC;
+	--color-hover: #EEF2F7;
+	--color-border: #E2E8F0;
+	--color-border-strong: #CBD5E1;
+	--color-rule: #E2E8F0;
+	--color-dash: #E2E8F0;
+	--color-text: #0F1B3D;
+	--color-text-muted: #5B6478;
+	--color-text-subtle: #6B7489;
+	--color-scrim: rgba(15, 27, 61, 0.78);
+	--color-neutral: #475569;
+	--color-neutral-soft: #EEF2F7;
+
+	/* Toasts */
+	--toast-bg: #0F1B3D;
+	--toast-info: #FDBA74;
+
+	/* Category tints: the same lightness as the admin's, cool */
+	--tint-vehicles-bg: #DCDDE6;
+	--tint-vehicles-fg: #8D8EA2;
+	--tint-real-estate-bg: #D0D7E2;
+	--tint-real-estate-fg: #8494AD;
+	--tint-jobs-bg: #DEE0E4;
+	--tint-jobs-fg: #8D8F96;
+	--tint-services-bg: #E0E6E8;
+	--tint-services-fg: #909CA1;
+	--tint-electronics-bg: #DADDE2;
+	--tint-electronics-fg: #90959C;
+	--tint-appliances-bg: #DEDFE4;
+	--tint-appliances-fg: #8D8F9E;
+	--tint-furniture-bg: #DADDE3;
+	--tint-furniture-fg: #8E949E;
+	--tint-construction-bg: #D6DCE5;
+	--tint-construction-fg: #808EA3;
+	--tint-tools-bg: #DCDEE1;
+	--tint-tools-fg: #8B8E94;
+	--tint-agriculture-bg: #D5DAE4;
+	--tint-agriculture-fg: #788299;
+	--tint-fashion-bg: #DDE2E9;
+	--tint-fashion-fg: #8E9AAB;
+	--tint-kids-bg: #DADFE7;
+	--tint-kids-fg: #8F9EB4;
+	--tint-sports-bg: #D1D6E2;
+	--tint-sports-fg: #778094;
+	--tint-beauty-health-bg: #DFE5EB;
+	--tint-beauty-health-fg: #92A1B0;
+	--tint-pets-bg: #D7DCE5;
+	--tint-pets-fg: #7E8FA8;
+	--tint-holidays-bg: #D8DDE6;
+	--tint-holidays-fg: #8090AB;
+	--tint-music-bg: #DCE2E6;
+	--tint-music-fg: #909DA4;
+	--tint-books-bg: #D5DBE5;
+	--tint-books-fg: #7F8B9F;
+	--tint-antiques-bg: #D2D8E2;
+	--tint-antiques-fg: #7889A3;
+	--tint-other-bg: #DFE1E4;
+	--tint-other-fg: #91959B;
+
+	/* Typography */
+	--font-sans: "Inter", "Inter Fallback", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+	--font-heading: "Manrope", "Manrope Fallback", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+
+	/* Shadows, focus */
+	--shadow-sm: 0 1px 2px rgba(15, 27, 61, 0.05);
+	--shadow-md: 0 4px 14px rgba(15, 27, 61, 0.08);
+	--shadow-lg: 0 14px 36px rgba(15, 27, 61, 0.18);
+	--backdrop: rgba(15, 27, 61, 0.55);
+	--focus-color: #0F1B3D;
+	--focus-ring: 0 0 0 3px rgba(249, 115, 22, 0.35);
 }
 
 /* Tighter gutter on tablets and phones */

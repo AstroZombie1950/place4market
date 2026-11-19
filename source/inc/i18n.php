@@ -366,7 +366,7 @@ function lang_url(string $code): string
 }
 
 // Serbian Latin → Cyrillic. Keeps placeholders, tags, abbreviations,
-// words with digits or q/w/x/y, and brand names in Latin.
+// words with digits or q/w/x/y, foreign spellings (ch, th, ThinkPad) and brand names in Latin.
 function sr_cyr(string $text): string
 {
 	static $map = [
@@ -435,8 +435,11 @@ function sr_cyr(string $text): string
 
 			return $said === null ? $word : ($word[0] === $phrase[0] ? $said : mb_strtoupper(mb_substr($said, 0, 1)) . mb_substr($said, 1));
 		}
-		// A brand, an abbreviation, a word with a digit, q/w/x/y or a letter Serbian has not (Kärcher)
-		if (in_array($word, $keep, true) || preg_match('/\d|[qwxyQWXY]|\p{Lu}{2,}|[^\x00-\x7FčćđšžČĆĐŠŽ\p{Cyrillic}]/u', $word)) {
+		// A brand, an abbreviation, a word with a digit, q/w/x/y or a letter Serbian has not (Kärcher);
+		// a foreign name: ch / kh / gh, th / ph (not the Serbian prefix + h- of prethodni, neophodan, pothranjen),
+		// a capital inside the word (ThinkPad) — letter by letter they come out wrong: Цхарге, Ламборгхини (N2)
+		if (in_array($word, $keep, true) || preg_match('/\d|[qwxyQWXY]|\p{Lu}{2,}|[^\x00-\x7FčćđšžČĆĐŠŽ\p{Cyrillic}]/u', $word)
+			|| preg_match('/(?i:[cgk]h|[tp]h(?!od|ođ|ran|rv|vat))|\p{Ll}\p{Lu}/u', $word)) {
 			return $word;
 		}
 

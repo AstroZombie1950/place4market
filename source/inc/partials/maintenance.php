@@ -18,7 +18,7 @@
 <body class="site">
 <main class="container page">
 	<div class="empty">
-		<span class="logo">Place<span class="logo__4">4</span>Market</span>
+		<span class="logo"><?= site_logo('168px', 'Place4Market') ?></span>
 		<h1 class="empty__title"><?= e(t('maint.title')) ?></h1>
 		<p><?= e(t('maint.text')) ?></p>
 	</div>

@@ -6,7 +6,8 @@
 	(video-upload.php; they may still be processed), details as attrs[].
 	New ads and edited ones go to moderation (status pending). A published ad edited
 	without changes, or only in price, currency, "negotiable / by agreement", the way to
-	reach the seller and removed or reordered photos, stays as it is (checklist 9.2, M3).
+	reach the seller and removed or reordered photos, stays as it is (checklist 9.2, M3);
+	a waiting one keeps waiting, a rejected one always goes back to a moderator (N3).
 	The advertiser (private / business) is the account's (profile, 035).
 	action=draft: saved as a draft with lighter checks (a new ad or a draft only),
 	then the form opens again for that draft.
@@ -31,6 +32,9 @@ if ($editId !== null && (!$editing || $editing['user_id'] !== $me['id'] || in_ar
 $isNew = !$editing || $editing['status'] === 'draft';
 // Calls go to the confirmed phone of the profile only (listing_contact())
 $canCall = $me['verified'] && $me['phone'] !== null;
+// A published ad whose edits a moderator checks (post_route()): the form says which ones (N3)
+$editsChecked = $editing && in_array($editing['status'], ['active', 'expired'], true) && setting('premoderate_edits')
+	&& !(setting('trust_verified') && $me['email_verified'] && $me['verified']);
 
 // Form values: the ad being edited (or defaults), replaced by the sent form
 $v = [
@@ -132,15 +136,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$error = tp('post.err_photos', setting('max_photos'));
 	} elseif (empty($_POST['terms'])) {
 		$error = t('auth.err_terms');
-	} elseif ($editing && !$isNew && !needs_moderation($editing, $v, $attrs, $facets, $hasCondition)) {
-		// A published ad and nothing for a moderator: saved in its status, stays published (M3)
+	} elseif ($editing && in_array($editing['status'], ['active', 'expired', 'pending'], true)
+		&& !needs_moderation($editing, $v, $attrs, $facets, $hasCondition)) {
+		// Nothing for a moderator: saved in its status — a published ad stays published (M3), a waiting one
+		// keeps waiting (N3). A rejected ad always goes back to a moderator: the author sends it to be checked again
 		post_save($me, $v, $editId, [
 			'status' => $editing['status'], 'title' => $v['title'], 'description' => $v['description'],
 			'price' => $v['agreement'] ? null : $price, 'condition' => $hasCondition ? $v['condition'] : null,
 			'attrs' => $attrs, 'facets' => $facets, 'city' => $v['city'], 'contact' => $v['contact'], 'photos' => $v['photos'],
 		]);
 		log_action('listing.update', ['listing_id' => $editId, 'photos' => count($v['photos']), 'moderation' => false]);
-		flash('success', t('post.saved_live'));
+		flash('success', t($editing['status'] === 'pending' ? 'post.saved_pending' : 'post.saved_live'));
 		redirect(url('profile.php'));
 	} else {
 		[$publish, $note] = post_route($me, $editing, $v['title'] . "\n" . $v['description']);
@@ -151,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		], $publish);
 		log_action($isNew ? 'listing.create' : 'listing.update', ['listing_id' => $id, 'photos' => count($v['photos'])]
 			+ ($publish ? ['published' => true] : []) + ($note ? ['note' => $note] : []));
-		flash('success', t($publish ? 'post.published' : ($isNew ? 'post.submitted' : 'post.updated')));
+		flash('success', t($publish ? 'post.published' : ($isNew ? 'post.submitted' : ($editing['status'] === 'pending' ? 'post.saved_pending' : 'post.updated'))));
 		redirect(url('profile.php'));
 	}
 }
@@ -162,10 +168,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // them do not (the photos and videos that stay were checked already)
 function needs_moderation(array $editing, array $v, array $attrs, array $facets, bool $hasCondition): bool
 {
-	// The stored texts the way the form sends them (older rows may keep extra spaces or \r\n)
+	// The stored values the way the form sends them: older rows may keep extra spaces or \r\n in the texts
+	// and details as typed ("168 000 km" instead of 168000, N1) — passed through the form's own cleaning
+	[$wasAttrs] = clean_attrs($editing['category'], array_map('attr_input_value', $editing['attrs'] ?? []), false);
 	$was = [
 		$editing['category'], trim(preg_replace('/\s+/u', ' ', $editing['title'])), trim(str_replace("\r\n", "\n", $editing['description'])),
-		$editing['condition'], $editing['attrs'],
+		$editing['condition'], $wasAttrs,
 		$editing['deal'], $editing['type'], $editing['brand'], $editing['city'], $editing['district'],
 	];
 	$now = [
@@ -549,11 +557,14 @@ require INC_DIR . '/header.php';
 			<!-- Terms + submit -->
 			<div class="form-card">
 				<label class="check"><input type="checkbox" name="terms" required><span><?= terms_label('post.terms') ?></span></label>
+				<?php if ($editsChecked): ?>
+				<p class="field__hint post__edit-hint"><?= e(t('post.edit_hint')) ?></p>
+				<?php endif; ?>
 				<div class="form-actions">
 					<?php if ($isNew): ?>
 					<button type="submit" class="btn btn--outline" name="action" value="draft" formnovalidate><?= e(t('post.draft')) ?></button>
 					<?php endif; ?>
-					<button type="submit" class="btn btn--primary btn--lg"><?= icon('check', 20) ?><?= e(t($isNew ? 'post.submit' : 'post.edit_submit')) ?></button>
+					<button type="submit" class="btn btn--primary btn--lg"><?= icon('check', 20) ?><?= e(t($isNew ? 'post.submit' : ($editing['status'] === 'rejected' ? 'post.resubmit' : 'post.edit_submit'))) ?></button>
 				</div>
 			</div>
 		</form>

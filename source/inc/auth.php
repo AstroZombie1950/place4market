@@ -147,6 +147,10 @@ function logout_user(): void
 function require_login(): array
 {
 	if (!current_user()) {
+		// A form sent after the session ended (logged out in another tab): the login page says why (N5)
+		if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+			flash('info', t('auth.signed_out'));
+		}
 		redirect(url('auth.php', ['next' => $_SERVER['REQUEST_URI'] ?? '/']));
 	}
 

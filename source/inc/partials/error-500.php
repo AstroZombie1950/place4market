@@ -28,7 +28,7 @@ $esc = fn($value) => htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 <body class="site">
 <main class="container page">
 	<div class="empty">
-		<a class="logo" href="/">Place<span class="logo__4">4</span>Market</a>
+		<a class="logo" href="/"><img class="logo__img" src="/source/img/logo/logo-336.webp" width="168" height="84" alt="Place4Market"></a>
 		<h1 class="empty__title"><?= $esc($say('500.title', 'Something went wrong')) ?></h1>
 		<p><?= $esc($say('500.text', 'We have already logged the error and will look into it. Please try again in a few minutes.')) ?></p>
 		<p><?= $esc($say('500.code', 'Error code: {code}', ['code' => request_id()])) ?></p>
