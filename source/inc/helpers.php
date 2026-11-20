@@ -72,9 +72,9 @@ function security_headers(bool $analytics = false): void
 }
 
 // Form fields that are lists (attrs[], notify[], photo_ids[], video_ids[], ids[]; admin →
-// Characteristics: options[n][…], rows[id][…]); any other field sent as a list is dropped
+// Characteristics: options[n][…], deals[]); any other field sent as a list is dropped
 // (audit A25: language[]=x in the profile gave a 500)
-const POST_LIST_FIELDS = ['attrs', 'notify', 'photo_ids', 'video_ids', 'ids', 'options', 'rows'];
+const POST_LIST_FIELDS = ['attrs', 'notify', 'photo_ids', 'video_ids', 'ids', 'options', 'deals'];
 
 // Query parameters are strings only: ?deal[]=x gave an array where the code expects a string
 // (a TypeError and a 500, or "Array to string conversion" in the log). No page takes arrays

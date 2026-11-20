@@ -2597,76 +2597,447 @@ code {
 	}
 }
 
+/* ---------- Menu folded to icons (desktop; the button at its bottom, cookie p4m_nav) ---------- */
+
+.sidebar__fold {
+	width: 100%;
+	border: 0;
+	background: none;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.is-nav-mini .sidebar__fold .icon {
+	transform: rotate(180deg);
+}
+
+/* The same 1024 breakpoint as the drawer below it, from the other side: folding is for the desktop only */
+@media (min-width: 1024px) {
+	.is-nav-mini .sidebar {
+		flex-basis: var(--sidebar-width-mini);
+		width: var(--sidebar-width-mini);
+	}
+
+	.is-nav-mini .sidebar__head {
+		justify-content: center;
+		padding: 0 var(--space-2);
+	}
+
+	/* Only the "Admin" chip of the logo */
+	.is-nav-mini .sidebar__logo {
+		font-size: 0;
+	}
+
+	.is-nav-mini .sidebar__nav,
+	.is-nav-mini .sidebar__foot {
+		padding-inline: var(--space-2);
+	}
+
+	/* Group names become thin rules */
+	.is-nav-mini .sidebar__label {
+		height: 1px;
+		margin: 0 var(--space-2) var(--space-2);
+		padding: 0;
+		overflow: hidden;
+		background: var(--sidebar-border);
+		color: transparent;
+	}
+
+	.is-nav-mini .sidebar__link {
+		position: relative;
+		justify-content: center;
+		padding: 0;
+	}
+
+	.is-nav-mini .sidebar__link > span:not(.sidebar__count) {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
+	.is-nav-mini .sidebar__count {
+		position: absolute;
+		top: 2px;
+		right: 6px;
+		min-width: 16px;
+		height: 16px;
+		padding: 0 4px;
+		font-size: 10px;
+		line-height: 16px;
+	}
+}
+
 /* ---------- Characteristics (attributes.php) ---------- */
 
 .attr-tabs {
 	margin-top: var(--space-4);
+	margin-bottom: var(--space-4);
 }
 
-/* Settings of a type: a fieldset (disabled when hidden) whose legend reads like a section title,
-   not drawn on the section's top rule */
-.fieldset.form-section > legend {
-	float: left;
-	width: 100%;
+.attr-down .icon {
+	transform: rotate(180deg);
+}
+
+/* Category picker and the category's head */
+.attr-cat__pick {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-3);
+	padding: var(--space-4) var(--space-5);
+	border-bottom: 1px solid var(--color-border);
+	background: var(--color-bg);
+}
+
+.attr-cat__label {
+	font-weight: var(--fw-semibold);
+}
+
+.attr-cat__pick .cselect,
+.attr-cat__pick .select {
+	flex: 1 1 320px;
+	max-width: 560px;
+}
+
+.attr-cat__head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-3) var(--space-5);
+	padding: var(--space-5);
+	border-bottom: 1px solid var(--color-border);
+}
+
+.attr-cat__name {
+	flex: 1 1 280px;
+	min-width: 0;
+}
+
+.attr-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--space-4);
+	padding: var(--space-10) var(--space-5);
+	color: var(--color-text-muted);
+	text-align: center;
+}
+
+/* One characteristic of the category: ↑ ↓ | name, settings | tags | Edit, Remove */
+.attr-rows {
+	margin: 0;
 	padding: 0;
+	list-style: none;
 }
 
-.fieldset.form-section > legend + * {
-	clear: both;
+.attr-row {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto auto;
+	align-items: center;
+	gap: var(--space-3) var(--space-4);
+	padding: var(--space-3) var(--space-5);
+	border-bottom: 1px solid var(--color-border);
+	scroll-margin-top: calc(var(--topbar-height) + var(--space-4));
 }
 
-/* EN / SR / СР names in one row; one under another on phones */
-.attr-names {
-	grid-template-columns: repeat(3, minmax(0, 1fr));
+.attr-row:last-child {
+	border-bottom: 0;
+}
+
+.attr-row:target {
+	background: var(--color-accent-soft);
+}
+
+.attr-row__move,
+.attr-row__actions,
+.attr-row__tags {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-1);
+}
+
+.attr-row__actions {
 	gap: var(--space-2);
 }
 
-.attr-options .input {
-	min-width: 110px;
+.attr-row__tags {
+	justify-content: flex-end;
 }
 
-.attr-options .attr-options__sort,
-.attr-bound .attr-options__sort {
-	width: 72px;
-	min-width: 0;
+.attr-row__name {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--color-text);
+	font: inherit;
+	font-weight: var(--fw-semibold);
+	text-align: left;
+	cursor: pointer;
 }
 
-/* A characteristic of the subcategory: order, name, "remove"; its deals and options below */
-.attr-bound__item {
-	flex-direction: column;
-	align-items: stretch;
-	padding-inline: 0;
+.attr-row__name:hover {
+	color: var(--color-accent);
+	text-decoration: underline;
 }
 
-.attr-bound__head {
+.attr-row__sub {
+	margin-left: var(--space-2);
+	font-size: var(--fs-sm);
+}
+
+.attr-row__meta {
+	color: var(--color-text-muted);
+	font-size: var(--fs-sm);
+}
+
+/* Windows: a wide one; its form scrolls inside, the head and the buttons stay */
+.modal--lg {
+	width: min(880px, calc(100vw - 32px));
+}
+
+.attr-form,
+.attr-add-existing {
 	display: flex;
-	align-items: center;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.attr-form[hidden],
+.attr-add-existing[hidden] {
+	display: none;
+}
+
+.attr-add-tabs {
+	padding: 0 var(--space-5);
+	border-bottom: 1px solid var(--color-border);
+}
+
+.attr-form__delete {
+	margin-right: auto;
+}
+
+/* EN / SR / СР in one row */
+.attr-names {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: var(--space-3);
 }
 
-.attr-bound__part {
-	margin-left: calc(72px + var(--space-3));
+.attr-names--2 {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.attr-bound__checks {
-	flex-wrap: wrap;
-	gap: var(--space-1) var(--space-4);
+.attr-names + .attr-names__hint {
+	margin-top: calc(var(--space-2) * -1);
 }
 
-.attr-add .select {
+/* Type of a new one: four cards */
+.attr-types {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: var(--space-2);
+}
+
+.attr-types__item {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	padding: var(--space-3);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius);
+	cursor: pointer;
+}
+
+.attr-types__item:has(input:checked) {
+	border-color: var(--color-accent);
+	background: var(--color-accent-soft);
+}
+
+.attr-types__item:has(input:focus-visible) {
+	outline: 2px solid var(--color-accent);
+	outline-offset: 2px;
+}
+
+.attr-types__item input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.attr-types__title {
+	font-weight: var(--fw-semibold);
+}
+
+.attr-types__hint {
+	color: var(--color-text-muted);
+	font-size: var(--fs-xs);
+}
+
+/* Options of a list: ↑ ↓ | EN | SR | СР | here, hide | remove */
+.opt-rows {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	margin: var(--space-2) 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.opt-row {
+	display: grid;
+	grid-template-columns: auto repeat(3, minmax(0, 1fr)) auto auto;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.opt-row[hidden] {
+	display: none;
+}
+
+.opt-row__move,
+.opt-row__flags,
+.opt-row__lock {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+}
+
+.opt-row__flags {
+	gap: var(--space-3);
+	font-size: var(--fs-sm);
+	white-space: nowrap;
+}
+
+.opt-row__lock {
+	min-width: var(--tap-size);
+	justify-content: center;
+	font-size: var(--fs-sm);
+}
+
+.attr-nums {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: var(--space-3);
+}
+
+.attr-more > summary {
+	color: var(--color-text-muted);
+	font-weight: var(--fw-semibold);
+	cursor: pointer;
+}
+
+.attr-more[open] > summary {
+	margin-bottom: var(--space-4);
+}
+
+/* "Made before": a list with search */
+.attr-pick {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.attr-pick__item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-3);
+	padding: var(--space-3) 0;
+	border-bottom: 1px solid var(--color-border);
+}
+
+.attr-pick__item[hidden] {
+	display: none;
+}
+
+.attr-pick__main {
 	min-width: 0;
 }
 
+.attr-pick__none {
+	padding: var(--space-4) 0;
+}
+
+.attr-copy {
+	padding-top: var(--space-4);
+	border-top: 1px solid var(--color-border);
+}
+
 @media (max-width: 1023px) {
-	.attr-names {
+	.sidebar__fold {
+		display: none;
+	}
+
+	.attr-row {
+		grid-template-columns: auto minmax(0, 1fr);
+	}
+
+	.attr-row__tags,
+	.attr-row__actions {
+		grid-column: 2;
+		justify-content: flex-start;
+	}
+
+	.attr-types,
+	.attr-nums {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (max-width: 767px) {
+	.attr-cat__head > .btn {
+		width: 100%;
+	}
+
+	.attr-names,
+	.attr-names--2 {
 		grid-template-columns: minmax(0, 1fr);
 	}
 
-	.attr-bound__part {
-		margin-left: 0;
+	/* An option: ↑ ↓ on the left, its three names one under another, the flags and remove below */
+	.opt-row {
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		padding-bottom: var(--space-2);
+		border-bottom: 1px solid var(--color-border);
 	}
 
-	.attr-add {
+	.opt-row__move {
+		grid-row: 1 / span 3;
+		flex-direction: column;
+	}
+
+	.opt-row > .input {
+		grid-column: 2;
+	}
+
+	.opt-row__flags {
+		grid-column: 2;
+	}
+
+	.opt-row > .btn,
+	.opt-row__lock {
+		grid-column: 3;
+		grid-row: 1;
+	}
+
+	/* Windows on the whole screen */
+	.modal--lg {
+		width: 100vw;
+		max-width: 100vw;
+		height: 100dvh;
+		max-height: 100dvh;
+		margin: 0;
+		border-radius: 0;
+	}
+
+	.attr-pick__item {
 		flex-wrap: wrap;
 	}
 }

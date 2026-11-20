@@ -334,6 +334,7 @@
 
 	/* Layout: admin */
 	--sidebar-width: 248px;
+	--sidebar-width-mini: 72px; /* admin menu folded to icons */
 	--topbar-height: 60px;
 	--content-max: 1440px;
 

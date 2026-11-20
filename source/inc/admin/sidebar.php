@@ -47,7 +47,7 @@ if (is_admin()) {
 			<ul class="sidebar__list">
 				<?php foreach ($items as $item): ?>
 				<li>
-					<a class="sidebar__link<?= nav_active($item['key'], $activeNav) ?>" href="<?= e($item['href']) ?>"<?= $item['key'] === $activeNav ? ' aria-current="page"' : '' ?>>
+					<a class="sidebar__link<?= nav_active($item['key'], $activeNav) ?>" href="<?= e($item['href']) ?>" title="<?= e($item['label']) ?>"<?= $item['key'] === $activeNav ? ' aria-current="page"' : '' ?>>
 						<?= icon($item['icon']) ?>
 						<span><?= e($item['label']) ?></span>
 						<?php if (!empty($item['count'])): ?>
@@ -63,6 +63,8 @@ if (is_admin()) {
 
 	<!-- Log out -->
 	<div class="sidebar__foot">
-		<a class="sidebar__link" href="logout.php?csrf=<?= e(csrf_token()) ?>"><?= icon('logout') ?><span><?= e(at('nav.logout')) ?></span></a>
+		<!-- Fold the menu to icons / unfold (desktop; kept in the cookie p4m_nav) -->
+		<button type="button" class="sidebar__link sidebar__fold" data-nav-mini aria-pressed="<?= !empty($navMini) ? 'true' : 'false' ?>" title="<?= e(at(!empty($navMini) ? 'nav.unfold' : 'nav.fold')) ?>" data-label-fold="<?= e(at('nav.fold')) ?>" data-label-unfold="<?= e(at('nav.unfold')) ?>"><?= icon('chevron-left') ?><span><?= e(at(!empty($navMini) ? 'nav.unfold' : 'nav.fold')) ?></span></button>
+		<a class="sidebar__link" href="logout.php?csrf=<?= e(csrf_token()) ?>" title="<?= e(at('nav.logout')) ?>"><?= icon('logout') ?><span><?= e(at('nav.logout')) ?></span></a>
 	</div>
 </aside>

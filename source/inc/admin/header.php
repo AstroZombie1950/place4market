@@ -11,6 +11,8 @@ $openReportsCount = report_status_counts()['open'] ?? 0;
 // The language switch returns to this page (with its query); the other language is offered
 $langBack = basename((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH)) . (($query = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_QUERY)) ? '?' . $query : '');
 $otherLang = admin_lang() === 'ru' ? 'en' : 'ru';
+// Menu folded to icons (desktop, the button at its bottom): a cookie, so the page is drawn folded at once
+$navMini = ($_COOKIE['p4m_nav'] ?? '') === 'mini';
 ?>
 <!doctype html>
 <html lang="<?= admin_lang() ?>">
@@ -30,7 +32,7 @@ $otherLang = admin_lang() === 'ru' ? 'en' : 'ru';
 <body class="admin" data-select-search="<?= e(at('common.search')) ?>" data-select-empty="<?= e(at('common.nothing_found')) ?>" data-select-close="<?= e(at('common.close')) ?>">
 <a class="skip-link" href="#content"><?= e(at('head.skip')) ?></a>
 
-<div class="admin-layout">
+<div class="admin-layout<?= $navMini ? ' is-nav-mini' : '' ?>" data-admin-layout>
 	<?php require ADMIN_INC . '/sidebar.php'; ?>
 
 	<!-- Dark overlay behind the mobile sidebar -->

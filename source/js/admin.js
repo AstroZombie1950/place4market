@@ -136,6 +136,21 @@
 		window.matchMedia('(min-width: 1024px)').addEventListener('change', (e) => {
 			if (e.matches) setOpen(false);
 		});
+
+		// Desktop: the menu folded to icons and back; the cookie (a year, admin pages) draws it so next time
+		const layout = $('[data-admin-layout]');
+		const fold = $('[data-nav-mini]');
+		if (layout && fold) {
+			fold.addEventListener('click', () => {
+				const mini = !layout.classList.contains('is-nav-mini');
+				layout.classList.toggle('is-nav-mini', mini);
+				fold.setAttribute('aria-pressed', String(mini));
+				const label = mini ? fold.dataset.labelUnfold : fold.dataset.labelFold;
+				fold.title = label;
+				$('span', fold).textContent = label;
+				document.cookie = 'p4m_nav=' + (mini ? 'mini' : 'full') + '; path=' + location.pathname.replace(/[^/]*$/, '') + '; max-age=31536000; samesite=lax';
+			});
+		}
 	};
 
 	/* ----------------------------------------------------------------------
@@ -561,25 +576,88 @@
 	};
 
 	/* ----------------------------------------------------------------------
-		Characteristic form (attributes.php): a new one's type [data-attr-type]
-		shows its settings [data-type-settings="…"] (the others hidden and
-		disabled, so they send nothing); a text is never a filter
+		Characteristics (attributes.php)
+		- form[data-attr-form]: the type of a new one (radios [data-attr-type])
+		  shows its blocks [data-type-only="bool select…"] (the others hidden and,
+		  fieldsets, disabled: they send nothing)
+		- options of a list: [data-options] rows, [data-option-add] adds one from
+		  <template data-option-tpl> (index "__i__"), [data-option-remove] drops
+		  a new row or marks a stored one for deletion, [data-option-move] up/down
+		  (the server takes the order of the form)
+		- [data-filter-input="list-id"]: hides rows [data-filter-text] of that
+		  list that do not contain the text; [data-filter-empty] when none left
+		- dialog[data-modal-autoopen] opens with the page (an error in its form,
+		  ?edit= in the list)
 		---------------------------------------------------------------------- */
 	const initAttrForm = () => {
 		$$('[data-attr-form]').forEach((form) => {
-			const type = $('[data-attr-type]', form);
-			if (!type) return;
-			const filter = $('[data-filter-switch]', form);
-			const update = () => {
-				$$('[data-type-settings]', form).forEach((block) => {
-					const on = block.dataset.typeSettings === type.value;
-					block.hidden = !on;
-					block.disabled = !on;
+			const radios = $$('[data-attr-type]', form);
+			if (radios.length) {
+				const update = () => {
+					const type = (radios.find((r) => r.checked) || radios[0]).value;
+					$$('[data-type-only]', form).forEach((block) => {
+						const on = block.dataset.typeOnly.split(' ').includes(type);
+						block.hidden = !on;
+						if (block.tagName === 'FIELDSET') block.disabled = !on;
+					});
+				};
+				radios.forEach((r) => r.addEventListener('change', update));
+				update();
+			}
+
+			const list = $('[data-options]', form);
+			const tpl = $('[data-option-tpl]', form);
+			if (!list || !tpl) return;
+			let next = Date.now();
+			$('[data-option-add]', form).addEventListener('click', () => {
+				const holder = document.createElement('div');
+				holder.innerHTML = tpl.innerHTML.replace(/__i__/g, 'n' + (next++));
+				const row = holder.firstElementChild;
+				list.appendChild(row);
+				$('input[type="text"]', row).focus();
+			});
+			list.addEventListener('click', (e) => {
+				const row = e.target.closest('.opt-row');
+				if (!row) return;
+				if (e.target.closest('[data-option-remove]')) {
+					// A new row goes away; a stored one is sent with delete=1 (checked on the server)
+					if (row.hasAttribute('data-new')) {
+						list.removeChild(row);
+					} else {
+						$('[data-option-delete]', row).value = '1';
+						row.hidden = true;
+					}
+					return;
+				}
+				const move = e.target.closest('[data-option-move]');
+				if (!move) return;
+				const up = move.dataset.optionMove === 'up';
+				let other = up ? row.previousElementSibling : row.nextElementSibling;
+				while (other && other.hidden) other = up ? other.previousElementSibling : other.nextElementSibling;
+				if (!other) return;
+				if (up) other.before(row); else other.after(row);
+				move.focus();
+			});
+		});
+
+		$$('[data-filter-input]').forEach((input) => {
+			const box = document.getElementById(input.dataset.filterInput);
+			if (!box) return;
+			const rows = $$('[data-filter-text]', box);
+			const empty = $('[data-filter-empty]', box);
+			input.addEventListener('input', () => {
+				const q = input.value.trim().toLowerCase();
+				let shown = 0;
+				rows.forEach((row) => {
+					row.hidden = q !== '' && !row.dataset.filterText.includes(q);
+					if (!row.hidden) shown++;
 				});
-				if (filter) filter.hidden = type.value === 'text';
-			};
-			type.addEventListener('change', update);
-			update();
+				if (empty) empty.hidden = shown > 0;
+			});
+		});
+
+		$$('dialog[data-modal-autoopen]').forEach((dialog) => {
+			if (typeof dialog.showModal === 'function' && !dialog.open) dialog.showModal();
 		});
 	};
 

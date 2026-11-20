@@ -246,7 +246,7 @@ function category_attribute_rows(): array
 function save_attribute(?int $id, array $f): int
 {
 	$values = [$f['names']['en'], $f['names']['sr-latn'], $f['names']['sr-cyrl'],
-		json_encode($f['config'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), (int) $f['filter'], $f['sort']];
+		json_encode($f['config'] ?: new stdClass(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), (int) $f['filter'], $f['sort']];
 	$set = 'name_en = ?, name_sr_latn = ?, name_sr_cyrl = ?, config = ?, in_filter = ?, sort = ?';
 
 	if ($id === null) {

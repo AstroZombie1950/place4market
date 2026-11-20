@@ -220,7 +220,7 @@ require ADMIN_INC . '/header.php';
 						<label class="switch"><input type="checkbox" role="switch" name="active" value="1"<?= $item['active'] ? ' checked' : '' ?> aria-label="<?= e(at('cat.shown_switch', ['name' => $item['names']['en']])) ?>"></label>
 						<noscript><button type="submit" class="btn btn--ghost btn--sm"><?= e(at('common.apply')) ?></button></noscript>
 						<?php if ($parent && is_admin()): ?>
-						<a class="btn btn--ghost btn--icon btn--sm" href="attributes.php?tab=categories&amp;cat=<?= e(urlencode($item['slug'])) ?>#attr-cat" aria-label="<?= e(at('cat.attributes', ['name' => $item['names']['en']])) ?>" title="<?= e(at('nav.attributes')) ?>"><?= icon('list', 18) ?></a>
+						<a class="btn btn--ghost btn--icon btn--sm" href="attributes.php?cat=<?= e(urlencode($item['slug'])) ?>" aria-label="<?= e(at('cat.attributes', ['name' => $item['names']['en']])) ?>" title="<?= e(at('nav.attributes')) ?>"><?= icon('list', 18) ?></a>
 						<?php endif; ?>
 						<button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="<?= e(at('common.edit_name', ['name' => $item['names']['en']])) ?>" data-edit-category data-payload="<?= attr_json(category_payload($item, $parent)) ?>"><?= icon('edit', 18) ?></button>
 						<?php if (!$count && !($item['children'] ?? [])): ?>
