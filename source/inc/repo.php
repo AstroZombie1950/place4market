@@ -119,6 +119,8 @@ function categories(): array
 				// Serbian one (Latin and Cyrillic pages); without it (before 014) the English one
 				'id' => $r['id'], 'slug' => $r['slug'], 'slug_sr' => ($r['slug_sr'] ?? '') !== '' ? $r['slug_sr'] : $r['slug'],
 				'sort' => $r['sort'], 'active' => (bool) $r['active'],
+				// New / used asked in it (036; before it — yes)
+				'condition' => (bool) ($r['has_condition'] ?? true),
 				'names' => ['en' => $r['name_en'], 'sr-latn' => $r['name_sr_latn'], 'sr-cyrl' => $r['name_sr_cyrl']],
 				'seo' => ['en' => [$r['seo_title_en'], $r['meta_en']], 'sr' => [$r['seo_title_sr'], $r['meta_sr']]],
 				// Heading and SEO text of the page (015; null = the name / none)
@@ -215,6 +217,90 @@ function delete_category(int $id): bool
 	}
 
 	return db_exec('DELETE FROM categories WHERE id = ?', [$id]) > 0;
+}
+
+// New / used asked in a subcategory or not (036; admin → Characteristics)
+function set_category_condition(int $id, bool $on): bool
+{
+	return db_exec('UPDATE categories SET has_condition = ? WHERE id = ?', [(int) $on, $id]) > 0;
+}
+
+/* ---------- Characteristics (036, attrs.php) ---------- */
+
+// Every characteristic, in the order of the admin list (rows of attributes)
+function attribute_rows(): array
+{
+	return db_all('SELECT * FROM attributes ORDER BY sort, id');
+}
+
+// Characteristics of the subcategories: rows with slug (of the category) and code, in their order
+function category_attribute_rows(): array
+{
+	return db_all('SELECT ca.*, c.slug, a.code FROM category_attributes ca
+		JOIN categories c ON c.id = ca.category_id JOIN attributes a ON a.id = ca.attribute_id
+		ORDER BY ca.sort, a.sort, a.id');
+}
+
+// New characteristic or changes to one. $f: code, type (both only for a new one), names (en,
+// sr-latn, sr-cyrl), config (array), filter, sort. Returns the id
+function save_attribute(?int $id, array $f): int
+{
+	$values = [$f['names']['en'], $f['names']['sr-latn'], $f['names']['sr-cyrl'],
+		json_encode($f['config'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), (int) $f['filter'], $f['sort']];
+	$set = 'name_en = ?, name_sr_latn = ?, name_sr_cyrl = ?, config = ?, in_filter = ?, sort = ?';
+
+	if ($id === null) {
+		db_exec('INSERT INTO attributes SET code = ?, type = ?, ' . $set, [$f['code'], $f['type'], ...$values]);
+
+		return (int) db()->lastInsertId();
+	}
+
+	db_exec('UPDATE attributes SET ' . $set . ' WHERE id = ?', [...$values, $id]);
+
+	return $id;
+}
+
+// Listings (any status) that hold a value of a characteristic; with $byValue — value => count
+// (stored values: 'v.diesel', true, 2016…)
+function attribute_listing_count(string $code): int
+{
+	return (int) db_value('SELECT COUNT(*) FROM listings WHERE JSON_EXISTS(attrs, ?)', ['$.' . $code]);
+}
+
+function attribute_value_counts(string $code): array
+{
+	return array_column(db_all('SELECT JSON_VALUE(attrs, ?) AS value, COUNT(*) AS n FROM listings WHERE JSON_EXISTS(attrs, ?) GROUP BY value',
+		['$.' . $code, '$.' . $code]), 'n', 'value');
+}
+
+// Deleted only when no listing holds a value of it; its places in the categories go with it
+function delete_attribute(int $id, string $code): bool
+{
+	if (attribute_listing_count($code) > 0) {
+		return false;
+	}
+
+	return db_exec('DELETE FROM attributes WHERE id = ?', [$id]) > 0;
+}
+
+// The characteristics of a subcategory, replaced as a whole: rows [attribute_id, sort,
+// deals (list, [] = any), options (list of keys, null = all)]
+function save_category_attributes(int $categoryId, array $rows): void
+{
+	db()->beginTransaction();
+	try {
+		db_exec('DELETE FROM category_attributes WHERE category_id = ?', [$categoryId]);
+		foreach ($rows as $r) {
+			db_exec('INSERT INTO category_attributes (category_id, attribute_id, sort, deals, options) VALUES (?, ?, ?, ?, ?)', [
+				$categoryId, $r['attribute_id'], $r['sort'], $r['deals'] ? implode(' ', $r['deals']) : null,
+				$r['options'] !== null ? json_encode(array_values($r['options']), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+			]);
+		}
+		db()->commit();
+	} catch (Throwable $e) {
+		db()->rollBack();
+		throw $e;
+	}
 }
 
 // Places, every one (admin): ['id', 'latn', 'cyrl', 'slug' (Serbian address word), 'slug_en',
@@ -634,17 +720,11 @@ function listing_search_where(array $f): array
 	if (!empty($f['agreement'])) {
 		$where[] = 'l.price IS NULL';
 	}
-	// New build or not (apartments, houses: the switch new_build of attrs.php; checklist 8.1.2, M2)
-	if (($f['build'] ?? '') === 'new') {
-		$where[] = "JSON_VALUE(l.attrs, '$.new_build') IN ('true', '1')";
-	} elseif (($f['build'] ?? '') === 'old') {
-		$where[] = "COALESCE(JSON_VALUE(l.attrs, '$.new_build'), 'false') NOT IN ('true', '1')";
-	}
-	// Checkbox details (attrs.php, type bool): damaged, instalments / leasing
-	foreach (['damaged', 'financing'] as $flag) {
-		if (!empty($f[$flag])) {
-			$where[] = "JSON_VALUE(l.attrs, '$." . $flag . "') = 'true'";
-		}
+	// Characteristics (attrs.php, admin → Characteristics): yes / no, an option, a range of a number
+	if (!empty($f['attrs'])) {
+		[$attrWhere, $attrParams] = attr_filters_where($f['attrs']);
+		array_push($where, ...$attrWhere);
+		array_push($params, ...$attrParams);
 	}
 	if (!empty($f['photos'])) {
 		$where[] = 'EXISTS (SELECT 1 FROM listing_photos p WHERE p.listing_id = l.id)';

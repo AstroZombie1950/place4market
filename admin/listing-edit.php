@@ -16,7 +16,6 @@
 	========================================================================== */
 require __DIR__ . '/../source/inc/admin/bootstrap.php';
 require SOURCE_DIR . '/inc/media.php';
-require SOURCE_DIR . '/inc/attrs.php';
 
 $listingId = (int) ($_GET['id'] ?? 0);
 $listing = find_listing($listingId);
@@ -94,15 +93,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			// Script of the text (Cyrillic or Latin); a Latin text keeps its language (en or sr-latn)
 			$text = $v['title'] . ' ' . $v['description'];
 			$lang = detect_text_lang($text) === 'sr-cyrl' ? 'sr-cyrl' : ($listing['lang'] === 'sr-cyrl' ? 'sr-latn' : $listing['lang']);
-			// Details stay; a new category keeps only the ones it has
-			$attrs = $child['slug'] === $listing['category'] ? $listing['attrs'] : clean_attrs($child['slug'], array_map('attr_input_value', $listing['attrs']), false)[0];
+			// Details stay; a new category or deal keeps only the ones it has (deposit: rentals)
+			$facets = clean_facets($child['slug'], $parent['slug'], $v['city'], $v, false)[0];
+			$attrs = $child['slug'] === $listing['category'] && ($facets['deal'] ?? null) === ($listing['deal'] ?? null) ? $listing['attrs']
+				: clean_attrs($child['slug'], array_map('attr_input_value', $listing['attrs']), false, (string) ($facets['deal'] ?? ''))[0];
 
 			$new = [
 				'title' => $v['title'], 'description' => $v['description'], 'lang' => $lang, 'category' => $child['slug'], 'city' => $v['city'],
 				'price' => $price, 'currency' => $v['currency'], 'negotiable' => $v['negotiable'] && $price !== null,
 				'condition' => $hasCondition ? $v['condition'] : null, 'attrs' => $attrs,
 				'contact' => $v['contact'],
-			] + clean_facets($child['slug'], $parent['slug'], $v['city'], $v, false)[0];
+			] + $facets;
 			staff_save_listing($listing['id'], $new);
 
 			// What changed, for the history

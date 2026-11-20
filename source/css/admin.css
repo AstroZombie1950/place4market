@@ -2596,3 +2596,77 @@ code {
 		height: 120px;
 	}
 }
+
+/* ---------- Characteristics (attributes.php) ---------- */
+
+.attr-tabs {
+	margin-top: var(--space-4);
+}
+
+/* Settings of a type: a fieldset (disabled when hidden) whose legend reads like a section title,
+   not drawn on the section's top rule */
+.fieldset.form-section > legend {
+	float: left;
+	width: 100%;
+	padding: 0;
+}
+
+.fieldset.form-section > legend + * {
+	clear: both;
+}
+
+/* EN / SR / СР names in one row; one under another on phones */
+.attr-names {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--space-2);
+}
+
+.attr-options .input {
+	min-width: 110px;
+}
+
+.attr-options .attr-options__sort,
+.attr-bound .attr-options__sort {
+	width: 72px;
+	min-width: 0;
+}
+
+/* A characteristic of the subcategory: order, name, "remove"; its deals and options below */
+.attr-bound__item {
+	flex-direction: column;
+	align-items: stretch;
+	padding-inline: 0;
+}
+
+.attr-bound__head {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+}
+
+.attr-bound__part {
+	margin-left: calc(72px + var(--space-3));
+}
+
+.attr-bound__checks {
+	flex-wrap: wrap;
+	gap: var(--space-1) var(--space-4);
+}
+
+.attr-add .select {
+	min-width: 0;
+}
+
+@media (max-width: 1023px) {
+	.attr-names {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.attr-bound__part {
+		margin-left: 0;
+	}
+
+	.attr-add {
+		flex-wrap: wrap;
+	}
+}

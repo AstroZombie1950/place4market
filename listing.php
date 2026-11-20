@@ -4,7 +4,6 @@
 	GET: id
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
-require INC_DIR . '/attrs.php';
 
 $listing = find_listing((int) ($_GET['id'] ?? 0));
 

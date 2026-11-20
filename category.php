@@ -1,14 +1,14 @@
 <?php
 /* ==========================================================================
 	Category / search results: filters, sorting, grid or list, pagination
-	GET: cat, q, city, district, deal, type, brand, seller, damaged, financing, build,
+	GET: cat, q, city, district, deal, type, brand, seller, characteristics of the subcategory
+	     marked "in filters" (key = 1 | 0 | option, key_from, key_to: attrs.php),
 	     price_from, price_to, currency, condition, negotiable, agreement, photos, sort, page
 	Human address: /oglasi/<section>/<sub>/<deal>/<kind|brand>/<place>/<district>
 	(route_facets()); a combination approved in landings (016) is a landing page:
 	indexed while it has listings, with its own heading and links to the next ones.
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
-require INC_DIR . '/attrs.php';
 
 // Read filters
 $f = search_filters($_GET);
@@ -23,7 +23,7 @@ if ($f['cat'] !== '' && (!$currentCat || !$currentCat['visible'])) {
 }
 
 // Dictionaries of this page (filter_dictionaries()); a value that does not fit is dropped (→ 301 without it)
-[$deals, $types, $brands, $cityDistricts, $attrFlags, $hasBuild] = filter_dictionaries($f);
+[$deals, $types, $brands, $cityDistricts, $attrFilters] = filter_dictionaries($f);
 $fit = fit_filters($f);
 if ($fit != $f) {
 	redirect(url('category.php', search_query($fit)), 301);
@@ -91,8 +91,11 @@ $chipRemove = [
 	'q' => ['q' => ''], 'city' => ['city' => '', 'district' => ''], 'district' => ['district' => ''], 'price' => ['price_from' => '', 'price_to' => ''],
 	'condition' => ['condition' => ''], 'negotiable' => ['negotiable' => false], 'agreement' => ['agreement' => false], 'photos' => ['photos' => false],
 	'deal' => ['deal' => ''], 'type' => ['type' => ''], 'brand' => ['brand' => ''], 'seller' => ['seller' => ''],
-	'damaged' => ['damaged' => false], 'financing' => ['financing' => false], 'build' => ['build' => ''],
 ];
+// A characteristic's chip ('attr.key') removes that one
+foreach ($f['attrs'] as $key => $value) {
+	$chipRemove['attr.' . $key] = ['attrs' => array_diff_key($f['attrs'], [$key => true])];
+}
 // Condition (new / used): where it applies — on a section page, if any of its subcategories asks it
 // (none of property, jobs, services, holidays: checklist 8.1.2, M1)
 $showCondition = $childCat ? category_has_condition($childCat['slug'])
@@ -125,7 +128,7 @@ if ($hasFacets) {
 // SEO: clean category pages and approved landings (with pagination) are indexed; search, other
 // filters and combinations, sorting and empty pages are not
 $isFiltered = $f['q'] !== '' || $f['price_from'] !== '' || $f['price_to'] !== '' || $f['condition'] !== '' || $f['negotiable'] || $f['agreement']
-	|| $f['photos'] || $f['sort'] !== 'new' || $f['seller'] !== '' || $f['damaged'] || $f['financing'] || $f['build'] !== '' || ($hasFacets && !$landing);
+	|| $f['photos'] || $f['sort'] !== 'new' || $f['seller'] !== '' || $f['attrs'] || ($hasFacets && !$landing);
 
 // Title and description: the landing's own (stage C), a category's from the admin, else the templates.
 // Own texts may hold {count} ("1 234 oglasa"): it follows the listings without editing the text
@@ -317,17 +320,41 @@ require INC_DIR . '/header.php';
 					</fieldset></div>
 					<?php endif; ?>
 
-					<?php if ($hasBuild): ?>
-					<!-- New build or resale (apartments, houses) -->
+					<?php foreach ($attrFilters as $key => $field): if ($field['type'] === 'bool' && !attr_two_sided($field)) continue;
+						$value = $f['attrs'][$key] ?? ''; $fieldId = 'f-a-' . $key; ?>
+					<?php if ($field['type'] === 'bool'): ?>
+					<!-- A switch with two names (new build / resale): any, on, off -->
 					<div class="filters__group"><fieldset class="filters__fieldset">
-						<legend class="filters__title"><?= e(t('a.building')) ?></legend>
+						<legend class="filters__title"><?= e(attr_text($field['row'])) ?></legend>
 						<div class="seg">
-							<?php foreach (['' => 'cat.any', 'new' => 'a.new_build', 'old' => 'v.resale'] as $value => $key): ?>
-							<label class="seg__item"><input type="radio" name="build" value="<?= e($value) ?>"<?= $f['build'] === $value ? ' checked' : '' ?>><span class="seg__label"><?= e(t($key)) ?></span></label>
+							<?php foreach (['' => t('cat.any'), '1' => attr_label($key), '0' => attr_text($field['off'])] as $option => $label): ?>
+							<label class="seg__item"><input type="radio" name="<?= e($key) ?>" value="<?= e((string) $option) ?>"<?= $value === (string) $option ? ' checked' : '' ?>><span class="seg__label"><?= e($label) ?></span></label>
 							<?php endforeach; ?>
 						</div>
 					</fieldset></div>
+					<?php elseif ($field['type'] === 'select'): ?>
+					<div class="filters__group">
+						<label class="filters__title" for="<?= e($fieldId) ?>"><?= e(attr_label($key)) ?></label>
+						<select class="select" id="<?= e($fieldId) ?>" name="<?= e($key) ?>">
+							<option value=""><?= e(t('cat.any')) ?></option>
+							<?php foreach ($field['options'] as $option => $item): if ($item['hidden'] && $value !== (string) $option) continue; ?>
+							<option value="<?= e((string) $option) ?>"<?= $value === (string) $option ? ' selected' : '' ?>><?= e(attr_option_label($field, (string) $option)) ?></option>
+							<?php endforeach; ?>
+						</select>
+					</div>
+					<?php else: $unit = attr_unit($field); ?>
+					<!-- A number: from – to (in the field's unit) -->
+					<div class="filters__group"><fieldset class="filters__fieldset">
+						<legend class="filters__title"><?= e(attr_label($key) . ($unit !== '' ? ', ' . $unit : '')) ?></legend>
+						<div class="filters__price">
+							<label class="visually-hidden" for="<?= e($fieldId) ?>-from"><?= e(attr_label($key) . ': ' . t('cat.price_from')) ?></label>
+							<input class="input" id="<?= e($fieldId) ?>-from" name="<?= e($key) ?>_from" type="text" inputmode="<?= isset($field['step']) ? 'decimal' : 'numeric' ?>" placeholder="<?= e(t('cat.price_from')) ?>" value="<?= e(str_replace('.', ',', $value['from'] ?? '')) ?>">
+							<label class="visually-hidden" for="<?= e($fieldId) ?>-to"><?= e(attr_label($key) . ': ' . t('cat.price_to')) ?></label>
+							<input class="input" id="<?= e($fieldId) ?>-to" name="<?= e($key) ?>_to" type="text" inputmode="<?= isset($field['step']) ? 'decimal' : 'numeric' ?>" placeholder="<?= e(t('cat.price_to')) ?>" value="<?= e(str_replace('.', ',', $value['to'] ?? '')) ?>">
+						</div>
+					</fieldset></div>
 					<?php endif; ?>
+					<?php endforeach; ?>
 
 					<!-- Advertiser -->
 					<div class="filters__group"><fieldset class="filters__fieldset">
@@ -344,8 +371,8 @@ require INC_DIR . '/header.php';
 						<label class="check"><input type="checkbox" name="negotiable" value="1"<?= $f['negotiable'] ? ' checked' : '' ?>><span><?= e(t('cat.only_negotiable')) ?></span></label>
 						<label class="check"><input type="checkbox" name="agreement" value="1"<?= $f['agreement'] ? ' checked' : '' ?>><span><?= e(t('cat.only_agreement')) ?></span></label>
 						<label class="check"><input type="checkbox" name="photos" value="1"<?= $f['photos'] ? ' checked' : '' ?>><span><?= e(t('cat.only_photos')) ?></span></label>
-						<?php foreach ($attrFlags as $flag): ?>
-						<label class="check"><input type="checkbox" name="<?= e($flag) ?>" value="1"<?= $f[$flag] ? ' checked' : '' ?>><span><?= e(t('a.' . $flag)) ?></span></label>
+						<?php foreach ($attrFilters as $key => $field): if ($field['type'] !== 'bool' || attr_two_sided($field)) continue; ?>
+						<label class="check"><input type="checkbox" name="<?= e($key) ?>" value="1"<?= ($f['attrs'][$key] ?? '') === '1' ? ' checked' : '' ?>><span><?= e(attr_label($key)) ?></span></label>
 						<?php endforeach; ?>
 					</div>
 				</div>

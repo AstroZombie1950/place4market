@@ -20,8 +20,10 @@ $navGroups = [
 	at('nav.g_system') => [],
 ];
 
-// Settings, storage & costs, the journal (with errors of the last 24 hours) and migrations (pending ones): admins only
+// Characteristics (in Content, after Categories); settings, storage & costs, the journal (with errors of
+// the last 24 hours) and migrations (pending ones): admins only
 if (is_admin()) {
+	array_splice($navGroups[at('nav.g_content')], 2, 0, [['key' => 'attributes', 'href' => 'attributes.php', 'icon' => 'list', 'label' => at('nav.attributes')]]);
 	$navGroups[at('nav.g_system')][] = ['key' => 'settings', 'href' => 'settings.php', 'icon' => 'settings', 'label' => at('nav.settings')];
 	$navGroups[at('nav.g_system')][] = ['key' => 'usage', 'href' => 'usage.php', 'icon' => 'database', 'label' => at('nav.usage')];
 	$navGroups[at('nav.g_system')][] = ['key' => 'logs', 'href' => 'logs.php?level=warning', 'icon' => 'list', 'label' => at('nav.logs'),

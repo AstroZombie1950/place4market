@@ -654,8 +654,8 @@ function city_count(string $city): int
 /* ---------- Search filters (category.php, saved searches) ---------- */
 
 // Filters from a query (GET, the "save search" form, a saved search): cat, q, city, district, deal,
-// type, brand, seller, damaged, financing, build (new | old: apartments, houses), price_from, price_to,
-// currency, condition, negotiable, agreement (price by agreement only), photos, sort
+// type, brand, seller, attrs (characteristics: attr_filters_from(), params key / key_from / key_to),
+// price_from, price_to, currency, condition, negotiable, agreement (price by agreement only), photos, sort
 function search_filters(array $src): array
 {
 	return [
@@ -667,9 +667,7 @@ function search_filters(array $src): array
 		'type' => preg_match('/^[a-z0-9-]{1,32}$/', (string) ($src['type'] ?? '')) ? $src['type'] : '',
 		'brand' => preg_match('/^[a-z0-9-]{1,32}$/', (string) ($src['brand'] ?? '')) ? $src['brand'] : '',
 		'seller' => in_array($src['seller'] ?? '', SELLER_TYPES, true) ? $src['seller'] : '',
-		'damaged' => !empty($src['damaged']),
-		'financing' => !empty($src['financing']),
-		'build' => in_array($src['build'] ?? '', ['new', 'old'], true) ? $src['build'] : '',
+		'attrs' => attr_filters_from($src),
 		'price_from' => substr(price_digits((string) ($src['price_from'] ?? '')), 0, 12),
 		'price_to' => substr(price_digits((string) ($src['price_to'] ?? '')), 0, 12),
 		'currency' => ($src['currency'] ?? 'RSD') === 'EUR' ? 'EUR' : 'RSD',
@@ -682,48 +680,49 @@ function search_filters(array $src): array
 }
 
 // Dictionaries of a results page by its filters: [deals, kinds, brands of the subcategory (kinds
-// of a section: SECTION_TYPES), districts of the city (real estate), car flags (damaged, financing),
-// whether "new build / resale" applies (apartments, houses)]
+// of a section: SECTION_TYPES), districts of the city (real estate), characteristics offered as
+// filters (a subcategory only; those of the chosen deal)]
 function filter_dictionaries(array $f): array
 {
 	[$parent, $child] = find_category($f['cat'] ?? '');
-	$fields = array_keys(category_attr_fields($child['slug'] ?? ''));
+	$deals = $child ? category_deals($child['slug']) : [];
 
 	return [
-		$child ? category_deals($child['slug']) : [],
+		$deals,
 		$child ? category_types($child['slug']) : ($parent ? section_types($parent['slug'], array_column($parent['children'], 'slug')) : []),
 		$child ? category_brands($child['slug']) : [],
 		$parent && in_array($parent['slug'], DISTRICT_SECTIONS, true) ? districts()[$f['city'] ?? ''] ?? [] : [],
-		array_values(array_intersect(['damaged', 'financing'], $fields)),
-		in_array('new_build', $fields, true),
+		$child ? attr_filter_fields($child['slug'], in_array($f['deal'] ?? '', $deals, true) ? $f['deal'] : '') : [],
 	];
 }
 
 // The filters with what does not fit their category dropped: a deal, kind or brand of another
-// category, a district outside real estate, car flags elsewhere. category.php answers an address
+// category, a district outside real estate, characteristics of another subcategory or deal. category.php answers an address
 // with such a value by a 301 without it; links to other categories (the list on the left) are
 // built through it, so they lead straight to the page and count what it shows (audit A31)
 function fit_filters(array $f): array
 {
-	[$deals, $types, $brands, $districts, $flags, $build] = filter_dictionaries($f);
+	[$deals, $types, $brands, $districts] = filter_dictionaries($f);
+	[, $child] = find_category($f['cat'] ?? '');
+	$deal = in_array($f['deal'] ?? '', $deals, true) ? $f['deal'] : '';
 
 	return array_merge($f, [
-		'deal' => in_array($f['deal'] ?? '', $deals, true) ? $f['deal'] : '',
+		'deal' => $deal,
 		'type' => isset($types[$f['type'] ?? '']) ? $f['type'] : '',
 		'brand' => isset($brands[$f['brand'] ?? '']) || ($brands && ($f['brand'] ?? '') === 'other') ? $f['brand'] : '',
 		'city' => city_by_input($f['city'] ?? '') ?? '',
 		'district' => in_array($f['district'] ?? '', array_column($districts, 'latn'), true) ? $f['district'] : '',
-		'damaged' => !empty($f['damaged']) && in_array('damaged', $flags, true),
-		'financing' => !empty($f['financing']) && in_array('financing', $flags, true),
-		'build' => $build && in_array($f['build'] ?? '', ['new', 'old'], true) ? $f['build'] : '',
+		'attrs' => attr_filters_fit($f['attrs'] ?? [], $child['slug'] ?? '', $deal),
 	]);
 }
 
 // Query string params of a search: defaults and empty values left out (no page)
 function search_query(array $f): array
 {
-	$params = $f;
-	foreach (['negotiable', 'agreement', 'photos', 'damaged', 'financing'] as $flag) {
+	// Characteristics take the place of 'attrs' (before the price: the order of the form)
+	$at = array_search('attrs', array_keys($f), true);
+	$params = $at === false ? $f : array_slice($f, 0, $at) + attr_filters_query($f['attrs']) + array_slice($f, $at + 1);
+	foreach (['negotiable', 'agreement', 'photos'] as $flag) {
 		$params[$flag] = !empty($f[$flag]) ? 1 : null;
 	}
 	if (($f['sort'] ?? 'new') === 'new') {
@@ -776,15 +775,7 @@ function search_filter_labels(array $f): array
 	if (($f['seller'] ?? '') !== '') {
 		$labels['seller'] = t('seller.' . $f['seller']);
 	}
-	if (!empty($f['damaged'])) {
-		$labels['damaged'] = t('a.damaged');
-	}
-	if (!empty($f['financing'])) {
-		$labels['financing'] = t('a.financing');
-	}
-	if (($f['build'] ?? '') !== '') {
-		$labels['build'] = t($f['build'] === 'new' ? 'a.new_build' : 'v.resale');
-	}
+	$labels += attr_filters_labels($f['attrs'] ?? []);
 	if ($f['price_from'] !== '' || $f['price_to'] !== '') {
 		$from = $f['price_from'] !== '' ? price_text((int) $f['price_from'], $f['currency']) : '';
 		$to = $f['price_to'] !== '' ? price_text((int) $f['price_to'], $f['currency']) : '';

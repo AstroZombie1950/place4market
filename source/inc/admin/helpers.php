@@ -372,6 +372,8 @@ function audit_line(array $entry): array
 		'report' => '#' . ($c['report_id'] ?? ''),
 		'message' => '#' . ($c['contact_id'] ?? ''),
 		'id' => (string) ($c['landing_id'] ?? $c['category_id'] ?? ''),
+		// A characteristic (its code), the subcategory of its set (slug)
+		'code' => (string) ($c['code'] ?? $c['slug'] ?? ''),
 		'count' => (string) ($c['count'] ?? ''),
 		'size' => isset($c['bytes']) ? format_bytes((int) $c['bytes']) : '',
 		// A landing's "title" is its SEO title, not a listing title
@@ -414,6 +416,8 @@ function audit_line(array $entry): array
 		'admin.category_create', 'admin.category_update', 'admin.category_hide', 'admin.category_show', 'admin.category_delete'
 			=> ['moderation', 'layers', substr($entry['action'], 6)],
 		'admin.landing_update', 'admin.landing_hide', 'admin.landing_show' => ['moderation', 'filter', substr($entry['action'], 6)],
+		'admin.attribute_create', 'admin.attribute_update', 'admin.attribute_delete', 'admin.category_attributes'
+			=> ['moderation', 'list', substr($entry['action'], 6)],
 		'auth.login' => ['user', 'user', 'login'],
 		'auth.password_changed', 'auth.password_reset' => ['user', 'lock', 'password'],
 		'account.update' => ['user', 'edit', 'account_update'],
@@ -436,6 +440,11 @@ function audit_line(array $entry): array
 		'report.resolve' => ' (' . (report_resolutions()[$c['resolution'] ?? ''] ?? '—') . ')',
 		'listing.staff_photos' => '',
 		'admin.user_update' => $tail($p['fields']) . (isset($c['role']) ? ' (' . role_name($c['role']) . ')' : ''),
+		// "+ deposit, contract; − floor"
+		'admin.category_attributes' => $tail(implode('; ', array_filter([
+			isset($c['added']) ? '+ ' . implode(', ', $c['added']) : '', isset($c['removed']) ? '− ' . implode(', ', $c['removed']) : '',
+			!empty($c['changed']) ? at('audit.attrs_changed') : '', isset($c['condition']) ? at($c['condition'] ? 'audit.condition_on' : 'audit.condition_off') : '',
+		]))),
 		default => isset($c['fields']) ? $tail($p['fields']) : '',
 	};
 	if ($entry['action'] === 'listing.staff_photos' && ($c['op'] ?? '') === 'add') {

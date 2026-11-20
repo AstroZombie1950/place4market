@@ -440,3 +440,6 @@ const DEAL_H1 = [
 	'garages' => ['sale' => ['Prodaja garaža i parking mesta', 'Garages for sale'], 'rent' => ['Izdavanje garaža i parking mesta', 'Garages for rent']],
 	'rooms' => ['rent' => ['Izdavanje soba', 'Rooms for rent'], 'daily' => ['Sobe na dan', 'Rooms for daily rent']],
 ];
+
+// Details of a subcategory (characteristics: database, admin → Characteristics)
+require_once __DIR__ . '/attrs.php';

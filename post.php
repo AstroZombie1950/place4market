@@ -14,7 +14,6 @@
 	========================================================================== */
 require __DIR__ . '/source/inc/bootstrap.php';
 require INC_DIR . '/media.php';
-require INC_DIR . '/attrs.php';
 require INC_DIR . '/video.php';
 
 $me = require_login();
@@ -91,8 +90,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$price = (int) $v['price'];
 	$isDraft = ($_POST['action'] ?? '') === 'draft' && $isNew;
 	$hasCondition = $child && category_has_condition($child['slug']);
-	[$attrs, $attrError] = $child ? clean_attrs($child['slug'], $v['attrs'], !$isDraft) : [[], ''];
 	[$facets, $facetError] = $child ? clean_facets($child['slug'], $parent['slug'], $v['city'], $v, !$isDraft) : [[], ''];
+	// Details of the chosen deal only (deposit, contract: rentals)
+	[$attrs, $attrError] = $child ? clean_attrs($child['slug'], $v['attrs'], !$isDraft, (string) ($facets['deal'] ?? '')) : [[], ''];
 	// A new listing row (a draft or sent at once) counts against RATE_LIMITS['listing_new']; edits do not
 	$newRow = $editId === null && !is_staff();
 	$limited = $newRow && rate_limited('listing_new', (string) $me['id']);
@@ -184,7 +184,7 @@ function needs_moderation(array $editing, array $v, array $attrs, array $facets,
 {
 	// The stored values the way the form sends them: older rows may keep extra spaces or \r\n in the texts
 	// and details as typed ("168 000 km" instead of 168000, N1) — passed through the form's own cleaning
-	[$wasAttrs] = clean_attrs($editing['category'], array_map('attr_input_value', $editing['attrs'] ?? []), false);
+	[$wasAttrs] = clean_attrs($editing['category'], array_map('attr_input_value', $editing['attrs'] ?? []), false, (string) ($editing['deal'] ?? ''));
 	$was = [
 		$editing['category'], trim(preg_replace('/\s+/u', ' ', $editing['title'])), trim(str_replace("\r\n", "\n", $editing['description'])),
 		$editing['condition'], $wasAttrs,
@@ -285,7 +285,7 @@ foreach ($visibleSubs as $slug) {
 		$dealSets[implode(' ', $deals)][] = $slug;
 	}
 	if ($fields = category_attr_fields($slug)) {
-		$attrSets[json_encode(array_keys($fields)) . json_encode(CATEGORY_ATTRS[$slug]['fields'])][] = $slug;
+		$attrSets[json_encode($fields)][] = $slug;
 	}
 }
 $districtSubs = [];
@@ -339,7 +339,7 @@ require INC_DIR . '/header.php';
 					</div>
 					<div class="field">
 						<label class="field__label" for="p-subcategory"><?= e(t('post.subcategory')) ?></label>
-						<select class="select" id="p-subcategory" name="subcategory" required disabled data-subcategory-select data-selected="<?= e($v['subcategory']) ?>" data-no-condition="<?= attr_json(array_keys(array_filter(CATEGORY_ATTRS, fn($set) => ($set['condition'] ?? true) === false))) ?>">
+						<select class="select" id="p-subcategory" name="subcategory" required disabled data-subcategory-select data-selected="<?= e($v['subcategory']) ?>" data-no-condition="<?= attr_json(array_values(array_filter($visibleSubs, fn($slug) => !category_has_condition($slug)))) ?>">
 							<option value="" data-choose="<?= e(t('post.choose')) ?>" data-empty="<?= e(t('post.choose_category_first')) ?>"><?= e(t('post.choose_category_first')) ?></option>
 						</select>
 					</div>
@@ -385,7 +385,7 @@ require INC_DIR . '/header.php';
 					<!-- Model: a detail (attrs.php) asked right after the brand -->
 					<?php if ($modelSubs): $on = $shown($modelSubs); ?>
 					<fieldset class="field filters__fieldset" data-for="<?= $for($modelSubs) ?>"<?= $on ? '' : ' disabled hidden' ?>>
-						<label class="field__label" for="p-model"><?= e(t('a.model')) ?></label>
+						<label class="field__label" for="p-model"><?= e(attr_label('model')) ?></label>
 						<input class="input" id="p-model" name="attrs[model]" type="text" maxlength="<?= (int) attr_fields()['model']['max'] ?>" value="<?= e($on ? (string) ($v['attrs']['model'] ?? '') : '') ?>">
 					</fieldset>
 					<?php endif; ?>
@@ -424,7 +424,8 @@ require INC_DIR . '/header.php';
 						</div>
 					</fieldset>
 
-					<!-- Details of the chosen subcategory (main.js shows one set, the others are disabled) -->
+					<!-- Details of the chosen subcategory (main.js shows one set, the others are disabled); a detail
+					     of some deals only ([data-deals]: deposit, contract — rentals) follows the chosen deal -->
 					<?php foreach (array_values($attrSets) as $setIndex => $slugs): $slug = $slugs[0]; $on = $shown($slugs); ?>
 					<fieldset class="field--full filters__fieldset attrs" data-for="<?= $for($slugs) ?>"<?= $on ? '' : ' disabled hidden' ?>>
 						<legend class="visually-hidden"><?= e(t('post.f_attrs')) ?></legend>
@@ -433,29 +434,33 @@ require INC_DIR . '/header.php';
 								if ($key === 'model') continue;
 								$fieldId = 'a-' . $setIndex . '-' . $key;
 								$value = $on ? (string) ($v['attrs'][$key] ?? '') : '';
-								$unit = $field['unit'] ?? '';
-								$label = t('a.' . $key) . ($unit !== '' ? ', ' . (str_starts_with($unit, 'u.') ? t($unit) : $unit) : '');
+								$unit = $field['type'] === 'number' ? attr_unit($field) : '';
+								$label = attr_label($key) . ($unit !== '' ? ', ' . $unit : '');
+								// Shown with these deals only: a fieldset, so a hidden one sends nothing
+								$dealOn = !$field['deals'] || in_array($v['deal'], $field['deals'], true);
+								$wrap = $field['deals'] ? '<fieldset class="field filters__fieldset' . ($field['type'] === 'bool' ? ' field--end' : '') . '" data-deals="' . e(implode(' ', $field['deals'])) . '"' . ($dealOn ? '' : ' disabled hidden') . '>' : null;
 							?>
+							<?= $wrap ?? '' ?>
 							<?php if ($field['type'] === 'bool' && !empty($field['switch'])): ?>
 							<!-- A switch: new build (on) or resale (off), M2 -->
-							<div class="field field--end">
+							<?php if (!$wrap): ?><div class="field field--end"><?php endif; ?>
 								<label class="switch">
 									<input type="checkbox" role="switch" id="<?= e($fieldId) ?>" name="attrs[<?= e($key) ?>]" value="1"<?= $value === '1' ? ' checked' : '' ?>>
 									<span class="switch__text"><span class="switch__title"><?= e($label) ?></span></span>
 								</label>
-							</div>
+							<?= $wrap ? '</fieldset>' : '</div>' ?>
 							<?php continue; elseif ($field['type'] === 'bool'): ?>
-							<div class="field field--end">
+							<?php if (!$wrap): ?><div class="field field--end"><?php endif; ?>
 								<label class="check"><input type="checkbox" id="<?= e($fieldId) ?>" name="attrs[<?= e($key) ?>]" value="1"<?= $value === '1' ? ' checked' : '' ?>><span><?= e($label) ?></span></label>
-							</div>
+							<?= $wrap ? '</fieldset>' : '</div>' ?>
 							<?php continue; endif; ?>
-							<div class="field">
+							<?php if (!$wrap): ?><div class="field"><?php endif; ?>
 								<label class="field__label" for="<?= e($fieldId) ?>"><?= e($label) ?></label>
 								<?php if ($field['type'] === 'select'): ?>
 								<select class="select" id="<?= e($fieldId) ?>" name="attrs[<?= e($key) ?>]">
 									<option value="">—</option>
-									<?php foreach ($field['options'] as $option): ?>
-									<option value="<?= e($option) ?>"<?= $option === $value ? ' selected' : '' ?>><?= e(empty($field['raw']) ? t('v.' . $option) : $option) ?></option>
+									<?php foreach ($field['options'] as $option => $item): $option = (string) $option; if ($item['hidden'] && $option !== $value) continue; ?>
+									<option value="<?= e($option) ?>"<?= $option === $value ? ' selected' : '' ?>><?= e(attr_option_label($field, $option)) ?></option>
 									<?php endforeach; ?>
 								</select>
 								<?php elseif ($field['type'] === 'number'): ?>
@@ -467,7 +472,7 @@ require INC_DIR . '/header.php';
 								<?php else: ?>
 								<input class="input" id="<?= e($fieldId) ?>" name="attrs[<?= e($key) ?>]" type="text" maxlength="<?= (int) $field['max'] ?>" value="<?= e($value) ?>">
 								<?php endif; ?>
-							</div>
+							<?= $wrap ? '</fieldset>' : '</div>' ?>
 							<?php endforeach; ?>
 						</div>
 					</fieldset>

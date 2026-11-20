@@ -1296,7 +1296,8 @@
 		  video_ids[]; not while a file is still being prepared or sent
 		- [data-subcategory-select] data-selected: subcategory chosen on load
 		- blocks of some subcategories: [data-for="slug slug…"], a district block
-		  also [data-city] = the address word of its city, typed in [data-city-input]
+		  also [data-city] = the address word of its city, typed in [data-city-input];
+		  a detail of some deals only: [data-deals="rent daily"] (follows the checked deal)
 		- live preview: inputs [data-bind="…"] → [data-preview="…"]
 		---------------------------------------------------------------------- */
 	const initPostForm = () => {
@@ -1356,6 +1357,15 @@
 				const radios = $$('input[type="radio"][name="deal"]', set);
 				if (on && radios.length && !radios.some((radio) => radio.checked)) radios[0].checked = true;
 			});
+			// Details of some deals only [data-deals="rent daily"] (deposit, contract): the deal checked
+			// in the shown set; without a deal (not real estate) they stay hidden
+			const dealRadio = $$('input[type="radio"][name="deal"]:checked', form).find((radio) => !radio.closest('[data-for]').hidden);
+			const deal = dealRadio ? dealRadio.value : '';
+			$$('[data-deals]', form).forEach((el) => {
+				const on = el.dataset.deals.split(' ').includes(deal);
+				el.hidden = !on;
+				el.disabled = !on;
+			});
 			if (conditionField) {
 				// Asked only once a subcategory that has it is chosen (M1)
 				const off = !subSelect.value || noCondition.includes(subSelect.value);
@@ -1370,6 +1380,7 @@
 				toggleAttrs();
 			});
 			subSelect.addEventListener('change', toggleAttrs);
+			form.addEventListener('change', (event) => { if (event.target.name === 'deal') toggleAttrs(); });
 			if (cityInput) cityInput.addEventListener('input', toggleAttrs);
 			fillSubcats();
 			toggleAttrs();

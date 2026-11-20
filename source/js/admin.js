@@ -560,6 +560,29 @@
 		});
 	};
 
+	/* ----------------------------------------------------------------------
+		Characteristic form (attributes.php): a new one's type [data-attr-type]
+		shows its settings [data-type-settings="…"] (the others hidden and
+		disabled, so they send nothing); a text is never a filter
+		---------------------------------------------------------------------- */
+	const initAttrForm = () => {
+		$$('[data-attr-form]').forEach((form) => {
+			const type = $('[data-attr-type]', form);
+			if (!type) return;
+			const filter = $('[data-filter-switch]', form);
+			const update = () => {
+				$$('[data-type-settings]', form).forEach((block) => {
+					const on = block.dataset.typeSettings === type.value;
+					block.hidden = !on;
+					block.disabled = !on;
+				});
+				if (filter) filter.hidden = type.value === 'text';
+			};
+			type.addEventListener('change', update);
+			update();
+		});
+	};
+
 	/* ---------- Init ---------- */
 	window.AdminUI = { toast };
 
@@ -570,6 +593,7 @@
 	initModals();
 	initConfirm();
 	initFacets();
+	initAttrForm();
 	initTree();
 	initForms();
 })();
